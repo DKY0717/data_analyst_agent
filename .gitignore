@@ -1,0 +1,21 @@
+# IDE
+.idea/
+.vscode/
+
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Database
+*.duckdb
+*.duckdb.wal
+
+# Logs
+*.log
+logs/
+
+# Data
+data/

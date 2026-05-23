@@ -6,5 +6,6 @@ sqlglot==20.0.0
 duckdb==0.9.2
 httpx==0.25.2
 python-dotenv==1.0.0
+langgraph==0.2.0
 pytest==7.4.3
 pytest-asyncio==0.23.2
