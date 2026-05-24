@@ -5,9 +5,9 @@ import duckdb
 from contextlib import contextmanager
 from pathlib import Path
 
-from app.config import settings
-from app.utils.logger import logger
-from app.utils.exceptions import DatabaseError
+from ..config import settings
+from ..utils.logger import logger
+from ..utils.exceptions import DatabaseError
 
 class DatabaseConnection:
     """数据库连接管理器"""
