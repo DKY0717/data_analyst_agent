@@ -126,3 +126,4 @@ Project-specific skills live in `skills/`. Read the relevant SKILL.md before wor
 | `comment-key-steps` | Writing any new code file — add Chinese comments at key steps for learning |
 | `verify-after-write` | After writing any new code — run minimal verification before committing |
 | `work-diary` | Starting/ending a session — read and update `logs/work-diary.md` for continuity |
+| `ecc-guide` | Guide users through ECC's current agents, skills, commands, hooks, rules, install profiles, and project onboarding |
