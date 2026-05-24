@@ -70,6 +70,15 @@
 - 修复：测试文件和logger.py的导入方式
 - Commit: `3308022`
 
+**Task 8: SQL安全校验** ✅
+- 创建了 `backend/app/security/sql_guard.py`
+- 创建了 `backend/tests/test_sql_guard.py` 测试文件
+- 使用SQLGlot进行SQL AST解析
+- 支持SELECT、WITH语句，禁止DROP、DELETE、UPDATE等
+- 自动添加LIMIT限制
+- 添加了中文注释说明各功能模块
+- Commit: `e9a2953`
+
 ### 遗留问题
 
 - Task 3 的 spec compliance review 和 code quality review 被跳过，用户明确指出这是不对的
@@ -100,11 +109,12 @@
 - ✅ Task 5: Pydantic模型
 - ✅ Task 6: 数据库连接管理
 - ✅ Task 7: Schema加载器
-- ⏸️ Task 8-20: 待开始
+- ✅ Task 8: SQL安全校验
+- ⏸️ Task 9-20: 待开始
 
 ### 下一步
 
-- 完成 Task 8: SQL Guard（backend/app/security/sql_guard.py）
+- 完成 Task 9: Query Runner（backend/app/db/query_runner.py）
 - 按照 subagent-driven development 流程执行
 - 必须完成 spec review + code quality review
 - 写完代码后验证再 commit
