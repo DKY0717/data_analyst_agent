@@ -3,7 +3,7 @@ import sys
 from logging.handlers import RotatingFileHandler  # 滚动文件处理器，当日志文件达到指定大小时自动轮转
 from pathlib import Path
 
-from app.config import settings  # 从配置模块导入全局配置对象
+from ..config import settings  # 从配置模块导入全局配置对象
 
 def setup_logging() -> logging.Logger:
     """配置应用程序的日志系统
