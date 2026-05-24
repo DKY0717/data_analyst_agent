@@ -48,6 +48,16 @@
 - 修复：为所有模型字段添加中文注释说明字段含义
 - Commit: `5c5a0ca`
 
+**Task 6: 数据库连接管理** ✅
+- 创建了 `backend/app/db/connection.py`
+- 实现了DatabaseConnection类管理DuckDB连接
+- 提供了get_connection、close、get_session等方法
+- 添加了FastAPI依赖注入函数get_db
+- 包含中文注释说明各功能模块
+- Commit: `16aa6db`
+- 修复：将绝对导入改为相对导入，解决IDE无法识别app模块的问题
+- Commit: `789eac8`
+
 ### 遗留问题
 
 - Task 3 的 spec compliance review 和 code quality review 被跳过，用户明确指出这是不对的
@@ -76,7 +86,8 @@
 - ✅ Task 3: 日志配置
 - ✅ Task 4: 自定义异常
 - ✅ Task 5: Pydantic模型
-- ⏸️ Task 6-20: 待开始
+- ✅ Task 6: 数据库连接管理
+- ⏸️ Task 7-20: 待开始
 
 ### 下一步
 
