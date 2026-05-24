@@ -15,7 +15,8 @@ __pycache__/
 
 # Logs
 *.log
-logs/
+logs/*
+!logs/work-diary.md
 
 # Data
 data/
