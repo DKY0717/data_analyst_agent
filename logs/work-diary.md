@@ -58,6 +58,14 @@
 - 修复：将绝对导入改为相对导入，解决IDE无法识别app模块的问题
 - Commit: `789eac8`
 
+**Task 7: Schema加载器** ✅
+- 创建了 `backend/app/db/schema_loader.py`
+- 创建了 `backend/tests/test_schema_loader.py` 测试文件
+- 创建了 `database/init.sql` 数据库初始化脚本
+- 实现了 get_tables、get_table_schema、get_full_schema 方法
+- 添加了中文注释说明各功能模块
+- Commit: `3b86cef`
+
 ### 遗留问题
 
 - Task 3 的 spec compliance review 和 code quality review 被跳过，用户明确指出这是不对的
@@ -87,11 +95,12 @@
 - ✅ Task 4: 自定义异常
 - ✅ Task 5: Pydantic模型
 - ✅ Task 6: 数据库连接管理
-- ⏸️ Task 7-20: 待开始
+- ✅ Task 7: Schema加载器
+- ⏸️ Task 8-20: 待开始
 
 ### 下一步
 
-- 完成 Task 6: 数据库连接管理（backend/app/db/connection.py）
+- 完成 Task 8: SQL Guard（backend/app/security/sql_guard.py）
 - 按照 subagent-driven development 流程执行
 - 必须完成 spec review + code quality review
 - 写完代码后验证再 commit
