@@ -65,6 +65,10 @@
 - 实现了 get_tables、get_table_schema、get_full_schema 方法
 - 添加了中文注释说明各功能模块
 - Commit: `3b86cef`
+- 修正：init.sql 与 design.md 保持一致（DECIMAL精度、VARCHAR长度、NOT NULL约束）
+- Commit: `42bf259`
+- 修复：测试文件和logger.py的导入方式
+- Commit: `3308022`
 
 ### 遗留问题
 
