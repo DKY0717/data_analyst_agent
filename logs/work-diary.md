@@ -38,6 +38,14 @@
 - 添加了中文注释说明每个异常类的用途
 - Commit: `64dd210`
 
+**Task 5: Pydantic模型** ✅
+- 创建了 `backend/app/models/schemas.py`
+- 定义了请求模型：QueryRequest、SQLValidateRequest、SQLExecuteRequest
+- 定义了响应模型：SuccessResponse、ErrorResponse、QueryResponse等
+- 定义了Agent内部模型：SQLGeneratorOutput、SQLRepairOutput、AgentState
+- 添加了中文注释说明每个模型的用途
+- Commit: `90b2db0`
+
 ### 遗留问题
 
 - Task 3 的 spec compliance review 和 code quality review 被跳过，用户明确指出这是不对的
@@ -65,11 +73,12 @@
 - ✅ Task 2: 配置管理
 - ✅ Task 3: 日志配置
 - ✅ Task 4: 自定义异常
-- ⏸️ Task 5-20: 待开始
+- ✅ Task 5: Pydantic模型
+- ⏸️ Task 6-20: 待开始
 
 ### 下一步
 
-- 完成 Task 5: Pydantic 模型（backend/app/models/schemas.py）
+- 完成 Task 6: 数据库连接管理（backend/app/db/connection.py）
 - 按照 subagent-driven development 流程执行
 - 必须完成 spec review + code quality review
 - 写完代码后验证再 commit
