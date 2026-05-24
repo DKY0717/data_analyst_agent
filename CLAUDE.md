@@ -112,3 +112,17 @@ Copy `.env.example` to `.env`. Required:
 - Development spec (Chinese): `docs/data_analyst_agent_开发文档_v_0_2.md`
 - Database design: `docs/database_design_md.md`
 - Implementation plan: `docs/superpowers/plans/2024-12-23-data-analyst-agent-implementation.md`
+
+## Project Skills
+
+Project-specific skills live in `skills/`. Read the relevant SKILL.md before working on the corresponding area:
+
+| Skill | When to Read |
+|-------|-------------|
+| `sql-safety-rules` | Writing/modifying SQL Guard, SQL generation prompts, or SQL execution code |
+| `qwen-api-patterns` | Writing/modifying code that calls Qwen API (LLM service, agents) |
+| `agent-workflow-constraints` | Writing/modifying LangGraph agent code, workflow graph, or agent state |
+| `ecommerce-schema` | Writing SQL queries, schema loader code, seed data, or test fixtures |
+| `comment-key-steps` | Writing any new code file — add Chinese comments at key steps for learning |
+| `verify-after-write` | After writing any new code — run minimal verification before committing |
+| `work-diary` | Starting/ending a session — read and update `logs/work-diary.md` for continuity |
