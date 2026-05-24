@@ -45,6 +45,8 @@
 - 定义了Agent内部模型：SQLGeneratorOutput、SQLRepairOutput、AgentState
 - 添加了中文注释说明每个模型的用途
 - Commit: `90b2db0`
+- 修复：为所有模型字段添加中文注释说明字段含义
+- Commit: `5c5a0ca`
 
 ### 遗留问题
 
