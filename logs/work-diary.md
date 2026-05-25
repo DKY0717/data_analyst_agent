@@ -139,12 +139,13 @@
 
 - ✅ 前端界面方向已确认
 - ✅ 前端设计文档已完成
+- ✅ 前端实现计划已完成：`docs/superpowers/plans/2026-05-25-frontend-workbench-implementation.md`
 - ⏸️ 前端实现待开始
 
 ### 下一步
 
-- 用户 review 前端设计文档。
-- 获得确认后，创建前端实现计划。
+- 用户 review 前端实现计划。
+- 选择 Subagent-Driven 或 Inline Execution 执行方式。
 - 实现前端前需要读取 `comment-key-steps` 和 `verify-after-write`。
 
 ### 用户偏好
