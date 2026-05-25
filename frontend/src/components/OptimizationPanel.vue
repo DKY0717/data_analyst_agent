@@ -10,7 +10,7 @@
     <div class="execution-grid">
       <div>
         <span>执行耗时</span>
-        <strong>{{ result?.execution_time_ms ?? '-' }}ms</strong>
+        <strong>{{ executionTime }}</strong>
       </div>
       <div>
         <span>retry</span>
@@ -36,4 +36,7 @@ const props = defineProps({
 })
 
 const suggestions = computed(() => props.result?.optimization_suggestions || [])
+const executionTime = computed(() =>
+  props.result?.execution_time_ms === undefined ? '-' : `${props.result.execution_time_ms}ms`,
+)
 </script>

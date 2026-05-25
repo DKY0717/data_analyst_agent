@@ -7,7 +7,7 @@
       </div>
       <div class="status-group">
         <el-tag type="success" effect="light">DuckDB 已连接</el-tag>
-        <el-tag type="success" effect="light">Backend Ready</el-tag>
+        <el-tag type="warning" effect="light">Mock 兜底已启用</el-tag>
       </div>
     </header>
 

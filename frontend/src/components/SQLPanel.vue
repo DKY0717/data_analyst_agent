@@ -5,8 +5,8 @@
         <h2 class="panel-title">生成 SQL</h2>
         <p class="panel-subtitle">LLM 生成后经过 SQL Guard 校验。</p>
       </div>
-      <el-tag :type="result?.is_sql_safe ? 'success' : 'danger'" effect="light">
-        {{ result?.is_sql_safe ? 'SQL 安全通过' : 'SQL 未通过' }}
+      <el-tag :type="statusType" effect="light">
+        {{ statusText }}
       </el-tag>
     </div>
 
@@ -15,10 +15,22 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   result: {
     type: Object,
     default: null,
   },
+})
+
+const statusType = computed(() => {
+  if (!props.result) return 'info'
+  return props.result.is_sql_safe ? 'success' : 'danger'
+})
+
+const statusText = computed(() => {
+  if (!props.result) return '等待生成'
+  return props.result.is_sql_safe ? 'SQL 安全通过' : 'SQL 未通过'
 })
 </script>
