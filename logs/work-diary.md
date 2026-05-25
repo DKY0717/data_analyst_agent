@@ -157,6 +157,44 @@
 
 ---
 
+## 2026-05-25 — 第五次会话
+
+### 完成的工作
+
+**前端工作台实现** ✅
+- 创建分支：`codex/frontend-workbench`。
+- 搭建 Vue 3 + Vite + Element Plus + Pinia + Axios + ECharts 前端工程。
+- 实现 `frontend/src/api/agent.js`，支持 `/api/chat/query` 调用和 mock 数据兜底。
+- 实现 `frontend/src/stores/query.js`，管理 question、loading、result、error、history。
+- 实现工作台组件：自然语言输入、示例问题、查询历史、Schema 简览、结果解释、图表、结果表格、SQL 面板和优化建议面板。
+- 组合三栏工作台页面，视觉方向对齐“现代 AI 数据分析工作台”。
+- 运行 `npm run build` 通过；浏览器打开 `http://localhost:3000` 验证页面可渲染，控制台无 error。
+- Commits:
+  - `ab731a2` feat: scaffold Vue frontend
+  - `73c20ff` feat: add frontend query state
+  - `7230d1d` feat: add workbench sidebar components
+  - `a3c9fcf` feat: add analysis result components
+  - `76d716b` feat: compose frontend workbench
+  - `a716391` feat: compose frontend workbench
+
+### 遗留问题
+
+- 当前后端 `/api/chat/query` 尚未完整联调，前端会使用 mock fallback。
+- Vite build 存在 chunk size 警告，主要来自 Element Plus + ECharts，第一版可接受，后续可做按需加载优化。
+- 查询历史第一版仅前端内存保存。
+
+### 当前进度
+
+- ✅ 前端第一版工作台已完成
+- ⏳ 等后端 Agent/API 完整后进行真实接口联调
+
+### 下一步
+
+- 后端完成 `/api/chat/query` 后，使用真实响应验证 SQL、表格、图表和优化建议展示。
+- 如需减少前端包体，可引入 Element Plus 按需导入和 ECharts 动态加载。
+
+---
+
 ## 2026-05-25 — 第三次会话
 
 ### 完成的工作
