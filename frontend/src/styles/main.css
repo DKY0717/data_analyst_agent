@@ -61,3 +61,282 @@ textarea {
   color: var(--color-muted);
   font-size: 12px;
 }
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 auto 18px;
+  max-width: 1480px;
+}
+
+.topbar h1 {
+  margin: 2px 0 0;
+  color: #101828;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.eyebrow {
+  color: var(--color-primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.status-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(520px, 1fr) minmax(280px, 360px);
+  gap: 16px;
+  align-items: start;
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.left-column,
+.center-column,
+.right-column {
+  display: grid;
+  gap: 16px;
+}
+
+.query-body,
+.answer-content {
+  padding: 16px 18px 18px;
+}
+
+.submit-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.compact-panel {
+  overflow: hidden;
+}
+
+.chip-list,
+.history-list,
+.schema-list {
+  display: grid;
+  gap: 8px;
+  padding: 14px 18px 18px;
+}
+
+.question-chip,
+.history-item {
+  width: 100%;
+  border: 1px solid #e4e9f2;
+  border-radius: 8px;
+  background: #f9fbff;
+  color: #26364f;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.question-chip {
+  padding: 9px 10px;
+  font-size: 13px;
+}
+
+.question-chip:hover,
+.history-item:hover {
+  border-color: rgba(31, 157, 138, 0.5);
+  background: #f0fbf8;
+}
+
+.history-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.history-item span {
+  color: #26364f;
+  font-size: 13px;
+}
+
+.history-item small {
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.schema-item {
+  border-bottom: 1px solid #edf1f7;
+  padding-bottom: 8px;
+}
+
+.schema-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.schema-item div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.schema-item strong {
+  color: #172033;
+  font-size: 13px;
+}
+
+.schema-item span,
+.schema-item p {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.schema-item p {
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+
+.answer-text {
+  margin: 0;
+  color: #172033;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.metric-card {
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcff;
+}
+
+.metric-card span,
+.execution-grid span {
+  display: block;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.metric-card strong,
+.execution-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: #101828;
+  font-size: 18px;
+}
+
+.chart-canvas {
+  width: 100%;
+  height: 320px;
+  padding: 8px;
+}
+
+.table-panel {
+  overflow: hidden;
+}
+
+.empty-state,
+.empty-small {
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.empty-state {
+  padding: 48px 20px;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px;
+  color: #172033;
+}
+
+.empty-small {
+  padding: 18px;
+  font-size: 13px;
+}
+
+.sql-block {
+  margin: 16px 18px 18px;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid #e4e9f2;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #23344e;
+  padding: 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.execution-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 16px 18px 0;
+}
+
+.execution-grid div {
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcff;
+}
+
+.suggestion-list {
+  margin: 12px 18px 18px;
+  padding-left: 18px;
+  color: #344054;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1180px) {
+  .workbench-grid {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+
+  .right-column {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .app-shell {
+    padding: 16px;
+  }
+
+  .topbar,
+  .workbench-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .right-column {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-row {
+    grid-template-columns: 1fr;
+  }
+}
