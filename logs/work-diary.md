@@ -169,6 +169,7 @@
 - 实现工作台组件：自然语言输入、示例问题、查询历史、Schema 简览、结果解释、图表、结果表格、SQL 面板和优化建议面板。
 - 组合三栏工作台页面，视觉方向对齐“现代 AI 数据分析工作台”。
 - 运行 `npm run build` 通过；浏览器打开 `http://localhost:3000` 验证页面可渲染，控制台无 error。
+- 根据用户学习需求新增说明文档：`docs/frontend_workbench_development_notes.md`，记录本次前端开发做了什么、文件作用、验证方式和推荐学习顺序。
 - Commits:
   - `ab731a2` feat: scaffold Vue frontend
   - `73c20ff` feat: add frontend query state
@@ -176,6 +177,7 @@
   - `a3c9fcf` feat: add analysis result components
   - `76d716b` feat: compose frontend workbench
   - `a716391` feat: compose frontend workbench
+  - `2f0ad4a` docs: update work diary for frontend workbench
 
 ### 遗留问题
 
