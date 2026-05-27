@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-05-27 — 第六次会话
+
+### 完成的工作
+
+**Task 10: LLM Service** ✅
+- 创建了 `backend/app/services/llm_service.py`
+- 实现了 `QwenAPIClient` 类，提供三个核心方法：
+  - `generate_sql()`: 根据自然语言问题和 Schema 生成 SQL
+  - `repair_sql()`: 根据错误信息修复失败的 SQL
+  - `generate_answer()`: 根据查询结果生成自然语言解释
+- 实现了指数退避重试机制（最大 3 次，2^attempt 秒间隔）
+- 实现了 JSON 响应解析，支持从额外文字中提取 JSON
+- 实现了查询结果格式化，最多显示 10 条记录
+- 添加了中文注释说明各功能模块
+- 创建了 `backend/tests/test_llm_service.py` 含 8 个测试用例
+- Commit: `a8b9950`
+
+### 当前进度
+
+- ✅ Task 1-10: 已完成
+- ⏸️ Task 11-20: 待开始
+
+### 下一步
+
+- 完成 Task 11: SQL Generator Agent（backend/app/agents/sql_generator.py）
+
+---
+
 ## 2026-05-23 — 第一次会话
 
 ### 完成的工作
