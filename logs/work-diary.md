@@ -38,11 +38,26 @@
   - `_extract_columns()`: 使用 SQLGlot 从生成的 SQL 中提取列名（比让 LLM 返回更可靠）
 - 与计划的差异：计划使用 `llm_service.call_with_retry()`，实际适配为 `llm_client.generate_sql()`
 - 通过 import 检查和 smoke test
+- Commit: `5b7235f`
+
+**Task 12: SQL Repair Agent** ✅
+- 创建了 `backend/app/agents/sql_repair.py`
+- 实现了 `SQLRepairAgent` 类：
+  - `repair()`: 调用 `llm_client.repair_sql()` 修复失败的 SQL，返回 `SQLRepairOutput`
+  - `_format_schema()`: 与 SQLGenerator 相同的 Schema 格式化逻辑，保持模块独立性
+- 通过 import 检查
+
+**Task 13: Answer Generator Agent** ✅
+- 创建了 `backend/app/agents/answer_generator.py`
+- 实现了 `AnswerGenerator` 类：
+  - `generate()`: 调用 `llm_client.generate_answer()` 生成自然语言解释
+- 比计划更简洁：`_format_result()` 由 `llm_service.py` 的 `_format_query_result()` 处理，避免重复
+- 通过 import 检查
 
 ### 当前进度
 
-- ✅ Task 1-11: 已完成
-- ⏸️ Task 11-20: 待开始
+- ✅ Task 1-13: 已完成
+- ⏸️ Task 14-20: 待开始
 
 ### 下一步
 
