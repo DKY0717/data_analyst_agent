@@ -21,9 +21,27 @@
 - 创建了 `backend/tests/test_llm_service.py` 含 8 个测试用例
 - Commit: `a8b9950`
 
+**Task 10 审查发现的问题：**
+
+1. **重试策略不一致** — `LLMResponseError` 和 `LLMError` 直接抛出不重试，只有超时和未知异常才重试。HTTP 429（限流）也应该重试。
+2. **import 位置不当** — `import asyncio` 放在 `_call_api` 循环体内部（L134），应移到文件顶部。
+3. **超时硬编码** — `DEFAULT_TIMEOUT = 30` 是模块常量，没走 `settings.SQL_TIMEOUT`，无法通过环境变量配置。
+4. **`_format_query_result` 截断未告知 LLM** — 最多显示 10 行记录，但 `generate_sql` 的 prompt 里没提这个限制，LLM 不知道结果被截断，可能生成不准确的分析。
+5. **JSON 解析边界情况** — `rindex('}')` 取最后一个 `}`，如果 LLM 返回多个 JSON 对象会解析错误。
+6. **HTTP 错误未区分** — 非 200 状态码统一抛 `LLMResponseError`，没有区分 429（应重试）和 500（服务端错误）。
+
+**Task 11: SQL Generator Agent** ✅
+- 创建了 `backend/app/agents/sql_generator.py`
+- 实现了 `SQLGenerator` 类：
+  - `generate()`: 调用 `llm_client.generate_sql()` 生成 SQL，返回 `SQLGeneratorOutput`
+  - `_format_schema()`: 将 Schema 字典格式化为 LLM 可读文本（含表名、主键、字段类型和可空性）
+  - `_extract_columns()`: 使用 SQLGlot 从生成的 SQL 中提取列名（比让 LLM 返回更可靠）
+- 与计划的差异：计划使用 `llm_service.call_with_retry()`，实际适配为 `llm_client.generate_sql()`
+- 通过 import 检查和 smoke test
+
 ### 当前进度
 
-- ✅ Task 1-10: 已完成
+- ✅ Task 1-11: 已完成
 - ⏸️ Task 11-20: 待开始
 
 ### 下一步
