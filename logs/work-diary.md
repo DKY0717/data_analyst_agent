@@ -54,14 +54,29 @@
 - 比计划更简洁：`_format_result()` 由 `llm_service.py` 的 `_format_query_result()` 处理，避免重复
 - 通过 import 检查
 
+**补充测试：Task 11-13 测试用例** ✅
+- 创建了 `backend/tests/test_sql_generator.py`（10 个测试用例）
+  - TestFormatSchema: Schema 格式化（3 个）
+  - TestExtractColumns: 列名提取（4 个）
+  - TestGenerate: SQL 生成（3 个）
+- 创建了 `backend/tests/test_sql_repair.py`（6 个测试用例）
+  - TestFormatSchema: Schema 格式化（2 个）
+  - TestRepair: SQL 修复（4 个）
+- 创建了 `backend/tests/test_answer_generator.py`（4 个测试用例）
+  - TestGenerate: 答案生成（4 个）
+- 创建了 `backend/pytest.ini`，配置 `asyncio_mode = auto`
+- 安装了 `pytest-asyncio` 依赖
+- 所有 20 个测试通过
+- Commit: `9aafe08`
+
 ### 当前进度
 
-- ✅ Task 1-13: 已完成
+- ✅ Task 1-13: 已完成（含测试）
 - ⏸️ Task 14-20: 待开始
 
 ### 下一步
 
-- 完成 Task 11: SQL Generator Agent（backend/app/agents/sql_generator.py）
+- 完成 Task 14: LangGraph Agent Workflow（backend/app/agents/graph.py + state.py）
 
 ---
 
