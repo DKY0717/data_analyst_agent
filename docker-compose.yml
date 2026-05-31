@@ -1,0 +1,39 @@
+# Docker Compose 编排文件
+# 一条命令启动前后端服务：docker-compose up -d
+
+services:
+  # 后端 FastAPI 服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化数据库和日志到宿主机
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - QWEN_API_KEY=${QWEN_API_KEY}
+      - QWEN_API_URL=${QWEN_API_URL}
+      - QWEN_MODEL=${QWEN_MODEL:-qwen-turbo}
+      - DATABASE_URL=duckdb:///./data/database.duckdb
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端 Nginx 服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped

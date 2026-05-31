@@ -47,7 +47,7 @@ class QueryResponse(BaseModel):
 
 class SchemaResponse(BaseModel):
     """Schema响应模型"""
-    tables: Dict[str, List[Dict[str, str]]]  # 表结构信息
+    tables: Dict[str, Dict[str, Any]]  # 表结构信息，key 为表名，value 为表详情
 
 class SQLValidateResponse(BaseModel):
     """SQL验证响应模型"""
