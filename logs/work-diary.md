@@ -140,15 +140,30 @@
 - 前端 mock fallback 不再触发，使用真实后端数据
 - 用户可在浏览器打开 `http://localhost:3000` 进行交互测试
 
+**前端 API 客户端修复** ✅
+- 修复 `frontend/src/api/agent.js` 中 `queryAgent` 函数
+- 原因：后端返回 `{code, message, data: {...}}`，前端直接 spread `response.data` 导致字段嵌套
+- 修复：`response.data` → `response.data.data`
+
+**Task 19: Docker Configuration** ✅
+- 创建 `backend/Dockerfile`：Python 3.11 slim + FastAPI
+- 创建 `frontend/Dockerfile`：Node 20 构建 + Nginx 托管
+- 创建 `frontend/nginx.conf`：静态文件 + API 代理
+- 创建 `docker-compose.yml`：编排前后端服务
+- 创建 `.dockerignore`：排除 node_modules、__pycache__ 等
+- 使用方式：`cp .env.example .env && docker-compose up -d`
+
 ### 当前进度
 
 - ✅ Task 1-15: 已完成（含测试）
-- ⏸️ Task 16-20: 待开始
+- ✅ Task 16: 已提前完成（种子数据）
+- ✅ Task 17-18: 已提前完成（前端工作台）
+- ✅ Task 19: Docker Configuration
+- ⏸️ Task 20: Documentation
 
 ### 下一步
 
-- 完成 Task 16: Database Initialization（已有种子数据，可跳过）
-- 完成 Task 19: Docker Configuration
+- 完成 Task 20: Documentation（README）
 
 ---
 
