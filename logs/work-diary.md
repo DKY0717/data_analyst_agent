@@ -153,17 +153,37 @@
 - 创建 `.dockerignore`：排除 node_modules、__pycache__ 等
 - 使用方式：`cp .env.example .env && docker-compose up -d`
 
+**Task 20: Documentation** ✅
+- 重写 `README.md`，包含：
+  - 核心功能介绍
+  - 技术栈表格
+  - Docker 和本地开发两种快速开始方式
+  - 示例问题
+  - API 接口文档
+  - 项目结构树
+  - 环境变量说明
+
 ### 当前进度
 
-- ✅ Task 1-15: 已完成（含测试）
-- ✅ Task 16: 已提前完成（种子数据）
-- ✅ Task 17-18: 已提前完成（前端工作台）
-- ✅ Task 19: Docker Configuration
-- ⏸️ Task 20: Documentation
+- ✅ Task 1-20: 全部完成！
 
-### 下一步
+### 本次会话总结
 
-- 完成 Task 20: Documentation（README）
+本次会话完成了 Task 14-20 的所有工作：
+- Task 14: LangGraph Agent Workflow（7 个测试）
+- Task 15: API Endpoints（3 个端点）
+- Task 19: Docker Configuration（5 个文件）
+- Task 20: Documentation（README）
+- 修复：SchemaResponse 类型、前端 API 客户端响应解析
+- 验证：前后端联调通过，4 个自然语言问题全部成功
+
+### 后续可优化
+
+- LLM Service 审查遗留问题（重试策略、import 位置等）
+- 前端 Element Plus 按需导入减小包体积
+- 查询历史持久化
+- SQL 优化建议（EXPLAIN ANALYZE）
+- 导出查询结果为 CSV/Excel
 
 ---
 
