@@ -1,0 +1,12 @@
+# Docker 构建排除文件
+node_modules
+dist
+__pycache__
+*.pyc
+.pytest_cache
+.git
+.env
+data/
+logs/
+*.duckdb
+*.duckdb.wal
