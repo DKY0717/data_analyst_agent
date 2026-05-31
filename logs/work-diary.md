@@ -80,6 +80,44 @@
 
 ---
 
+## 2026-05-31 — 第七次会话
+
+### 完成的工作
+
+**Task 14: LangGraph Agent Workflow** ✅
+- `backend/app/agents/state.py` 已存在（上次会话创建），定义了 `AgentState` TypedDict
+- 创建了 `backend/app/agents/graph.py`
+- 实现了 `AgentGraph` 类，包含：
+  - `_build_graph()`: 构建 LangGraph 状态图，注册 6 个节点和条件边
+  - `_load_schema`: 加载数据库 Schema
+  - `_generate_sql`: 调用 LLM 生成 SQL
+  - `_validate_sql`: SQL Guard 安全校验
+  - `_execute_sql`: 执行已校验的 SQL
+  - `_repair_sql`: 调用 LLM 修复失败 SQL，递增重试计数
+  - `_generate_answer`: 调用 LLM 生成自然语言答案
+  - `_should_execute`: 校验后条件分支（安全→执行，不安全→修复或终止）
+  - `_should_continue`: 执行后条件分支（成功→答案，失败→修复或终止）
+  - `run()`: 运行完整工作流的入口方法
+- 实现了全局实例 `agent_graph`
+- 创建了 `backend/tests/test_agent_graph.py`，含 7 个测试用例：
+  - TestAgentGraphHappyPath: 完整正常流程（1 个）
+  - TestAgentGraphValidationFailure: 校验失败后修复成功（1 个）
+  - TestAgentGraphExecutionFailure: 执行失败后修复成功（1 个）
+  - TestAgentGraphMaxRetries: 校验/执行重试耗尽（2 个）
+  - TestAgentGraphEdgeCases: 图结构和全局实例（2 个）
+- 全部 49 个测试通过（42 已有 + 7 新增）
+
+### 当前进度
+
+- ✅ Task 1-14: 已完成（含测试）
+- ⏸️ Task 15-20: 待开始
+
+### 下一步
+
+- 完成 Task 15: API Endpoints（health.py, schema.py, query.py, main.py）
+
+---
+
 ## 2026-05-23 — 第一次会话
 
 ### 完成的工作
