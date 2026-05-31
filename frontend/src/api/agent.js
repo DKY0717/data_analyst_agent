@@ -58,7 +58,9 @@ LIMIT 1000;`,
 export async function queryAgent(question) {
   try {
     const response = await client.post('/chat/query', { question })
-    return { ...response.data, used_mock: false }
+    // 后端返回 { code, message, data: { question, sql, rows, ... } }
+    // 提取嵌套的 data 字段，与前端组件期望的结构对齐
+    return { ...response.data.data, used_mock: false }
   } catch (error) {
     // mock fallback 只用于前端预览；真实联调时如果接口可用，会优先展示后端结果。
     return createMockResult(question)
