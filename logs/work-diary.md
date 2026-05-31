@@ -131,6 +131,15 @@
   - "统计各地区的客户数量" → JOIN 查询 → 5 行
 - 所有查询通过安全校验，无需重试，执行时间 < 1ms
 
+**前后端联调（通过前端代理）** ✅
+- 修改 `frontend/vite.config.js` 代理目标为 `localhost:8001`（8000 被占用）
+- 启动后端（8001）和前端（3000）服务
+- 通过前端代理测试完整链路：
+  - `GET http://localhost:3000/api/schema` → 8 张表 ✅
+  - `POST http://localhost:3000/api/chat/query` → SQL + 结果 + 答案 ✅
+- 前端 mock fallback 不再触发，使用真实后端数据
+- 用户可在浏览器打开 `http://localhost:3000` 进行交互测试
+
 ### 当前进度
 
 - ✅ Task 1-15: 已完成（含测试）
