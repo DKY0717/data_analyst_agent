@@ -107,14 +107,28 @@
   - TestAgentGraphEdgeCases: 图结构和全局实例（2 个）
 - 全部 49 个测试通过（42 已有 + 7 新增）
 
+**Task 15: API Endpoints** ✅
+- 创建了 `backend/app/api/health.py`，GET `/health` 健康检查端点
+- 创建了 `backend/app/api/schema.py`，GET `/api/schema` 数据库 Schema 查询端点
+- 创建了 `backend/app/api/query.py`，POST `/api/chat/query` 核心查询端点
+  - 调用 `agent_graph.run()` 运行完整工作流
+  - 兼容重试耗尽（answer 为 None）的情况
+- 创建了 `backend/app/main.py`，FastAPI 应用入口
+  - 注册 CORS 中间件
+  - 注册 3 个路由（health、schema、query）
+  - 启动时创建 data/ 和 logs/ 目录
+- 验证路由注册正确：`/health`、`/api/schema`、`/api/chat/query`
+- 全部 49 个测试通过
+
 ### 当前进度
 
-- ✅ Task 1-14: 已完成（含测试）
-- ⏸️ Task 15-20: 待开始
+- ✅ Task 1-15: 已完成（含测试）
+- ⏸️ Task 16-20: 待开始
 
 ### 下一步
 
-- 完成 Task 15: API Endpoints（health.py, schema.py, query.py, main.py）
+- 完成 Task 16: Database Initialization（已有种子数据，可跳过）
+- 完成 Task 19: Docker Configuration
 
 ---
 
