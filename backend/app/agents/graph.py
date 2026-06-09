@@ -61,8 +61,7 @@ class AgentGraph:
             self._should_execute,
             {
                 "execute": "execute_sql",     # SQL 安全，执行
-                "repair": "repair_sql",       # SQL 不安全且可重试，修复
-                "end": END                    # SQL 不安全且重试耗尽，终止
+                "end": END                    # Guard 拒绝后立即终止，禁止修复代理改写危险意图
             }
         )
 
@@ -171,8 +170,8 @@ class AgentGraph:
         """调用 LLM 修复失败的 SQL，递增重试计数"""
         logger.info(f"节点: repair_sql - 修复 SQL (第 {state['retry_count'] + 1} 次)")
 
-        # 优先使用执行错误，其次使用校验错误
-        error_message = state.get("execution_error") or state.get("validation_error", "")
+        # 修复代理只处理已通过 Guard 但执行失败的 SQL，禁止改写 Guard 拒绝的危险意图。
+        error_message = state.get("execution_error") or ""
 
         output = await sql_repair_agent.repair(
             state["generated_sql"],
@@ -261,13 +260,10 @@ class AgentGraph:
     # ---- 条件判断函数 ----
 
     def _should_execute(self, state: AgentState) -> str:
-        """校验后决策：安全→执行，不安全且可重试→修复，否则→终止"""
+        """校验后决策：安全 SQL 执行，Guard 拒绝的 SQL 立即终止。"""
         if state["is_sql_safe"]:
             return "execute"
-        if state["retry_count"] < settings.SQL_MAX_RETRIES:
-            return "repair"
-        # 重试耗尽，返回终止（answer 为 None，上层需处理）
-        logger.warning(f"SQL 校验失败且重试耗尽: {state.get('validation_error')}")
+        logger.warning(f"SQL 校验失败，已阻断执行: {state.get('validation_error')}")
         return "end"
 
     def _should_continue(self, state: AgentState) -> str:

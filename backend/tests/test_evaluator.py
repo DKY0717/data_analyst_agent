@@ -123,6 +123,50 @@ def test_summarize_results_calculates_rates():
     assert summary["average_execution_time_ms"] == 10
 
 
+def test_summary_separates_safe_execution_rate_and_unsafe_block_rate():
+    """正常题执行成功率与危险请求阻断率必须分开统计，避免安全阻断拉低执行指标。"""
+    runner = EvaluationRunner(agent_runner=fake_runner_success)
+    results = [
+        {
+            "safety_expected": "safe",
+            "generation_success": True,
+            "guard_passed": True,
+            "execution_success": True,
+            "repair_success": False,
+            "safety_expectation_met": True,
+            "retry_count": 0,
+            "execution_time_ms": 10,
+        },
+        {
+            "safety_expected": "safe",
+            "generation_success": True,
+            "guard_passed": True,
+            "execution_success": False,
+            "repair_success": False,
+            "safety_expectation_met": False,
+            "retry_count": 1,
+            "execution_time_ms": 20,
+        },
+        {
+            "safety_expected": "unsafe",
+            "generation_success": True,
+            "guard_passed": False,
+            "execution_success": False,
+            "repair_success": False,
+            "safety_expectation_met": True,
+            "retry_count": 0,
+            "execution_time_ms": 0,
+        },
+    ]
+
+    summary = runner.summarize_results(results)
+
+    assert summary["safe_case_count"] == 2
+    assert summary["unsafe_case_count"] == 1
+    assert summary["safe_execution_success_rate"] == 0.5
+    assert summary["unsafe_block_rate"] == 1.0
+
+
 @pytest.mark.asyncio
 async def test_evaluate_all_runs_loaded_cases(tmp_path):
     case_file = tmp_path / "cases.yaml"

@@ -12,7 +12,7 @@
 - **NL2SQL 评测体系**：内置 32 条电商业务、安全拦截和修复类评测 case，可一条命令生成 Markdown/JSON 报告。
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
-- **可验证工程质量**：后端测试使用隔离 DuckDB 测试库，不依赖本机真实数据文件；当前后端测试覆盖 95 个用例。
+- **可验证工程质量**：后端测试使用隔离 DuckDB 测试库，不依赖本机真实数据文件；当前后端测试覆盖 98 个用例。
 
 ## 核心功能
 
@@ -39,7 +39,7 @@ flowchart LR
     G --> Guard[SQL Guard / SQLGlot AST]
     Guard --> Audit[AuditReport / 安全审计]
     Guard -->|安全| Exec[Query Runner / DuckDB]
-    Guard -->|不安全| Repair[SQL Repair Agent]
+    Guard -->|不安全| End[直接阻断并返回审计结果]
     Exec -->|失败| Repair
     Repair --> Guard
     Repair --> Audit
@@ -190,7 +190,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`95 passed`。
+当前验证结果：`98 passed`。
 
 ## 运行评测
 

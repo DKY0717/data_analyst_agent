@@ -72,6 +72,16 @@ dimensions:
       - strftime(orders.order_date, '%Y-%m')
     description: 默认按 orders.order_date 截取年月。
 
+  quarter:
+    name: 季度
+    aliases:
+      - 季度
+      - 按季度
+      - 季
+    fields:
+      - EXTRACT(YEAR FROM orders.order_date) || '-Q' || EXTRACT(QUARTER FROM orders.order_date)
+    description: 使用 DuckDB EXTRACT 组合年份和季度，禁止使用不受支持的 strftime %q 或 %Q 格式符。
+
   region:
     name: 地区
     aliases:

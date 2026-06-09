@@ -58,3 +58,13 @@ def test_format_for_prompt_contains_metrics_dimensions_and_defaults():
     assert "业务维度:" in summary
     assert "地区:" in summary
     assert "默认时间字段: orders.order_date" in summary
+
+
+def test_quarter_dimension_uses_duckdb_supported_expression():
+    """季度维度应给出 DuckDB 可执行表达式，避免 LLM 猜测不存在的 %q/%Q 格式符。"""
+    loader = SemanticLoader()
+
+    dimension = loader.find_dimension("季度")
+
+    assert dimension is not None
+    assert any("EXTRACT(QUARTER FROM orders.order_date)" in field for field in dimension["fields"])

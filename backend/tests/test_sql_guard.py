@@ -8,6 +8,14 @@ def test_sql_guard_select_safe():
     result = guard.validate("SELECT * FROM orders")
     assert result["is_safe"] == True
 
+def test_sql_guard_blocks_empty_sql_with_clear_reason():
+    """模型拒绝危险请求并返回空 SQL 时，应给出明确阻断原因"""
+    guard = SQLGuard()
+    result = guard.validate("   ")
+    assert result["is_safe"] == False
+    assert result["reason"] == "SQL 为空"
+    assert result["blocked_rule"] == "block_empty_sql"
+
 def test_sql_guard_drop_unsafe():
     """测试DROP语句是不安全的"""
     guard = SQLGuard()

@@ -102,55 +102,43 @@ class TestAgentGraphHappyPath:
 
 
 class TestAgentGraphValidationFailure:
-    """测试 SQL 校验失败后的修复流程"""
+    """测试 SQL 校验失败后必须直接终止"""
 
     @pytest.mark.asyncio
-    async def test_validate_fail_then_repair_success(self):
-        """第一次校验失败 → 修复 → 第二次校验通过 → 执行成功"""
+    async def test_validate_failure_does_not_enter_repair(self):
+        """Guard 拒绝的 SQL 不得交给修复代理改写为其他查询"""
         graph = AgentGraph()
 
         mock_schema = make_schema_context()
         mock_sql_output = SQLGeneratorOutput(
-            sql="INVALID SQL HERE",
+            sql="DELETE FROM orders",
             tables=["orders"],
             columns=[],
-            explanation="错误的 SQL"
+            explanation="危险 SQL"
         )
-        mock_repair_output = SQLRepairOutput(
-            repaired_sql="SELECT COUNT(*) FROM orders",
-            repair_reason="修复了语法错误"
-        )
-        mock_query_result = make_query_result_success()
 
         with patch("app.agents.graph.schema_loader") as mock_loader, \
              patch("app.agents.graph.sql_generator") as mock_gen, \
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.sql_repair_agent") as mock_repair, \
-             patch("app.agents.graph.query_runner") as mock_runner, \
-             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
-             patch("app.agents.graph.answer_generator") as mock_answer:
+             patch("app.agents.graph.query_runner") as mock_runner:
 
             mock_loader.get_full_schema.return_value = mock_schema
             mock_gen.generate = AsyncMock(return_value=mock_sql_output)
+            mock_guard.validate.return_value = {
+                "is_safe": False,
+                "sanitized_sql": "DELETE FROM orders",
+                "reason": "禁止的语句类型: DELETE",
+            }
+            mock_repair.repair = AsyncMock()
 
-            # 第一次校验失败，第二次校验通过
-            mock_guard.validate.side_effect = [
-                {"is_safe": False, "sanitized_sql": "INVALID SQL HERE", "reason": "未知的语句类型"},
-                {"is_safe": True, "sanitized_sql": "SELECT COUNT(*) FROM orders LIMIT 1000", "reason": None}
-            ]
+            result = await graph.run("删除所有订单")
 
-            mock_repair.repair = AsyncMock(return_value=mock_repair_output)
-            mock_runner.execute.return_value = mock_query_result
-            mock_optimizer.optimize.return_value = ["建议补充时间范围，减少扫描数据量"]
-            mock_answer.generate = AsyncMock(return_value="共 304 个订单")
-
-            result = await graph.run("统计订单总数")
-
-        assert result["answer"] == "共 304 个订单"
-        assert result["retry_count"] == 1
-        assert result["optimization_suggestions"] == ["建议补充时间范围，减少扫描数据量"]
-        assert any(event["stage"] == "repair" for event in result["audit_report"]["events"])
-        mock_repair.repair.assert_called_once()
+        assert result["is_sql_safe"] is False
+        assert result["retry_count"] == 0
+        assert result["answer"] is None
+        mock_repair.repair.assert_not_called()
+        mock_runner.execute.assert_not_called()
 
 
 class TestAgentGraphExecutionFailure:
@@ -213,7 +201,7 @@ class TestAgentGraphMaxRetries:
 
     @pytest.mark.asyncio
     async def test_validation_fails_max_retries(self):
-        """校验一直失败，重试耗尽后终止"""
+        """校验失败后立即终止，不消耗修复重试次数"""
         graph = AgentGraph()
 
         mock_schema = make_schema_context()
@@ -244,10 +232,11 @@ class TestAgentGraphMaxRetries:
 
             result = await graph.run("删除订单表")
 
-        # 重试 3 次后终止，没有 answer
-        assert result["retry_count"] == 3
+        # Guard 拒绝后立即终止，没有 answer，也不调用修复代理。
+        assert result["retry_count"] == 0
         assert result["answer"] is None
         assert result["is_sql_safe"] is False
+        mock_repair.repair.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_execution_fails_max_retries(self):

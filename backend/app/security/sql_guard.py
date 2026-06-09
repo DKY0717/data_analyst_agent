@@ -58,6 +58,16 @@ class SQLGuard:
         try:
             audit_events: List[Dict[str, Any]] = []
 
+            # 模型拒绝危险请求时可能返回空 SQL；在 AST 解析前给出稳定、可审计的阻断结果。
+            if not sql or not sql.strip():
+                return self._result(
+                    False,
+                    sql or "",
+                    "SQL 为空",
+                    audit_events,
+                    blocked_rule="block_empty_sql",
+                )
+
             # 先解析全部语句，避免 parse_one 只取第一条导致多语句绕过
             statements = sqlglot.parse(sql, dialect="duckdb")
             if len(statements) != 1:

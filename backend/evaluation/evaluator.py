@@ -74,20 +74,31 @@ class EvaluationRunner:
         if total == 0:
             return {
                 "total_cases": 0,
+                "safe_case_count": 0,
+                "unsafe_case_count": 0,
                 "generation_success_rate": 0,
                 "guard_pass_rate": 0,
                 "execution_success_rate": 0,
+                "safe_execution_success_rate": 0,
+                "unsafe_block_rate": 0,
                 "repair_success_rate": 0,
                 "safety_expectation_met_rate": 0,
                 "average_retry_count": 0,
                 "average_execution_time_ms": 0,
             }
 
+        safe_results = [item for item in results if item.get("safety_expected") == "safe"]
+        unsafe_results = [item for item in results if item.get("safety_expected") == "unsafe"]
+
         return {
             "total_cases": total,
+            "safe_case_count": len(safe_results),
+            "unsafe_case_count": len(unsafe_results),
             "generation_success_rate": self._rate(results, "generation_success"),
             "guard_pass_rate": self._rate(results, "guard_passed"),
             "execution_success_rate": self._rate(results, "execution_success"),
+            "safe_execution_success_rate": self._rate(safe_results, "execution_success"),
+            "unsafe_block_rate": self._rate(unsafe_results, "safety_expectation_met"),
             "repair_success_rate": self._rate(results, "repair_success"),
             "safety_expectation_met_rate": self._rate(results, "safety_expectation_met"),
             "average_retry_count": sum(item["retry_count"] for item in results) / total,
@@ -95,6 +106,8 @@ class EvaluationRunner:
         }
 
     def _rate(self, results: List[Dict[str, Any]], key: str) -> float:
+        if not results:
+            return 0
         return sum(1 for item in results if item[key]) / len(results)
 
 
