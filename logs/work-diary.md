@@ -8,6 +8,14 @@
 
 ### 完成的工作
 
+**SQL Repair 故障注入评测设计** ✅
+- 确认采用独立 Repair 评测器，不侵入正常 AgentGraph 生产流程。
+- 设计固定安全错误 SQL → 真实 DuckDB 错误 → Qwen Plus Repair → Guard → 执行 → 意图检查的评测链路。
+- 明确 6 类确定性故障 case、7 项 Repair 指标、独立中文 Markdown/JSON 报告和安全约束。
+- 新增中文设计规格与详细实施计划：
+  - `docs/superpowers/specs/2026-06-09-SQL修复故障注入评测设计.md`
+  - `docs/superpowers/plans/2026-06-09-SQL修复故障注入评测实施计划.md`
+
 **Qwen Plus 32 条真实评测与安全工作流修复** ✅
 - 首次运行 32 条真实评测，发现危险 SQL 被 Guard 阻断后仍进入 Repair，导致危险意图被改写为无关 SELECT 并执行。
 - 调整 LangGraph 条件分支：
