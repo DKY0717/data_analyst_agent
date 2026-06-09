@@ -1,0 +1,42 @@
+cases:
+  - id: wrong_order_amount_column
+    description: 修复 orders 表中不存在的 revenue 字段
+    original_sql: SELECT SUM(revenue) AS sales_amount FROM orders
+    expected_tables: [orders]
+    required_sql_fragments: [total_amount]
+    forbidden_sql_fragments: [revenue]
+
+  - id: wrong_order_items_table
+    description: 修复不存在的 order_detail 表
+    original_sql: SELECT product_id, SUM(quantity) AS quantity_sold FROM order_detail GROUP BY product_id
+    expected_tables: [order_items]
+    required_sql_fragments: [order_items, quantity]
+    forbidden_sql_fragments: [order_detail]
+
+  - id: missing_customer_join
+    description: 修复查询客户名称时缺失的 customers 关联
+    original_sql: SELECT order_id, customer_name FROM orders
+    expected_tables: [orders, customers]
+    required_sql_fragments: [customer_name, join customers]
+    forbidden_sql_fragments: []
+
+  - id: mysql_date_format
+    description: 将 MySQL DATE_FORMAT 修复为 DuckDB 日期函数
+    original_sql: SELECT DATE_FORMAT(order_date, '%Y-%m') AS month, SUM(total_amount) AS sales_amount FROM orders GROUP BY month
+    expected_tables: [orders]
+    required_sql_fragments: [strftime, order_date]
+    forbidden_sql_fragments: [date_format]
+
+  - id: unsupported_quarter_format
+    description: 修复 DuckDB 不支持的 strftime 季度格式符
+    original_sql: SELECT strftime(order_date, '%q') AS quarter, SUM(total_amount) AS sales_amount FROM orders GROUP BY quarter
+    expected_tables: [orders]
+    required_sql_fragments: [quarter, order_date]
+    forbidden_sql_fragments: ["'%q'"]
+
+  - id: wrong_region_column
+    description: 修复 regions 表中不存在的 province_name 字段
+    original_sql: SELECT province_name, COUNT(*) AS customer_count FROM regions GROUP BY province_name
+    expected_tables: [regions]
+    required_sql_fragments: [province]
+    forbidden_sql_fragments: []
