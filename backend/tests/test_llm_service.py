@@ -140,3 +140,28 @@ class TestGenerateSQLPrompt:
         assert "多轮对话上下文" in user_prompt
         assert "上一轮分析上下文" in user_prompt
         assert "按地区拆一下" in user_prompt
+
+
+class TestRepairSQLPrompt:
+    """测试 SQL Repair prompt 是否包含已验证的 DuckDB 修复约束"""
+
+    @pytest.mark.asyncio
+    async def test_repair_prompt_includes_duckdb_date_and_cast_guidance(self, client):
+        captured_messages = {}
+
+        async def fake_call_api(messages, temperature, max_tokens=2000):
+            captured_messages["messages"] = messages
+            return '{"repaired_sql": "SELECT EXTRACT(QUARTER FROM order_date) FROM orders", "repair_reason": "使用 DuckDB 季度函数"}'
+
+        client._call_api = fake_call_api
+
+        await client.repair_sql(
+            "SELECT strftime(order_date, '%q') FROM orders",
+            "Unrecognized format for strftime/strptime: %q",
+            "表名: orders\n字段: order_date (DATE)",
+        )
+
+        system_prompt = captured_messages["messages"][0]["content"]
+
+        assert "EXTRACT(QUARTER FROM date_column)" in system_prompt
+        assert "字符串参与算术前必须显式 CAST" in system_prompt

@@ -226,7 +226,9 @@ class QwenAPIClient:
 1. 只修复 SQL 语法和逻辑错误，不要改变查询意图
 2. 只生成 SELECT 或 WITH 查询语句
 3. 使用 DuckDB 方言
-4. 返回严格的 JSON 格式
+4. DuckDB 季度提取优先使用 EXTRACT(QUARTER FROM date_column)，不要使用不受支持的 strftime %q/%Q
+5. strftime 等函数返回字符串；字符串参与算术前必须显式 CAST 为 INTEGER 或其他数值类型
+6. 返回严格的 JSON 格式
 
 输出格式：
 {

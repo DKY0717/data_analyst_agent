@@ -26,7 +26,7 @@ v0.3 的目标不是继续堆普通功能，而是把项目从“能跑的 NL2SQ
 8. 查询结果自然语言解释。
 9. Vue 前端工作台展示 SQL、表格、图表、答案和优化建议。
 10. SQL Optimizer 基于 SQL AST、结果规模和 DuckDB EXPLAIN 生成规则化优化建议。
-11. 后端 pytest 使用隔离 DuckDB 测试库，当前测试结果为 `98 passed`。
+11. 后端 pytest 使用隔离 DuckDB 测试库，当前测试结果为 `110 passed`。
 
 v0.2 已经不是简单 Demo，但它的核心短板是：缺少业务语义约束、缺少系统性评测、缺少多轮追问能力、缺少面向用户和面试官可展示的安全审计报告。
 
@@ -96,6 +96,7 @@ Evaluation Runner (offline benchmark)
 |---|---|---|
 | Semantic Layer | 在线能力 | 提供业务指标、字段别名、默认时间字段和口径说明 |
 | Evaluation Runner | 离线能力 | 批量执行测试问题，生成评测报告 |
+| Repair Evaluation Runner | 离线能力 | 对确定性失败 SQL 单独验证 Repair、Guard、执行和意图保持 |
 | Conversation Context | 在线能力 | 保存多轮分析上下文，支持追问解析 |
 | Audit Collector | 在线能力 | 收集 SQL 安全校验、修复和执行过程中的审计事件 |
 
@@ -208,9 +209,14 @@ SQL Generator 的 prompt 不再只接收物理 Schema，还接收语义层摘要
 backend/evaluation/cases/ecommerce_nl2sql_cases.yaml
 backend/evaluation/evaluator.py
 backend/evaluation/report_writer.py
+backend/evaluation/repair_evaluator.py
+backend/evaluation/repair_report_writer.py
 backend/tests/test_evaluation_cases.py
 backend/tests/test_evaluator.py
 backend/tests/test_report_writer.py
+backend/tests/test_repair_evaluation_cases.py
+backend/tests/test_repair_evaluator.py
+backend/tests/test_repair_report_writer.py
 ```
 
 建议 case 结构：
@@ -283,6 +289,17 @@ python -m evaluation.evaluator
 ```
 
 5. 输出 JSON 和 Markdown 两种报告。
+
+### 7.6 SQL Repair 确定性故障注入基线
+
+为了避免依赖 SQL Generator 是否碰巧生成错误 SQL，新增独立 Repair Evaluation Runner。它使用 6 条能够通过 Guard、但会在 DuckDB 中稳定执行失败的 SQL，验证“真实数据库错误 → Qwen Plus Repair → 修复后 Guard → 执行 → 意图保持”完整链路。
+
+```bash
+cd backend
+python -m evaluation.repair_evaluator
+```
+
+首次真实基线端到端修复成功率为 `5/6（83.3%）`。失败样本暴露了 DuckDB `strftime` 返回字符串但未显式转换的问题；补充 Repair prompt 方言约束和单元测试后，相同用例复测达到 `6/6（100%）`。完整分析见 `docs/Qwen_Plus_SQL修复评测基线分析.md`。
 
 ---
 

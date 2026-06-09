@@ -8,6 +8,16 @@
 
 ### 完成的工作
 
+**Qwen Plus SQL Repair 确定性故障注入评测** ✅
+- 实现独立 Repair Evaluation Runner，不侵入正常 AgentGraph；固定安全错误 SQL 先通过 Guard，再由真实 DuckDB 确认失败后进入 Qwen Plus Repair。
+- 新增 6 类确定性故障 case，覆盖错误字段、错误表、缺失 JOIN、MySQL 日期函数、DuckDB 不支持的季度格式符和地区字段错误。
+- 新增 Repair 专属 Markdown/JSON 报告与 7 项指标，包含故障注入、Repair 输出、修复后 Guard、执行、意图保持和端到端修复成功率。
+- 第一轮真实基线端到端修复成功率为 `5/6（83.3%）`，失败原因是 `strftime` 字符串参与算术前未显式转换。
+- 使用测试驱动补充 Repair prompt 的 DuckDB 季度提取与显式 CAST 约束；相同 6 条用例复测达到 `6/6（100%）`。
+- 保留改进前后两份真实报告，并新增 `docs/Qwen_Plus_SQL修复评测基线分析.md`。
+- 完整后端回归结果更新为 `110 passed`；格式检查通过，真实评测报告未发现 API Key、Authorization 或 Bearer 信息。
+- 相关阶段提交：`f386397`、`80f82ea`。
+
 **SQL Repair 故障注入评测设计** ✅
 - 确认采用独立 Repair 评测器，不侵入正常 AgentGraph 生产流程。
 - 设计固定安全错误 SQL → 真实 DuckDB 错误 → Qwen Plus Repair → Guard → 执行 → 意图检查的评测链路。

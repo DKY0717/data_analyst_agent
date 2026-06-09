@@ -9,10 +9,10 @@
 - **LLM SQL 安全治理**：SQLGlot AST 校验只允许安全查询，拦截多语句、系统表、危险 DuckDB 文件读取函数，并自动注入 LIMIT。
 - **SQL 自动修复闭环**：SQL 执行失败后将错误信息反馈给修复 Agent，最多重试 3 次，每次修复后重新经过 SQL Guard。
 - **规则化 SQL 优化建议**：基于 SQL AST、查询结果规模和 DuckDB EXPLAIN 执行计划生成可解释优化建议。
-- **NL2SQL 评测体系**：内置 32 条电商业务、安全拦截和修复类评测 case，可一条命令生成 Markdown/JSON 报告。
+- **双层评测体系**：内置 32 条 NL2SQL case 和 6 条确定性 SQL Repair 故障注入 case，可分别量化生成、安全与修复能力。
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
-- **可验证工程质量**：后端测试使用隔离 DuckDB 测试库，不依赖本机真实数据文件；当前后端测试覆盖 98 个用例。
+- **可验证工程质量**：后端测试使用隔离 DuckDB 测试库，不依赖本机真实数据文件；当前后端测试覆盖 110 个用例。
 
 ## 核心功能
 
@@ -20,7 +20,7 @@
 - **SQL 安全校验** — SQLGlot AST 解析，只允许 SELECT/WITH/EXPLAIN，自动注入 LIMIT
 - **SQL 自动修复** — 执行失败时 LLM 分析错误并修复，最多重试 3 次
 - **SQL 优化建议** — 基于 EXPLAIN、结果规模和 SQL 结构输出优化建议
-- **离线评测报告** — 固定 NL2SQL case 集量化生成、执行、修复和安全表现
+- **离线评测报告** — 固定 NL2SQL case 与确定性 Repair 故障集量化生成、执行、修复和安全表现
 - **多轮分析上下文** — 基于 session_id 复用上一轮分析意图，支持连续追问
 - **安全审计报告** — 输出 Guard 命中规则、LIMIT 注入、修复次数和执行事件
 - **自然语言答案** — LLM 将查询结果转换为易懂的解释
@@ -190,16 +190,17 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`98 passed`。
+当前验证结果：`110 passed`。
 
 ## 运行评测
 
 ```bash
 cd backend
 python -m evaluation.evaluator
+python -m evaluation.repair_evaluator
 ```
 
-评测 case 位于 `backend/evaluation/cases/ecommerce_nl2sql_cases.yaml`，报告输出到 `backend/evaluation/reports/`，同时生成 Markdown 和 JSON，适合面试展示和版本间效果对比。
+NL2SQL 评测包含 32 条固定 case；独立 SQL Repair 评测包含 6 条确定性故障注入 case。报告输出到 `backend/evaluation/reports/`，同时生成 Markdown 和 JSON，适合展示版本间效果对比。当前 Qwen Plus Repair 基线从首轮 `5/6（83.3%）` 提升到复测 `6/6（100%）`，详见 [Qwen Plus SQL 修复评测基线分析](docs/Qwen_Plus_SQL修复评测基线分析.md)。
 
 ## 面试准备
 
