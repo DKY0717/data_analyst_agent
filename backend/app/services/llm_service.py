@@ -136,7 +136,12 @@ class QwenAPIClient:
 
         raise LLMError("API 调用失败，已达最大重试次数")
 
-    async def generate_sql(self, question: str, schema_info: str) -> dict:
+    async def generate_sql(
+        self,
+        question: str,
+        schema_info: str,
+        conversation_context: str = "",
+    ) -> dict:
         """根据自然语言问题和数据库 Schema 生成 SQL
 
         这是整个系统的核心功能：将用户的自然语言问题转换为可执行的 SQL 查询。
@@ -144,6 +149,7 @@ class QwenAPIClient:
         Args:
             question: 用户的自然语言问题，例如"查询销售额最高的前 5 个商品"
             schema_info: 数据库 Schema 信息，包含表结构和字段说明
+            conversation_context: 多轮追问上下文摘要；为空时按单轮问题处理
 
         Returns:
             dict: 包含 sql、tables、explanation 的结构化结果
@@ -154,7 +160,10 @@ class QwenAPIClient:
 要求：
 1. 只生成 SELECT 或 WITH 查询语句，禁止生成 DDL/DML 语句
 2. 使用 DuckDB 方言（注意：DuckDB 不支持 MySQL 的 LIMIT offset, count 语法）
-3. 返回严格的 JSON 格式，不要包含任何其他文本
+3. 优先遵循业务语义层中的业务指标口径、维度定义、默认时间字段和 JOIN 关系
+4. 如果用户问题命中业务指标或维度别名，必须使用语义层给出的表达式和关联关系
+5. 如果用户是多轮追问并省略了指标、维度、时间范围或过滤条件，优先继承多轮对话上下文中最近一轮的分析意图
+6. 返回严格的 JSON 格式，不要包含任何其他文本
 
 输出格式：
 {
@@ -164,8 +173,18 @@ class QwenAPIClient:
 }"""
 
         # 用户提示词：包含 Schema 信息和用户问题
-        user_prompt = f"""数据库 Schema 信息：
+        context_section = ""
+        if conversation_context:
+            # 只有存在 session 上下文时才加入 prompt，避免单轮查询被无关历史干扰。
+            context_section = f"""
+
+多轮对话上下文：
+{conversation_context}
+"""
+
+        user_prompt = f"""数据库 Schema 与业务语义信息：
 {schema_info}
+{context_section}
 
 用户问题：{question}
 

@@ -7,6 +7,7 @@
       </div>
       <div class="status-group">
         <el-tag type="success" effect="light">DuckDB 已连接</el-tag>
+        <el-tag type="info" effect="light">会话 {{ queryStore.sessionId.slice(0, 8) }}</el-tag>
         <el-tag type="warning" effect="light">Mock 兜底已启用</el-tag>
       </div>
     </header>
@@ -35,6 +36,7 @@
 
       <aside class="right-column">
         <SQLPanel :result="queryStore.result" />
+        <AuditPanel :result="queryStore.result" />
         <OptimizationPanel :result="queryStore.result" />
       </aside>
     </main>
@@ -46,6 +48,7 @@ import { onMounted } from 'vue'
 import { exampleQuestions, schemaTables } from '@/api/agent'
 import { useQueryStore } from '@/stores/query'
 import AnswerPanel from '@/components/AnswerPanel.vue'
+import AuditPanel from '@/components/AuditPanel.vue'
 import ChartPanel from '@/components/ChartPanel.vue'
 import ExampleQuestions from '@/components/ExampleQuestions.vue'
 import HistoryPanel from '@/components/HistoryPanel.vue'

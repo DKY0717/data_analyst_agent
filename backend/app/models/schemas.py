@@ -3,12 +3,12 @@
 
 from pydantic import BaseModel, Field
 from typing import Any, Optional, List, Dict
-from datetime import datetime
 
 # 请求模型
 class QueryRequest(BaseModel):
     """查询请求模型"""
     question: str = Field(..., min_length=1, max_length=1000, description="自然语言问题")
+    session_id: Optional[str] = Field(None, max_length=128, description="多轮分析会话ID")
 
 class SQLValidateRequest(BaseModel):
     """SQL验证请求模型"""
@@ -33,9 +33,30 @@ class ErrorResponse(BaseModel):
     details: Optional[Any] = None  # 错误详情
     request_id: Optional[str] = None  # 请求ID
 
+class AuditEvent(BaseModel):
+    """单条安全审计事件"""
+    stage: str  # 事件阶段，如 generation/guard/execution
+    action: str  # 具体动作，如 validate_sql
+    status: str  # success/blocked/failed
+    message: str  # 面向用户的事件说明
+    rule_id: Optional[str] = None  # 命中的安全规则ID
+    details: Dict[str, Any] = Field(default_factory=dict)  # 事件附加信息
+
+class AuditReport(BaseModel):
+    """一次查询的安全审计报告"""
+    question: str = ""  # 用户问题
+    final_sql: str = ""  # 最终校验或执行 SQL
+    is_sql_safe: bool = False  # 最终 SQL 是否安全
+    execution_success: bool = False  # 是否执行成功
+    retry_count: int = 0  # 修复重试次数
+    limit_injected: bool = False  # 是否发生自动 LIMIT 注入
+    blocked_rules: List[str] = Field(default_factory=list)  # 被命中的阻断规则
+    events: List[AuditEvent] = Field(default_factory=list)  # 审计事件明细
+
 class QueryResponse(BaseModel):
     """查询响应模型"""
     question: str  # 用户问题
+    session_id: Optional[str] = None  # 多轮分析会话ID
     sql: str  # 生成的SQL语句
     is_sql_safe: bool  # SQL是否安全
     columns: List[str]  # 查询结果列名
@@ -43,7 +64,8 @@ class QueryResponse(BaseModel):
     answer: str  # 自然语言回答
     execution_time_ms: int  # 执行耗时（毫秒）
     retry_count: int  # 重试次数
-    optimization_suggestions: List[str] = []  # 优化建议列表
+    optimization_suggestions: List[str] = Field(default_factory=list)  # 优化建议列表
+    audit_report: Optional[AuditReport] = None  # 安全审计报告
 
 class SchemaResponse(BaseModel):
     """Schema响应模型"""
@@ -58,8 +80,8 @@ class SQLValidateResponse(BaseModel):
 class SQLExecuteResponse(BaseModel):
     """SQL执行响应模型"""
     success: bool  # 是否执行成功
-    columns: List[str] = []  # 查询结果列名
-    rows: List[List[Any]] = []  # 查询结果数据行
+    columns: List[str] = Field(default_factory=list)  # 查询结果列名
+    rows: List[List[Any]] = Field(default_factory=list)  # 查询结果数据行
     execution_time_ms: int = 0  # 执行耗时（毫秒）
     error: Optional[str] = None  # 错误信息
     error_type: Optional[str] = None  # 错误类型
@@ -80,6 +102,8 @@ class SQLRepairOutput(BaseModel):
 class AgentState(BaseModel):
     """Agent状态模型"""
     question: str  # 用户原始问题
+    session_id: Optional[str] = None  # 多轮分析会话ID
+    conversation_context: Optional[str] = None  # 历史分析上下文摘要
     schema_context: Optional[Dict[str, Any]] = None  # 数据库Schema上下文
     generated_sql: Optional[str] = None  # 生成的SQL语句
     validated_sql: Optional[str] = None  # 验证后的SQL语句
@@ -90,4 +114,6 @@ class AgentState(BaseModel):
     execution_error: Optional[str] = None  # 执行错误信息
     retry_count: int = 0  # 重试次数
     answer: Optional[str] = None  # 自然语言回答
-    optimization_suggestions: List[str] = []  # 优化建议列表
+    optimization_suggestions: List[str] = Field(default_factory=list)  # 优化建议列表
+    audit_events: List[Dict[str, Any]] = Field(default_factory=list)  # 安全审计事件
+    audit_report: Optional[Dict[str, Any]] = None  # 最终安全审计报告

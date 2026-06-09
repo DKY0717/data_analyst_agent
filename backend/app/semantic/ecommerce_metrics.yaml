@@ -1,0 +1,120 @@
+metrics:
+  sales_amount:
+    name: 销售额
+    aliases:
+      - 销售额
+      - GMV
+      - 订单金额
+      - 成交金额
+    expression: SUM(orders.total_amount)
+    default_table: orders
+    description: 已下单订单的总金额，默认使用 orders.total_amount 汇总。
+
+  order_count:
+    name: 订单数
+    aliases:
+      - 订单数
+      - 下单量
+      - 订单量
+    expression: COUNT(DISTINCT orders.order_id)
+    default_table: orders
+    description: 去重后的订单数量。
+
+  customer_count:
+    name: 客户数
+    aliases:
+      - 客户数
+      - 用户数
+      - 买家数
+    expression: COUNT(DISTINCT customers.customer_id)
+    default_table: customers
+    description: 去重后的客户数量。
+
+  average_order_value:
+    name: 客单价
+    aliases:
+      - 客单价
+      - 平均订单金额
+      - AOV
+    expression: SUM(orders.total_amount) * 1.0 / COUNT(DISTINCT orders.order_id)
+    default_table: orders
+    description: 销售额除以订单数。
+
+  refund_rate:
+    name: 退款率
+    aliases:
+      - 退款率
+      - 售后率
+      - 退单率
+    expression: COUNT(DISTINCT refunds.refund_id) * 1.0 / COUNT(DISTINCT orders.order_id)
+    default_table: orders
+    required_joins:
+      - orders.order_id = refunds.order_id
+    description: 退款记录数除以订单数。
+
+  repeat_purchase_rate:
+    name: 复购率
+    aliases:
+      - 复购率
+      - 重复购买率
+    expression: COUNT(DISTINCT CASE WHEN customer_order_stats.order_count > 1 THEN customer_order_stats.customer_id END) * 1.0 / COUNT(DISTINCT customer_order_stats.customer_id)
+    default_table: orders
+    description: 下单次数超过 1 次的客户占全部下单客户的比例，生成 SQL 时可使用客户订单数子查询。
+
+dimensions:
+  month:
+    name: 月份
+    aliases:
+      - 月份
+      - 月
+      - 按月
+    fields:
+      - strftime(orders.order_date, '%Y-%m')
+    description: 默认按 orders.order_date 截取年月。
+
+  region:
+    name: 地区
+    aliases:
+      - 地区
+      - 城市
+      - 省份
+      - 区域
+    fields:
+      - regions.region_name
+      - regions.province
+      - regions.city
+    required_joins:
+      - orders.customer_id = customers.customer_id
+      - customers.region_id = regions.region_id
+    description: 订单通过客户关联地区。
+
+  category:
+    name: 商品类别
+    aliases:
+      - 商品类别
+      - 品类
+      - 类目
+      - 分类
+    fields:
+      - categories.category_name
+    required_joins:
+      - orders.order_id = order_items.order_id
+      - order_items.product_id = products.product_id
+      - products.category_id = categories.category_id
+    description: 订单明细通过商品关联商品类别。
+
+  payment_method:
+    name: 支付方式
+    aliases:
+      - 支付方式
+      - 支付渠道
+    fields:
+      - payments.payment_method
+    required_joins:
+      - orders.order_id = payments.order_id
+    description: 订单通过支付表关联支付方式。
+
+defaults:
+  time_field: orders.order_date
+  limit: 1000
+  dialect: duckdb

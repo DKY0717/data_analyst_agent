@@ -44,27 +44,34 @@ def setup_logging() -> logging.Logger:
     # 例如: logs/app.log
     log_file = settings.LOG_DIR / "app.log"
 
-    # RotatingFileHandler: 当日志文件达到 maxBytes 时，自动创建新文件
-    # 旧文件会被重命名为 app.log.1, app.log.2, ... 最多保留 backupCount 个备份
-    # 这样可以防止单个日志文件无限膨胀撑爆磁盘
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=10 * 1024 * 1024,  # 单个日志文件最大 10MB (10 * 1024 * 1024 字节)
-        backupCount=5,               # 最多保留 5 个备份文件（app.log.1 ~ app.log.5）
-        encoding='utf-8'             # 使用 UTF-8 编码，确保中文不乱码
-    )
-    file_handler.setLevel(logging.DEBUG)  # 文件记录所有级别（包括 DEBUG），方便详细排查
-    # 文件日志格式比控制台多了 funcName（函数名）和 lineno（行号），方便定位代码位置
-    # 例如：2026-05-23 10:00:00 - data_analyst_agent - DEBUG - fetch_data:42 - 开始获取数据
-    file_format = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
-    )
-    file_handler.setFormatter(file_format)
-
     # 把两个 handler 都挂到 logger 上
-    # 之后调用 logger.info() 等方法时，日志会同时输出到控制台和文件
+    # 之后调用 logger.info() 等方法时，至少会输出到控制台
     logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+
+    try:
+        # import 阶段也可能初始化 logger，因此这里主动创建目录，而不是只依赖 FastAPI startup。
+        settings.LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+        # RotatingFileHandler: 当日志文件达到 maxBytes 时，自动创建新文件
+        # 旧文件会被重命名为 app.log.1, app.log.2, ... 最多保留 backupCount 个备份
+        # 这样可以防止单个日志文件无限膨胀撑爆磁盘
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 单个日志文件最大 10MB (10 * 1024 * 1024 字节)
+            backupCount=5,               # 最多保留 5 个备份文件（app.log.1 ~ app.log.5）
+            encoding='utf-8'             # 使用 UTF-8 编码，确保中文不乱码
+        )
+        file_handler.setLevel(logging.DEBUG)  # 文件记录所有级别（包括 DEBUG），方便详细排查
+        # 文件日志格式比控制台多了 funcName（函数名）和 lineno（行号），方便定位代码位置
+        # 例如：2026-05-23 10:00:00 - data_analyst_agent - DEBUG - fetch_data:42 - 开始获取数据
+        file_format = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+        )
+        file_handler.setFormatter(file_format)
+        logger.addHandler(file_handler)
+    except OSError as e:
+        # 文件日志不可用时不阻断应用或测试导入；控制台日志仍保留，错误原因会被明确打印。
+        logger.warning(f"文件日志初始化失败，仅使用控制台日志: {e}")
 
     return logger
 

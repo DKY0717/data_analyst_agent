@@ -4,6 +4,290 @@
 
 ---
 
+## 2026-06-09 — 第九次会话
+
+### 完成的工作
+
+**v0.3 整体收尾与代码审查** ✅
+- 审查语义层、评测体系、多轮会话和安全审计相关实现。
+- 修复 SessionStore 上下文污染风险：
+  - 仅保存通过 SQL Guard 且执行成功的查询轮次。
+  - 危险 SQL 和失败查询不再进入下一轮 LLM prompt。
+- 修复 AuditReport 阻断规则重复问题：
+  - 多次修复重试命中同一规则时，报告摘要只保留一次，事件明细仍完整保留。
+- 修复 Pydantic 模型中的可变默认值：
+  - 列表和字典改用 `Field(default_factory=...)`。
+  - AgentState 模型同步增加审计字段。
+- 前端接入 v0.3 后端能力：
+  - 工作台持续发送稳定 `session_id`，支持连续追问。
+  - 新增 `AuditPanel.vue`，展示安全状态、LIMIT 注入、阻断规则和审计事件。
+  - mock fallback 仅在开发环境启用，生产环境不再掩盖真实接口故障。
+  - 前端请求超时从 30 秒调整为 120 秒，覆盖完整 Agent 链路。
+- 清理并同步文档：
+  - v0.3 文档不再保留“下一步做 Phase 1”的过期内容。
+  - README、面试稿和前端说明同步到前端多轮会话与审计面板现状。
+  - 后端测试数更新为 `95 passed`。
+
+### 验证结果
+- `pytest backend/tests/test_session_store.py backend/tests/test_audit_report.py backend/tests/test_query_api.py -q`：12 passed
+- `pytest backend/tests -q`：95 passed，5 warnings（FastAPI/TestClient 既有弃用提示）
+- `npx vite build --outDir .codex-build --emptyOutDir`：构建成功
+- 当前沙箱会回收后台 Vite 子进程，无法完成浏览器视觉检查；临时构建目录和启动日志均已清理。
+
+### 当前进度
+- ✅ v0.3 四个核心能力全部完成
+- ✅ 后端与前端最小闭环完成
+- ✅ 整体代码审查和文档清理完成
+- ⏳ 待执行最终验证和 Git 提交
+
+### 下一步
+- 运行最终全量测试、前端构建和 `git diff --check`。
+- 仅暂存本次项目相关文件，排除 `.superpowers/`、`AGENTS.md`、`identifier.db`、`scripts/` 等原有未跟踪项。
+- 创建 v0.3 收尾提交。
+
+---
+
+## 2026-06-03 — 第八次会话
+
+### 完成的工作
+
+**测试环境稳定性修复** ✅
+- 修复 `backend/app/utils/logger.py`：logger 在 import 阶段主动创建日志目录；文件日志不可用时保留控制台日志，不再阻断测试收集。
+- 新增 `backend/tests/conftest.py`：pytest 启动时创建隔离测试根目录 `backend/tests/.tmp`，初始化独立 DuckDB 测试库，避免依赖真实 `data/database.duckdb`。
+- 验证结果：
+  - `python -c "from app.utils.logger import logger; print('logger import OK')"` 通过
+  - `pytest tests/test_query_runner.py tests/test_schema_loader.py -q`：6 passed
+  - `pytest -q`：49 passed
+
+### 当前进度
+- ✅ 后端 pytest 已可一键稳定通过
+- ⏳ 下一阶段建议升级 SQL Guard 安全深度
+
+### 下一步
+- 加强 SQL Guard：表/列白名单、危险 DuckDB 函数拦截、AST 级 LIMIT 注入。
+- 再补充安全测试用例，把“LLM 生成 SQL 可控”变成可展示证据。
+
+**SQL Guard 安全升级** ✅
+- 修改 `backend/app/security/sql_guard.py`：
+  - 支持 `EXPLAIN SELECT`，为后续 SQL 优化分析铺路。
+  - 使用 SQLGlot AST 判断顶层 LIMIT，避免字符串字面量中的 `LIMIT` 绕过自动 LIMIT 注入。
+  - 拦截 `information_schema`、`pg_catalog` 等系统表访问。
+  - 拦截 `read_csv_auto`、`read_parquet`、`duckdb_tables()` 等危险 DuckDB 文件/元数据函数。
+- 修改 `backend/tests/test_sql_guard.py`：
+  - 新增 6 个安全测试，覆盖 EXPLAIN、系统表、系统函数、文件读取函数、LIMIT 注入边界。
+- 验证结果：
+  - `pytest tests/test_sql_guard.py -q`：14 passed
+  - `pytest -q`：55 passed
+
+### 下一步
+- 继续实现真正的 SQL 优化模块：EXPLAIN/执行计划解析、慢查询指标、优化建议生成。
+- 或先补一份面试级 README/架构图，把已完成的测试和安全能力讲清楚。
+
+**SQL 优化模块落地** ✅
+- 新增 `backend/app/agents/sql_optimizer.py`：
+  - 使用 SQLGlot AST 检测 `SELECT *`，提示减少不必要列扫描。
+  - 根据 `row_count` 判断结果是否达到返回上限，提示增加过滤条件或分页。
+  - 对 SQL 拼接 `EXPLAIN` 后再次经过 SQL Guard 校验，再用 QueryRunner 获取 DuckDB 执行计划。
+  - 从执行计划中识别顺序扫描，生成可解释优化建议。
+- 修改 `backend/app/agents/graph.py`：
+  - 新增 `optimize_sql` 节点。
+  - 执行成功后先生成优化建议，再进入答案生成节点。
+- 新增 `backend/tests/test_sql_optimizer.py`，并扩展 `backend/tests/test_agent_graph.py`。
+- 验证结果：
+  - `pytest tests/test_sql_optimizer.py tests/test_agent_graph.py -q`：10 passed
+  - `pytest -q`：58 passed
+  - 使用隔离测试库 smoke 验证 Optimizer 可生成 `SELECT *` 和顺序扫描建议。
+
+### 下一步
+- 修复/重建默认业务库 `data/database.duckdb`，确保本地 smoke 不依赖测试库也能跑通。
+- 补充面试级 README：展示测试数、SQL Guard 安全规则、Optimizer 能力和典型问答链路。
+
+**面试级文档补强** ✅
+- 更新 `README.md`：
+  - 新增项目亮点、核心架构 Mermaid 图、安全策略、SQL 优化建议和面试准备入口。
+  - 明确后端当前验证结果为 `58 passed`。
+- 新增 `docs/interview_guide.md`：
+  - 包含 30 秒项目介绍、简历写法、架构讲解、常见追问回答、演示脚本和技术亮点总结。
+- 验证结果：
+  - `pytest -q`：58 passed
+  - 文档链接检查通过：`docs/interview_guide.md`、`docs/database_design_md.md`、`docs/frontend_workbench_development_notes.md`
+  - `git diff --check` 无空白错误，仅有 Windows 换行提示
+
+### 下一步
+- 修复/重建默认业务库 `data/database.duckdb`，保证本地后端 smoke 和演示链路稳定。
+- 可选：把本轮所有变更整理成 commit，形成一个完整“作品级升级”节点。
+
+**v0.3 开发文档规划** ✅
+- 新增 `docs/data_analyst_agent_开发文档_v_0_3.md`：
+  - 将 v0.3 定位为“可评测、可解释、可安全审计的企业级 NL2SQL 数据分析 Agent”。
+  - 明确四大升级方向：Schema 语义层、SQL 生成评测体系、多轮分析能力、安全审计报告。
+  - 给出新版架构、模块拆分、数据结构建议、API 变化、验收标准和实施顺序。
+- 更新 `README.md`：
+  - 在面试准备入口中加入 v0.3 开发文档链接。
+- 验证结果：
+  - `docs/data_analyst_agent_开发文档_v_0_3.md` 文件存在。
+  - README 关联文档链接目标存在。
+  - `git diff --check` 无空白错误，仅有 Windows 换行提示。
+
+### 下一步
+- 进入 v0.3 Phase 1：Schema 语义层实施计划。
+- 先完成语义层，再启动评测体系、多轮分析和安全审计。
+
+**v0.3 Phase 1 语义层实施计划** ✅
+- 新增 `docs/superpowers/plans/2026-06-03-v0.3-语义层实施计划.md`。
+- 计划覆盖：
+  - 语义层 YAML 配置。
+  - `SemanticLoader` 加载器。
+  - SQL Generator 语义摘要接入。
+  - Qwen SQL prompt 语义层约束增强。
+  - README、面试稿和工作日记同步更新。
+- 验证结果：
+  - 计划文件存在。
+  - 占位词扫描无命中。
+  - `git diff --check` 无空白错误。
+
+### 下一步
+- 按该计划执行 Phase 1，实现 Schema 语义层。
+
+**v0.3 Phase 1: Schema 语义层** ✅
+- 新增 `backend/app/semantic/ecommerce_metrics.yaml`：
+  - 定义销售额、订单数、客户数、客单价、退款率、复购率等业务指标。
+  - 定义月份、地区、商品类别、支付方式等业务维度和 JOIN 关系。
+- 新增 `backend/app/semantic/semantic_loader.py` 和 `backend/app/semantic/__init__.py`：
+  - 支持按中文别名查找指标/维度。
+  - 支持格式化 LLM prompt 语义摘要。
+- 修改 `backend/app/agents/sql_generator.py`：
+  - `_format_schema()` 输出中合并物理 Schema 和业务语义层。
+- 修改 `backend/app/services/llm_service.py`：
+  - SQL 生成 prompt 明确要求优先遵循业务语义层中的指标口径、维度定义、默认时间字段和 JOIN 关系。
+- 新增/扩展测试：
+  - `backend/tests/test_semantic_loader.py`
+  - `backend/tests/test_sql_generator.py`
+  - `backend/tests/test_llm_service.py`
+- 同步更新 `README.md`、`docs/interview_guide.md` 和 `docs/data_analyst_agent_开发文档_v_0_3.md` 的语义层说明与测试数。
+- 验证结果：
+  - `pytest tests/test_semantic_loader.py tests/test_sql_generator.py tests/test_llm_service.py -q`：26 passed
+  - `pytest -q`：66 passed
+
+### 下一步
+- 进入 v0.3 Phase 2：SQL 生成评测体系。
+- 先设计评测 case 格式，再实现 evaluator 和报告输出。
+
+**v0.3 Phase 2 SQL评测体系实施计划** ✅
+- 新增 `docs/superpowers/plans/2026-06-03-v0.3-SQL评测体系实施计划.md`。
+- 计划覆盖：
+  - 电商 NL2SQL 评测 case YAML，第一版至少 20 条。
+  - `EvaluationRunner`：逐条运行 case，计算生成成功率、Guard 通过率、执行成功率、修复成功率、安全预期达成率、平均重试次数和平均执行耗时。
+  - `ReportWriter`：输出 JSON 和 Markdown 报告。
+  - CLI：`python -m evaluation.evaluator`。
+  - README、面试稿和工作日记同步更新。
+- 验证结果：
+  - 计划文件存在。
+  - 占位词扫描无命中。
+  - `git diff --check` 无空白错误。
+
+### 下一步
+- 按该计划执行 Phase 2，实现 SQL 生成评测体系。
+
+**v0.3 Phase 2: SQL 生成评测体系** ✅
+- 新增 `backend/evaluation/cases/ecommerce_nl2sql_cases.yaml`：
+  - 共 32 条固定 NL2SQL 评测 case。
+  - 覆盖电商指标、维度拆分、安全拦截和 SQL 修复诱导问题。
+  - 其中安全 case 至少 8 条，修复 case 至少 5 条，满足 v0.3 验收标准。
+- 新增 `backend/evaluation/evaluator.py`：
+  - 支持批量运行 case。
+  - 计算生成成功率、Guard 通过率、执行成功率、修复成功率、安全预期命中率、平均重试次数和平均执行耗时。
+- 新增 `backend/evaluation/report_writer.py`：
+  - 输出带时间戳的 Markdown 和 JSON 报告。
+  - Markdown 用于面试展示，JSON 用于后续版本对比或自动化分析。
+- 新增/扩展测试：
+  - `backend/tests/test_evaluation_cases.py`
+  - `backend/tests/test_evaluator.py`
+  - `backend/tests/test_report_writer.py`
+- 同步更新 `README.md`、`docs/interview_guide.md` 和 `docs/data_analyst_agent_开发文档_v_0_3.md`：
+  - 将 Phase 2 作为“可评测”亮点写入文档。
+  - 后端测试数更新为 `77 passed`。
+- 验证结果：
+  - `pytest tests/test_evaluation_cases.py tests/test_evaluator.py tests/test_report_writer.py -q`：11 passed
+  - `pytest -q`：77 passed
+  - `python -c "from evaluation.evaluator import EvaluationRunner; print(len(EvaluationRunner().load_cases()))"`：输出 32
+  - `python -c "from evaluation.report_writer import ReportWriter; print(ReportWriter(timestamp='smoke').timestamp)"`：输出 smoke
+  - `git diff --check`：无空白错误，仅有 Windows LF/CRLF 提示
+
+### 下一步
+- 进入 v0.3 Phase 3：多轮分析能力。
+- 建议先实现 `session_id`、内存版 SessionStore 和上下文摘要，再把上下文接入 SQL Generator prompt。
+- 真实运行 `python -m evaluation.evaluator` 会调用 Qwen API，需要确认 `.env` 中已配置 `QWEN_API_KEY`。
+
+**v0.3 Phase 3: 多轮分析能力** ✅
+- 新增 `docs/superpowers/plans/2026-06-03-v0.3-多轮分析能力实施计划.md`：
+  - 明确使用 `session_id`、内存版 SessionStore、ConversationContextBuilder 和 SQL Generator prompt 上下文注入。
+- 新增 `backend/app/agents/conversation_context.py`：
+  - 从 Agent final state 中提取问题、SQL、结果列、行数、答案摘要和优化建议。
+  - 不保存完整 rows，避免上下文过大或污染 prompt。
+- 新增 `backend/app/agents/session_store.py`：
+  - 基于 `session_id` 保存最近几轮分析摘要。
+  - 空 `session_id` 保持单轮查询行为。
+- 修改 `backend/app/agents/state.py` 和 `backend/app/agents/graph.py`：
+  - AgentState 增加 `session_id` 和 `conversation_context`。
+  - `AgentGraph.run(question, session_id=None)` 会读取历史上下文，传给 SQL Generator，并在结束后写回 SessionStore。
+- 修改 `backend/app/agents/sql_generator.py` 和 `backend/app/services/llm_service.py`：
+  - SQL 生成支持 `conversation_context`。
+  - Qwen prompt 明确处理多轮追问，省略指标、维度或过滤条件时继承最近一轮分析意图。
+- 修改 `backend/app/models/schemas.py` 和 `backend/app/api/query.py`：
+  - `QueryRequest` 和 `QueryResponse` 增加可选 `session_id`。
+  - `/api/chat/query` 将 `session_id` 透传给 AgentGraph。
+- 新增/扩展测试：
+  - `backend/tests/test_conversation_context.py`
+  - `backend/tests/test_session_store.py`
+  - `backend/tests/test_query_api.py`
+  - `backend/tests/test_agent_graph.py`
+  - `backend/tests/test_sql_generator.py`
+  - `backend/tests/test_llm_service.py`
+- 同步更新 `README.md`、`docs/interview_guide.md` 和 `docs/data_analyst_agent_开发文档_v_0_3.md`：
+  - 将多轮追问写入项目亮点、API 示例和面试讲法。
+  - 后端测试数更新为 `89 passed`。
+- 验证结果：
+  - `pytest -q`：89 passed，5 warnings（FastAPI/TestClient 既有弃用提示）
+
+### 下一步
+- 进入 v0.3 Phase 4：安全审计报告。
+- 建议先扩展 SQL Guard 返回结构化 audit events，再让 AgentGraph 汇总生成、修复、LIMIT 注入和执行过程。
+
+**v0.3 Phase 4: 安全审计报告** ✅
+- 新增 `docs/superpowers/plans/2026-06-03-v0.3-安全审计报告实施计划.md`：
+  - 明确 `AuditReportBuilder`、SQL Guard 审计事件、AgentGraph 汇总和 API 响应透传。
+- 新增 `backend/app/agents/audit.py`：
+  - 提供 `AuditReportBuilder.make_event()` 和 `build_report()`。
+  - 报告包含最终 SQL、安全状态、执行状态、重试次数、LIMIT 注入状态、阻断规则和事件列表。
+- 修改 `backend/app/security/sql_guard.py`：
+  - Guard 返回新增 `audit_events`、`limit_injected`、`blocked_rule`。
+  - 支持记录 `limit_injected`、`block_system_schema`、`block_system_table`、`block_dangerous_function` 等规则证据。
+- 修改 `backend/app/agents/state.py` 和 `backend/app/agents/graph.py`：
+  - AgentState 增加 `audit_events` 和 `audit_report`。
+  - Graph 节点记录 schema 加载、SQL 生成、Guard 校验、SQL 修复、SQL 执行、优化建议和答案生成事件。
+  - `run()` 结束后生成最终 `audit_report`。
+- 修改 `backend/app/models/schemas.py` 和 `backend/app/api/query.py`：
+  - 新增 Pydantic `AuditEvent`、`AuditReport`。
+  - `QueryResponse` 增加可选 `audit_report`。
+- 新增/扩展测试：
+  - `backend/tests/test_audit_report.py`
+  - `backend/tests/test_sql_guard.py`
+  - `backend/tests/test_agent_graph.py`
+  - `backend/tests/test_query_api.py`
+- 同步更新 `README.md`、`docs/interview_guide.md` 和 `docs/data_analyst_agent_开发文档_v_0_3.md`：
+  - 将安全审计报告写入项目亮点、API 说明、面试讲法和 v0.3 Phase 4。
+  - 后端测试数更新为 `92 passed`。
+- 验证结果：
+  - `pytest tests/test_query_api.py tests/test_agent_graph.py tests/test_sql_guard.py tests/test_audit_report.py -q`：27 passed
+  - `pytest -q`：92 passed，5 warnings（FastAPI/TestClient 既有弃用提示）
+
+### 下一步
+- v0.3 四个核心能力已经全部落地：语义层、评测体系、多轮追问、安全审计报告。
+- 建议下一步做一次整体收尾：运行完整验证、整理 git diff、可选提交；如果继续增强，可以做前端安全审计面板或 CI。
+
+---
+
 ## 2026-05-27 — 第六次会话
 
 ### 完成的工作

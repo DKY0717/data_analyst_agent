@@ -7,6 +7,7 @@ from typing import Dict, Any
 
 from ..services.llm_service import llm_client
 from ..models.schemas import SQLGeneratorOutput
+from ..semantic.semantic_loader import semantic_loader
 from ..utils.logger import logger
 from ..utils.exceptions import LLMError
 
@@ -14,13 +15,19 @@ from ..utils.exceptions import LLMError
 class SQLGenerator:
     """SQL 生成 Agent，负责自然语言 → SQL 的转换"""
 
-    async def generate(self, question: str, schema_context: Dict[str, Any]) -> SQLGeneratorOutput:
+    async def generate(
+        self,
+        question: str,
+        schema_context: Dict[str, Any],
+        conversation_context: str = "",
+    ) -> SQLGeneratorOutput:
         """
         根据自然语言问题和数据库 Schema 生成 SQL
 
         Args:
             question: 用户的自然语言问题
             schema_context: 数据库 Schema 信息，来自 SchemaLoader.get_full_schema()
+            conversation_context: 多轮追问上下文摘要；为空时按单轮查询处理
 
         Returns:
             SQLGeneratorOutput: 包含 sql、tables、columns、explanation 的结构化结果
@@ -33,7 +40,7 @@ class SQLGenerator:
 
         try:
             # 调用 LLM 生成 SQL，返回结构化 JSON
-            result = await llm_client.generate_sql(question, schema_str)
+            result = await llm_client.generate_sql(question, schema_str, conversation_context)
 
             # 从生成的 SQL 中提取使用的列名（LLM 返回的 tables 不含 columns）
             columns = self._extract_columns(result.get("sql", ""))
@@ -102,7 +109,17 @@ class SQLGenerator:
 
             lines.append("")
 
-        return "\n".join(lines)
+        physical_schema = "\n".join(lines)
+        semantic_summary = semantic_loader.format_for_prompt()
+
+        # 物理 Schema 解决“有哪些表字段”，语义层解决“业务词应该如何计算”
+        return "\n".join([
+            "物理数据库 Schema:",
+            physical_schema,
+            "",
+            "业务语义层:",
+            semantic_summary,
+        ])
 
     def _extract_columns(self, sql: str) -> list[str]:
         """

@@ -93,3 +93,50 @@ class TestBuildHeaders:
         assert "Authorization" in headers
         assert headers["Authorization"].startswith("Bearer ")
         assert headers["Content-Type"] == "application/json"
+
+
+class TestGenerateSQLPrompt:
+    """测试 SQL 生成 prompt 是否明确使用业务语义层"""
+
+    @pytest.mark.asyncio
+    async def test_generate_sql_prompt_mentions_semantic_layer(self, client):
+        captured_messages = {}
+
+        async def fake_call_api(messages, temperature, max_tokens=2000):
+            captured_messages["messages"] = messages
+            return '{"sql": "SELECT SUM(total_amount) FROM orders", "tables": ["orders"], "explanation": "统计销售额"}'
+
+        client._call_api = fake_call_api
+
+        await client.generate_sql("统计销售额", "业务语义层:\n- 销售额 = SUM(orders.total_amount)")
+
+        system_prompt = captured_messages["messages"][0]["content"]
+        user_prompt = captured_messages["messages"][1]["content"]
+
+        assert "优先遵循业务语义层" in system_prompt
+        assert "业务指标口径" in system_prompt
+        assert "业务语义层" in user_prompt
+
+    @pytest.mark.asyncio
+    async def test_generate_sql_prompt_includes_conversation_context(self, client):
+        captured_messages = {}
+
+        async def fake_call_api(messages, temperature, max_tokens=2000):
+            captured_messages["messages"] = messages
+            return '{"sql": "SELECT region_name, SUM(total_amount) FROM orders GROUP BY region_name", "tables": ["orders"], "explanation": "按地区拆分"}'
+
+        client._call_api = fake_call_api
+
+        await client.generate_sql(
+            "按地区拆一下",
+            "业务语义层:\n- 销售额 = SUM(orders.total_amount)",
+            "上一轮分析上下文:\n- 问题: 统计销售额",
+        )
+
+        system_prompt = captured_messages["messages"][0]["content"]
+        user_prompt = captured_messages["messages"][1]["content"]
+
+        assert "多轮追问" in system_prompt
+        assert "多轮对话上下文" in user_prompt
+        assert "上一轮分析上下文" in user_prompt
+        assert "按地区拆一下" in user_prompt

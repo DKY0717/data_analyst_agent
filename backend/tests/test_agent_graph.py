@@ -72,6 +72,7 @@ class TestAgentGraphHappyPath:
              patch("app.agents.graph.sql_generator") as mock_gen, \
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
              patch("app.agents.graph.answer_generator") as mock_answer:
 
             mock_loader.get_full_schema.return_value = mock_schema
@@ -82,6 +83,7 @@ class TestAgentGraphHappyPath:
                 "reason": None
             }
             mock_runner.execute.return_value = mock_query_result
+            mock_optimizer.optimize.return_value = ["建议避免 SELECT *，只选择分析需要的字段"]
             mock_answer.generate = AsyncMock(return_value="2024年上半年销售额呈上升趋势")
 
             result = await graph.run("统计2024年每月销售额")
@@ -91,6 +93,12 @@ class TestAgentGraphHappyPath:
         assert result["execution_success"] is True
         assert result["retry_count"] == 0
         assert result["query_result"]["row_count"] == 2
+        assert result["optimization_suggestions"] == ["建议避免 SELECT *，只选择分析需要的字段"]
+        assert result["audit_report"]["final_sql"].endswith("LIMIT 1000")
+        assert {event["stage"] for event in result["audit_report"]["events"]} >= {
+            "generation", "guard", "execution", "answer"
+        }
+        mock_optimizer.optimize.assert_called_once()
 
 
 class TestAgentGraphValidationFailure:
@@ -119,6 +127,7 @@ class TestAgentGraphValidationFailure:
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.sql_repair_agent") as mock_repair, \
              patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
              patch("app.agents.graph.answer_generator") as mock_answer:
 
             mock_loader.get_full_schema.return_value = mock_schema
@@ -132,12 +141,15 @@ class TestAgentGraphValidationFailure:
 
             mock_repair.repair = AsyncMock(return_value=mock_repair_output)
             mock_runner.execute.return_value = mock_query_result
+            mock_optimizer.optimize.return_value = ["建议补充时间范围，减少扫描数据量"]
             mock_answer.generate = AsyncMock(return_value="共 304 个订单")
 
             result = await graph.run("统计订单总数")
 
         assert result["answer"] == "共 304 个订单"
         assert result["retry_count"] == 1
+        assert result["optimization_suggestions"] == ["建议补充时间范围，减少扫描数据量"]
+        assert any(event["stage"] == "repair" for event in result["audit_report"]["events"])
         mock_repair.repair.assert_called_once()
 
 
@@ -166,6 +178,7 @@ class TestAgentGraphExecutionFailure:
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.sql_repair_agent") as mock_repair, \
              patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
              patch("app.agents.graph.answer_generator") as mock_answer:
 
             mock_loader.get_full_schema.return_value = mock_schema
@@ -184,6 +197,7 @@ class TestAgentGraphExecutionFailure:
             ]
 
             mock_repair.repair = AsyncMock(return_value=mock_repair_output)
+            mock_optimizer.optimize.return_value = ["建议只选择需要展示的列"]
             mock_answer.generate = AsyncMock(return_value="查询成功")
 
             result = await graph.run("查询所有订单")
@@ -191,6 +205,7 @@ class TestAgentGraphExecutionFailure:
         assert result["answer"] == "查询成功"
         assert result["retry_count"] == 1
         assert result["execution_success"] is True
+        assert result["optimization_suggestions"] == ["建议只选择需要展示的列"]
 
 
 class TestAgentGraphMaxRetries:
@@ -286,7 +301,7 @@ class TestAgentGraphEdgeCases:
         expected_nodes = {
             "__start__", "load_schema", "generate_sql",
             "validate_sql", "execute_sql", "repair_sql",
-            "generate_answer", "__end__"
+            "optimize_sql", "generate_answer", "__end__"
         }
         assert nodes == expected_nodes
 
@@ -296,3 +311,53 @@ class TestAgentGraphEdgeCases:
         assert agent_graph is not None
         assert hasattr(agent_graph, "run")
         assert hasattr(agent_graph, "graph")
+
+
+class TestAgentGraphConversationContext:
+    """测试多轮会话上下文在 AgentGraph 中的传递和回写"""
+
+    @pytest.mark.asyncio
+    async def test_run_passes_session_context_to_sql_generator_and_saves_turn(self):
+        graph = AgentGraph()
+
+        mock_schema = make_schema_context()
+        mock_sql_output = SQLGeneratorOutput(
+            sql="SELECT region_name, SUM(total_amount) AS sales FROM orders GROUP BY region_name",
+            tables=["orders", "regions"],
+            columns=["region_name", "total_amount"],
+            explanation="基于上一轮销售额按地区拆分"
+        )
+        mock_query_result = make_query_result_success()
+
+        with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.sql_generator") as mock_gen, \
+             patch("app.agents.graph.sql_guard") as mock_guard, \
+             patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
+             patch("app.agents.graph.answer_generator") as mock_answer, \
+             patch("app.agents.graph.session_store") as mock_store:
+
+            mock_loader.get_full_schema.return_value = mock_schema
+            mock_store.get_context.return_value = "上一轮分析上下文:\n- 问题: 统计销售额"
+            mock_gen.generate = AsyncMock(return_value=mock_sql_output)
+            mock_guard.validate.return_value = {
+                "is_safe": True,
+                "sanitized_sql": mock_sql_output.sql + " LIMIT 1000",
+                "reason": None
+            }
+            mock_runner.execute.return_value = mock_query_result
+            mock_optimizer.optimize.return_value = []
+            mock_answer.generate = AsyncMock(return_value="已按地区拆分销售额")
+
+            result = await graph.run("按地区拆一下", session_id="session-1")
+
+        mock_store.get_context.assert_called_once_with("session-1")
+        mock_gen.generate.assert_awaited_once_with(
+            "按地区拆一下",
+            mock_schema,
+            "上一轮分析上下文:\n- 问题: 统计销售额"
+        )
+        mock_store.append_turn.assert_called_once()
+        assert mock_store.append_turn.call_args.args[0] == "session-1"
+        assert result["session_id"] == "session-1"
+        assert result["conversation_context"] == "上一轮分析上下文:\n- 问题: 统计销售额"

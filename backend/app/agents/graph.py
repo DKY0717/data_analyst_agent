@@ -9,6 +9,9 @@ from .state import AgentState
 from .sql_generator import sql_generator
 from .sql_repair import sql_repair_agent
 from .answer_generator import answer_generator
+from .sql_optimizer import sql_optimizer
+from .session_store import session_store
+from .audit import audit_report_builder
 from ..db.schema_loader import schema_loader
 from ..security.sql_guard import sql_guard
 from ..db.query_runner import query_runner
@@ -41,6 +44,7 @@ class AgentGraph:
         workflow.add_node("validate_sql", self._validate_sql)
         workflow.add_node("execute_sql", self._execute_sql)
         workflow.add_node("repair_sql", self._repair_sql)
+        workflow.add_node("optimize_sql", self._optimize_sql)
         workflow.add_node("generate_answer", self._generate_answer)
 
         # 设置入口节点
@@ -67,7 +71,7 @@ class AgentGraph:
             "execute_sql",
             self._should_continue,
             {
-                "answer": "generate_answer",  # 执行成功，生成答案
+                "answer": "optimize_sql",      # 执行成功，先生成优化建议
                 "repair": "repair_sql",       # 执行失败且可重试，修复
                 "end": END                    # 执行失败且重试耗尽，终止
             }
@@ -75,6 +79,7 @@ class AgentGraph:
 
         # 修复后必须再次经过校验（不能直接执行，防止修复出不安全的 SQL）
         workflow.add_edge("repair_sql", "validate_sql")
+        workflow.add_edge("optimize_sql", "generate_answer")
 
         return workflow.compile()
 
@@ -84,35 +89,82 @@ class AgentGraph:
         """加载数据库 Schema，供后续 SQL 生成使用"""
         logger.info("节点: load_schema - 加载数据库 Schema")
         schema = schema_loader.get_full_schema()
-        return {"schema_context": schema}
+        return {
+            "schema_context": schema,
+            "audit_events": self._append_audit_event(
+                state,
+                "schema",
+                "load_schema",
+                "success",
+                "数据库 Schema 加载完成",
+                details={"table_count": len(schema.get("tables", {}))},
+            ),
+        }
 
     async def _generate_sql(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 将自然语言问题转换为 SQL"""
         logger.info("节点: generate_sql - 生成 SQL")
         output = await sql_generator.generate(
             state["question"],
-            state["schema_context"]
+            state["schema_context"],
+            state.get("conversation_context") or ""
         )
-        return {"generated_sql": output.sql}
+        return {
+            "generated_sql": output.sql,
+            "audit_events": self._append_audit_event(
+                state,
+                "generation",
+                "generate_sql",
+                "success",
+                "LLM 已生成 SQL",
+                details={"sql": output.sql, "tables": output.tables},
+            ),
+        }
 
     async def _validate_sql(self, state: AgentState) -> Dict[str, Any]:
         """使用 SQL Guard 校验 SQL 安全性，自动注入 LIMIT"""
         logger.info("节点: validate_sql - 校验 SQL 安全性")
         result = sql_guard.validate(state["generated_sql"])
+        audit_events = self._extend_audit_events(state, result.get("audit_events", []))
+        if not result.get("audit_events"):
+            audit_events = audit_events + [
+                audit_report_builder.make_event(
+                    "guard",
+                    "validate_sql",
+                    "success" if result["is_safe"] else "blocked",
+                    result.get("reason") or "SQL 通过安全校验",
+                    rule_id=result.get("blocked_rule"),
+                    details={"limit_injected": result.get("limit_injected", False)},
+                )
+            ]
         return {
             "validated_sql": result["sanitized_sql"],
             "is_sql_safe": result["is_safe"],
-            "validation_error": result["reason"]
+            "validation_error": result["reason"],
+            "audit_events": audit_events,
         }
 
     async def _execute_sql(self, state: AgentState) -> Dict[str, Any]:
         """执行已通过校验的 SQL 查询"""
         logger.info("节点: execute_sql - 执行 SQL 查询")
         result = query_runner.execute(state["validated_sql"])
+        status = "success" if result["success"] else "failed"
         return {
             "execution_success": result["success"],
             "query_result": result,
-            "execution_error": result.get("error")
+            "execution_error": result.get("error"),
+            "audit_events": self._append_audit_event(
+                state,
+                "execution",
+                "execute_sql",
+                status,
+                "SQL 执行成功" if result["success"] else result.get("error", "SQL 执行失败"),
+                details={
+                    "execution_time_ms": result.get("execution_time_ms", 0),
+                    "row_count": result.get("row_count", len(result.get("rows", []))),
+                    "error_type": result.get("error_type"),
+                },
+            ),
         }
 
     async def _repair_sql(self, state: AgentState) -> Dict[str, Any]:
@@ -130,7 +182,37 @@ class AgentGraph:
 
         return {
             "generated_sql": output.repaired_sql,
-            "retry_count": state["retry_count"] + 1
+            "retry_count": state["retry_count"] + 1,
+            "audit_events": self._append_audit_event(
+                state,
+                "repair",
+                "repair_sql",
+                "success",
+                output.repair_reason,
+                details={
+                    "retry_count": state["retry_count"] + 1,
+                    "repaired_sql": output.repaired_sql,
+                },
+            ),
+        }
+
+    async def _optimize_sql(self, state: AgentState) -> Dict[str, Any]:
+        """基于执行结果和 EXPLAIN 生成 SQL 优化建议"""
+        logger.info("节点: optimize_sql - 生成 SQL 优化建议")
+        suggestions = sql_optimizer.optimize(
+            state["validated_sql"],
+            state["query_result"]
+        )
+        return {
+            "optimization_suggestions": suggestions,
+            "audit_events": self._append_audit_event(
+                state,
+                "optimization",
+                "optimize_sql",
+                "success",
+                "SQL 优化建议生成完成",
+                details={"suggestion_count": len(suggestions)},
+            ),
         }
 
     async def _generate_answer(self, state: AgentState) -> Dict[str, Any]:
@@ -141,7 +223,40 @@ class AgentGraph:
             state["validated_sql"],
             state["query_result"]
         )
-        return {"answer": answer}
+        return {
+            "answer": answer,
+            "audit_events": self._append_audit_event(
+                state,
+                "answer",
+                "generate_answer",
+                "success",
+                "自然语言答案生成完成",
+            ),
+        }
+
+    def _append_audit_event(
+        self,
+        state: AgentState,
+        stage: str,
+        action: str,
+        status: str,
+        message: str,
+        rule_id: str | None = None,
+        details: Dict[str, Any] | None = None,
+    ) -> list[Dict[str, Any]]:
+        """节点通过返回新列表追加审计事件，避免直接原地修改 LangGraph state。"""
+        return self._extend_audit_events(
+            state,
+            [audit_report_builder.make_event(stage, action, status, message, rule_id, details)],
+        )
+
+    def _extend_audit_events(
+        self,
+        state: AgentState,
+        new_events: list[Dict[str, Any]],
+    ) -> list[Dict[str, Any]]:
+        """合并已有审计事件和节点新事件。"""
+        return list(state.get("audit_events") or []) + new_events
 
     # ---- 条件判断函数 ----
 
@@ -165,18 +280,24 @@ class AgentGraph:
         logger.warning(f"SQL 执行失败且重试耗尽: {state.get('execution_error')}")
         return "end"
 
-    async def run(self, question: str) -> AgentState:
+    async def run(self, question: str, session_id: str | None = None) -> AgentState:
         """运行完整的 Agent 工作流
 
         Args:
             question: 用户的自然语言问题
+            session_id: 多轮分析会话 ID；为空时保持单轮查询行为
 
         Returns:
             最终的 AgentState，包含 answer 或错误信息
         """
+        # 在图执行前读取历史摘要，作为显式 state 传入后续节点，避免节点直接访问外部会话存储。
+        conversation_context = session_store.get_context(session_id)
+
         # 初始化状态，所有字段设为默认值
         initial_state: AgentState = {
             "question": question,
+            "session_id": session_id,
+            "conversation_context": conversation_context,
             "schema_context": None,
             "generated_sql": None,
             "validated_sql": None,
@@ -188,11 +309,21 @@ class AgentGraph:
             "retry_count": 0,
             "answer": None,
             "optimization_suggestions": [],
+            "audit_events": [],
+            "audit_report": None,
         }
 
         logger.info(f"开始处理问题: {question}")
         final_state = await self.graph.ainvoke(initial_state)
         logger.info(f"处理完成，重试次数: {final_state['retry_count']}")
+
+        final_state["audit_report"] = audit_report_builder.build_report(
+            final_state,
+            final_state.get("audit_events", []),
+        )
+
+        # 图完成后再写回本轮摘要；失败轮也保留问题和 SQL，方便下一轮提示用户换问法或继续修复。
+        session_store.append_turn(session_id, final_state)
 
         return final_state
 

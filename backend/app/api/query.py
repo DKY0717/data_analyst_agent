@@ -25,12 +25,13 @@ async def query(request: QueryRequest):
     try:
         logger.info(f"收到查询请求: {request.question}")
 
-        # 运行 Agent 工作流
-        result = await agent_graph.run(request.question)
+        # session_id 只做透传；多轮上下文由 AgentGraph 和 SessionStore 统一管理。
+        result = await agent_graph.run(request.question, session_id=request.session_id)
 
         # 构造响应（兼容 answer 为 None 的情况，即重试耗尽）
         response = QueryResponse(
             question=result["question"],
+            session_id=result.get("session_id") or request.session_id,
             sql=result.get("validated_sql") or result.get("generated_sql") or "",
             is_sql_safe=result.get("is_sql_safe", False),
             columns=result.get("query_result", {}).get("columns", []),
@@ -38,7 +39,8 @@ async def query(request: QueryRequest):
             answer=result.get("answer") or "抱歉，处理您的问题时遇到困难，请尝试换个问法。",
             execution_time_ms=result.get("query_result", {}).get("execution_time_ms", 0),
             retry_count=result.get("retry_count", 0),
-            optimization_suggestions=result.get("optimization_suggestions", [])
+            optimization_suggestions=result.get("optimization_suggestions", []),
+            audit_report=result.get("audit_report"),
         )
 
         return SuccessResponse(

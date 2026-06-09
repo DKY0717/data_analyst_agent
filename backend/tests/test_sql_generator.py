@@ -4,7 +4,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from app.agents.sql_generator import SQLGenerator
+from app.agents.sql_generator import SQLGenerator, llm_client
 from app.models.schemas import SQLGeneratorOutput
 from app.utils.exceptions import LLMError
 
@@ -61,11 +61,34 @@ class TestFormatSchema:
         assert "customer_id (INTEGER, NULLABLE)" in result
         assert "total_amount (DECIMAL, NOT NULL)" in result
 
+    def test_format_schema_includes_semantic_summary(self, generator):
+        """SQL Generator 给 LLM 的上下文必须包含业务语义层摘要"""
+        schema_context = {
+            "tables": {
+                "orders": {
+                    "table_name": "orders",
+                    "columns": [
+                        {"name": "order_id", "type": "INTEGER", "nullable": False},
+                        {"name": "total_amount", "type": "DECIMAL", "nullable": False},
+                    ],
+                    "primary_keys": ["order_id"],
+                }
+            }
+        }
+
+        result = generator._format_schema(schema_context)
+
+        assert "物理数据库 Schema:" in result
+        assert "业务语义层:" in result
+        assert "销售额 = SUM(orders.total_amount)" in result
+        assert "默认时间字段: orders.order_date" in result
+
     def test_format_schema_empty_tables(self, generator):
         """测试空 Schema 的格式化"""
         schema = {"tables": {}}
         result = generator._format_schema(schema)
-        assert result == ""
+        assert "物理数据库 Schema:" in result
+        assert "业务语义层:" in result
 
     def test_format_schema_no_primary_keys(self, generator):
         """测试没有主键的 Schema 格式化"""
@@ -82,7 +105,7 @@ class TestFormatSchema:
         }
         result = generator._format_schema(schema)
         assert "表名: logs" in result
-        assert "主键" not in result
+        assert "  主键" not in result
 
 
 class TestExtractColumns:
@@ -176,3 +199,64 @@ class TestGenerate:
                 await generator.generate("测试问题", mock_schema)
 
             assert "格式错误" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_generate_passes_semantic_context_to_llm(self, generator):
+        """生成 SQL 时传给 LLM 的 schema_info 应包含物理 Schema 和业务语义"""
+        schema_context = {
+            "tables": {
+                "orders": {
+                    "table_name": "orders",
+                    "columns": [
+                        {"name": "order_id", "type": "INTEGER", "nullable": False},
+                        {"name": "total_amount", "type": "DECIMAL", "nullable": False},
+                        {"name": "order_date", "type": "DATE", "nullable": False},
+                    ],
+                    "primary_keys": ["order_id"],
+                }
+            }
+        }
+
+        captured = {}
+
+        async def fake_generate_sql(question, schema_info, conversation_context=""):
+            captured["question"] = question
+            captured["schema_info"] = schema_info
+            captured["conversation_context"] = conversation_context
+            return {
+                "sql": "SELECT SUM(orders.total_amount) AS sales_amount FROM orders",
+                "tables": ["orders"],
+                "explanation": "统计销售额",
+            }
+
+        original_generate_sql = llm_client.generate_sql
+        llm_client.generate_sql = fake_generate_sql
+        try:
+            output = await generator.generate("统计销售额", schema_context)
+        finally:
+            llm_client.generate_sql = original_generate_sql
+
+        assert output.sql == "SELECT SUM(orders.total_amount) AS sales_amount FROM orders"
+        assert "表名: orders" in captured["schema_info"]
+        assert "销售额 = SUM(orders.total_amount)" in captured["schema_info"]
+        assert captured["conversation_context"] == ""
+
+    @pytest.mark.asyncio
+    async def test_generate_passes_conversation_context_to_llm(self, generator, mock_schema):
+        """多轮追问时，SQL Generator 应把历史上下文传给 LLM Service"""
+        mock_response = {
+            "sql": "SELECT region_name, SUM(total_amount) AS sales FROM orders GROUP BY region_name",
+            "tables": ["orders", "regions"],
+            "explanation": "基于上一轮销售额按地区拆分",
+        }
+
+        with patch("app.agents.sql_generator.llm_client") as mock_llm:
+            mock_llm.generate_sql = AsyncMock(return_value=mock_response)
+
+            await generator.generate(
+                "按地区拆一下",
+                mock_schema,
+                conversation_context="上一轮分析上下文:\n- 问题: 统计销售额",
+            )
+
+            assert mock_llm.generate_sql.call_args.args[2] == "上一轮分析上下文:\n- 问题: 统计销售额"

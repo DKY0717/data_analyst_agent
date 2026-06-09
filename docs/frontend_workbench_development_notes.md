@@ -286,7 +286,11 @@ a716391 feat: compose frontend workbench
 
    看 SQL 和安全状态如何展示。
 
-8. `frontend/src/styles/main.css`
+8. `frontend/src/components/AuditPanel.vue`
+
+   看安全审计摘要和生成、校验、执行事件如何展示。
+
+9. `frontend/src/styles/main.css`
 
    最后看布局和视觉样式。
 
@@ -298,7 +302,7 @@ a716391 feat: compose frontend workbench
 POST /api/chat/query
 ```
 
-后端完成后，前端会优先使用真实接口。如果字段有小差异，只需要改：
+前端已经接入后端 `session_id` 和 `audit_report`。工作台会在页面生命周期内复用同一个会话 ID，并优先使用真实接口。如果字段有小差异，只需要改：
 
 ```text
 frontend/src/api/agent.js
@@ -323,5 +327,7 @@ frontend/src/api/agent.js
 - 页面可以展示图表。
 - 页面可以展示自然语言解释。
 - 页面可以展示优化建议。
+- 页面会持续发送 `session_id`，支持多轮追问。
+- 页面可以展示安全审计摘要和事件时间线。
 
-后续等后端 `/api/chat/query` 完成后，就可以进行真实联调。
+当前可以直接与后端 `/api/chat/query` 进行真实联调；接口不可用时仍保留 mock fallback 用于前端预览。
