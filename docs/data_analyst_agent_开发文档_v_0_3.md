@@ -26,7 +26,7 @@ v0.3 的目标不是继续堆普通功能，而是把项目从“能跑的 NL2SQ
 8. 查询结果自然语言解释。
 9. Vue 前端工作台展示 SQL、表格、图表、答案和优化建议。
 10. SQL Optimizer 基于 SQL AST、结果规模和 DuckDB EXPLAIN 生成规则化优化建议。
-11. 后端 pytest 使用隔离 DuckDB 测试库，当前测试结果为 `110 passed`。
+11. 后端 pytest 使用隔离 DuckDB 测试库，当前测试结果为 `124 passed`。
 
 v0.2 已经不是简单 Demo，但它的核心短板是：缺少业务语义约束、缺少系统性评测、缺少多轮追问能力、缺少面向用户和面试官可展示的安全审计报告。
 
@@ -97,6 +97,7 @@ Evaluation Runner (offline benchmark)
 | Semantic Layer | 在线能力 | 提供业务指标、字段别名、默认时间字段和口径说明 |
 | Evaluation Runner | 离线能力 | 批量执行测试问题，生成评测报告 |
 | Repair Evaluation Runner | 离线能力 | 对确定性失败 SQL 单独验证 Repair、Guard、执行和意图保持 |
+| LLM Observability | 横切能力 | 隔离并汇总每次 Qwen 调用的 Token、耗时、尝试次数和可选成本 |
 | Conversation Context | 在线能力 | 保存多轮分析上下文，支持追问解析 |
 | Audit Collector | 在线能力 | 收集 SQL 安全校验、修复和执行过程中的审计事件 |
 
@@ -300,6 +301,16 @@ python -m evaluation.repair_evaluator
 ```
 
 首次真实基线端到端修复成功率为 `5/6（83.3%）`。失败样本暴露了 DuckDB `strftime` 返回字符串但未显式转换的问题；补充 Repair prompt 方言约束和单元测试后，相同用例复测达到 `6/6（100%）`。完整分析见 `docs/Qwen_Plus_SQL修复评测基线分析.md`。
+
+### 7.7 LLM 调用可观测性与资源基线
+
+Qwen API Client 在调用边界记录真实 usage、逻辑调用耗时和 API 尝试次数；使用 `ContextVar` 隔离并发请求，再由 AgentState、AuditReport 与两套离线评测统一汇总。模型单价由环境变量配置，未配置时成本为 `null`。
+
+2026-06-10 Qwen Plus 真实基线：
+
+- 32 条 NL2SQL：平均每题 `1.78` 次调用、`1889.28 Token`、`9301 ms` LLM 耗时。
+- 6 条 SQL Repair：平均每条 `1.00` 次调用、`875.67 Token`、`3862.50 ms` LLM 耗时。
+- 完整分析见 `docs/Qwen_Plus_LLM调用成本与耗时基线分析.md`。
 
 ---
 

@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-06-10 — 第十次会话
+
+### 完成的工作
+
+**LLM 调用可观测性与成本评测** ✅
+- 新增基于 `ContextVar` 的 LLM 调用轨迹，隔离并发异步请求，汇总节点、模型、Token、耗时、API 尝试次数和可选估算成本。
+- Qwen API 边界解析 DashScope 真实 usage；失败记录仅保留异常类型，不保存 prompt、请求头、API Key 或完整响应。
+- AgentGraph 通过 state 跨节点传递调用轨迹，`audit_report.llm_observability` 返回请求级汇总与调用明细。
+- NL2SQL 与 SQL Repair 两套评测报告新增平均调用数、Token、LLM 耗时和成本可用状态。
+- 成本单价使用可选环境变量配置，未配置时成本字段保持 `null`。
+- 完整后端回归：`124 passed`。
+- 真实 Qwen Plus 32 条 NL2SQL 基线：平均每题 `1.78` 次调用、`1889.28 Token`、`9301 ms` LLM 耗时；正常分析执行成功率 `24/24`，危险请求阻断率 `7/8`。
+- 真实 Qwen Plus 6 条 Repair 基线：端到端修复 `6/6`，平均每条 `875.67 Token`、`3862.50 ms` LLM 耗时。
+- 新增 `docs/Qwen_Plus_LLM调用成本与耗时基线分析.md`，如实记录模型将一条危险请求改写为无害拒绝 SQL 的安全评测边界。
+- 阶段提交：`6552eb2`、`ba07018`、`5ab75e3`、`a71456a`、`4a95e5a`。
+
+### 下一步
+
+- 将完整后端测试、NL2SQL 安全基线和 Repair 基线接入 GitHub Actions，并对指标下降设置检查阈值。
+
+---
+
 ## 2026-06-09 — 第九次会话
 
 ### 完成的工作
