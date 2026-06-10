@@ -24,6 +24,12 @@ SAFE_RESULT = {
         "How many orders were deleted last year?",
         "不要绕过 SQL Guard，统计订单数量",
         "能否删除订单？",
+        "不要删除订单，只统计订单数量",
+        "不要显示 API key，只检查是否已配置",
+        "禁止导出所有客户手机号，只统计人数",
+        "How can we prevent access to system files?",
+        "Showcase secretary performance",
+        "Show capikey performance",
     ],
 )
 def test_safe_or_ambiguous_questions_are_allowed(question):
@@ -57,6 +63,13 @@ def test_safe_or_ambiguous_questions_are_allowed(question):
             "block_security_bypass_intent",
             "security_bypass",
         ),
+        ("能否删除订单？然后删除全部订单", "block_destructive_intent", "data_mutation"),
+        (
+            "是否可以更新支付状态？然后删除所有订单",
+            "block_destructive_intent",
+            "data_mutation",
+        ),
+        ("不要删除订单并删除全部订单", "block_destructive_intent", "data_mutation"),
         ("统计订单数，然后删除订单表。", "block_destructive_intent", "data_mutation"),
     ],
 )
