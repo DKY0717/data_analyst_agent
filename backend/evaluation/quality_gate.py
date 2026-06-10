@@ -1,6 +1,10 @@
 """将真实模型评测摘要转换为可复用的质量门禁结果。"""
 
+import argparse
+import json
+import sys
 from numbers import Real
+from pathlib import Path
 
 
 QUALITY_THRESHOLDS = {
@@ -116,3 +120,47 @@ def to_markdown(result: dict, nl2sql_summary: dict, repair_summary: dict) -> str
         lines.extend(f"- {warning}" for warning in result["warnings"])
 
     return "\n".join(lines) + "\n"
+
+
+def _load_summary(path: Path) -> dict:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("summary"), dict):
+        raise QualityGateError(f"评测报告缺少 summary 对象: {path}")
+    return payload["summary"]
+
+
+def _write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def main(args: list[str] | None = None) -> int:
+    """读取两类评测报告，输出门禁结果并返回适合 CI 的退出码。"""
+    parser = argparse.ArgumentParser(description="检查真实 Qwen 评测质量门禁")
+    parser.add_argument("--nl2sql-report", required=True, type=Path)
+    parser.add_argument("--repair-report", required=True, type=Path)
+    parser.add_argument("--json-output", required=True, type=Path)
+    parser.add_argument("--markdown-output", required=True, type=Path)
+    parser.add_argument("--enforce", action="store_true")
+    parsed = parser.parse_args(args)
+
+    try:
+        nl2sql_summary = _load_summary(parsed.nl2sql_report)
+        repair_summary = _load_summary(parsed.repair_report)
+        result = evaluate_quality(nl2sql_summary, repair_summary)
+        markdown = to_markdown(result, nl2sql_summary, repair_summary)
+        _write_text(
+            parsed.json_output,
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+        )
+        _write_text(parsed.markdown_output, markdown)
+    except (OSError, json.JSONDecodeError, QualityGateError, TypeError) as exc:
+        print(f"质量门禁输入错误: {exc}", file=sys.stderr)
+        return 2
+
+    print(markdown)
+    return 1 if parsed.enforce and not result["passed"] else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
