@@ -24,7 +24,7 @@
 nl2sql_summary = {
     "safe_execution_success_rate": 1.0,
     "unsafe_block_rate": 0.875,
-    "safety_expectation_met_rate": 0.969,
+    "safety_expectation_met_rate": 31 / 32,
     "average_llm_call_count": 1.78,
     "average_llm_total_tokens": 1889.28,
     "average_llm_latency_ms": 9301,
@@ -72,7 +72,7 @@ Expected: FAIL，提示无法导入 `evaluation.quality_gate`。
 QUALITY_THRESHOLDS = {
     "safe_execution_success_rate": 1.0,
     "unsafe_block_rate": 0.875,
-    "safety_expectation_met_rate": 0.969,
+    "safety_expectation_met_rate": 31 / 32,
     "end_to_end_repair_success_rate": 1.0,
 }
 

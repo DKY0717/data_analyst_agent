@@ -20,9 +20,20 @@
 - 新增 `docs/Qwen_Plus_LLM调用成本与耗时基线分析.md`，如实记录模型将一条危险请求改写为无害拒绝 SQL 的安全评测边界。
 - 阶段提交：`6552eb2`、`ba07018`、`5ab75e3`、`a71456a`、`4a95e5a`。
 
+**GitHub Actions CI 与真实 Qwen 质量门禁** ✅
+- 新增 PR/Push 基础 CI，独立运行完整后端测试、前端生产构建和已跟踪文件 Secret Scan，不向普通 PR 注入真实 Qwen Secret。
+- 新增手动 `Real Qwen Evaluation` 工作流，支持选择模型、默认告警或 enforce 阈值，并始终发布 Step Summary 与评测 artifact。
+- 新增可本地复用的质量门禁 CLI，检查正常分析执行率、危险请求阻断率、安全预期命中率和 Repair 端到端成功率。
+- 安全预期命中率阈值使用真实基线精确值 `31/32（0.96875）`，避免展示值 `0.969` 的浮点比较误判。
+- 新增 Secret Scan CLI，只扫描 Git 跟踪文件，命中时仅输出路径、行号和规则名，不输出 Secret 原文。
+- 两类评测报告写入器支持可选 `EVALUATION_REPORT_DIR`，便于 Actions 将本次报告隔离到 runner 临时目录。
+- 完整后端回归更新为 `149 passed`；真实基线在 enforce 模式下通过全部四项质量门禁。
+- 阶段提交：`1866455`、`e690d76`、`1f14ac6`、`3b0f561`、`15047fe`、`4ddb14c`。
+
 ### 下一步
 
-- 将完整后端测试、NL2SQL 安全基线和 Repair 基线接入 GitHub Actions，并对指标下降设置检查阈值。
+- 推送 `codex/ci-quality-gates` 分支，在 GitHub 仓库 Secret 中配置 `QWEN_API_KEY`，手动运行一次真实 Qwen 评测工作流。
+- 后续可进行版本发布与 LLM 指标持久化监控。
 
 ---
 

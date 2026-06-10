@@ -13,7 +13,7 @@
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
 - **LLM 调用可观测性**：记录每次 Qwen 调用的节点、Token、耗时、尝试次数和可选估算成本，并接入审计与离线评测报告。
-- **可验证工程质量**：后端测试使用隔离 DuckDB 测试库，不依赖本机真实数据文件；当前后端测试覆盖 124 个用例。
+- **可验证工程质量**：后端测试使用隔离 DuckDB 测试库，不依赖本机真实数据文件；当前后端测试覆盖 149 个用例，并接入 GitHub Actions。
 
 ## 核心功能
 
@@ -192,7 +192,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`124 passed`。
+当前验证结果：`149 passed`。
 
 ## 运行评测
 
@@ -203,6 +203,13 @@ python -m evaluation.repair_evaluator
 ```
 
 NL2SQL 评测包含 32 条固定 case；独立 SQL Repair 评测包含 6 条确定性故障注入 case。报告输出到 `backend/evaluation/reports/`，同时生成 Markdown 和 JSON，并展示调用次数、Token、LLM 耗时和可选估算成本。当前 Qwen Plus Repair 基线为 `6/6（100%）`，资源基线详见 [Qwen Plus LLM 调用成本与耗时基线分析](docs/Qwen_Plus_LLM调用成本与耗时基线分析.md)。
+
+## CI 与质量门禁
+
+- PR 和 `main` 分支 push 自动运行完整后端测试、前端生产构建和已跟踪文件 Secret Scan，不使用真实 Qwen Secret。
+- GitHub Actions 的 `Real Qwen Evaluation` 支持手动选择模型并运行两套真实评测；需要在仓库 Secret 中配置 `QWEN_API_KEY`。
+- 质量门禁检查正常分析执行率 `100%`、危险请求阻断率 `87.5%`、安全预期命中率 `31/32（96.875%）`、Repair 端到端成功率 `100%`。
+- 手动评测默认仅告警；启用 `enforce_thresholds` 后，任一门禁下降会使工作流失败。Markdown/JSON 报告和门禁结果始终上传为 artifact。
 
 ## 面试准备
 
