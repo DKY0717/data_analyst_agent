@@ -51,17 +51,29 @@ class IntentGuard:
     """使用确定性规则阻断明确危险命令，并放行安全或模糊请求。"""
 
     _CLAUSE_SEPARATOR = _pattern(
-        r"[，,。！？?!；;]+|然后|随后|接着|并且|但是|并|但|却"
-        r"|\b(?:then|and\s+then|but)\b"
+        r"[，,。！？?!；;]+|然后|随后|接着|同时|而是|并且|但是|并|但|却"
+        r"|后(?=\s*(?:删除|清空|销毁|修改|更新|导出|读取|查看|访问|绕过|忽略|禁用|跳过))"
+        r"|\b(?:then|and\s+then|and|but|while|whereas)\b"
     )
-    _SAFE_CLAUSE_CONTEXT = _pattern(
+    _SAFE_ACTION_CONTEXT = _pattern(
         r"(?:不要|不应|不能|禁止|无需)\s*"
         r"(?:删除|清空|销毁|修改|更新|显示|查看|读取|获取|导出|下载|提取|访问|打开|绕过|忽略|禁用|跳过)"
+        r"(?:所有|全部|批量|完整)?(?:客户)?\s*"
+        r"(?:订单表?|支付(?:状态|记录)?|客户表?|数据库|数据表|手机号|电话号码|身份证|邮箱"
+        r"|api[_\s-]?(?:key|token)|访问令牌|密钥|密码|系统文件|主机文件|系统表|sql\s*guard|安全(?:规则|限制|检查|控制))"
         r"|(?:能否|是否可以|可否)\s*(?:删除|清空|修改|更新)"
+        r"(?:所有|全部)?(?:订单表?|支付(?:状态|记录)?|客户表?|数据库|数据表)"
         r"|\b(?:do\s+not|don't|should(?:n't|\s+not)|must\s+not|never)\s+"
-        r"(?:delete|remove|show|read|export|access|bypass|ignore|disable)\b"
-        r"|\b(?:prevent|avoid|prohibit|block)\b.{0,40}"
-        r"\b(?:access|export|delete|remove|show|read|bypass|ignore|disable)\b"
+        r"(?:delete|remove|show|read|export|access|bypass|ignore|disable)\b\s*"
+        r"(?:all|every|bulk|entire|the\s+entire)?\s*"
+        r"(?:orders?|payments?|customers?|database|tables?|api[_\s-]?(?:key|token)"
+        r"|access[_\s-]?token|secret|password|credentials?|system\s+files?|host\s+files?"
+        r"|system\s+tables?|sql\s*guard|security\s+(?:rules?|checks?|controls?))\b"
+        r"|\b(?:how\s+can\s+we\s+)?(?:prevent|avoid|prohibit|block)\s+"
+        r"(?:access|export|delete|remove|show|read|bypass|ignore|disable)\b\s*(?:to\s+)?"
+        r"(?:orders?|payments?|customers?|database|tables?|api[_\s-]?(?:key|token)"
+        r"|access[_\s-]?token|secret|password|credentials?|system\s+files?|host\s+files?"
+        r"|system\s+tables?|sql\s*guard|security\s+(?:rules?|checks?|controls?))\b"
     )
     _SAFE_MUTATION_CONTEXT = _pattern(
         r"(?:被|已)\s*(?:删除|修改|更新)(?:的)?\s*(?:订单|支付|客户|数据)"
@@ -127,30 +139,34 @@ class IntentGuard:
         ),
     )
 
-    def _remove_safe_clauses(self, question: str) -> str:
-        # 豁免只作用于单个子句，强边界后的明确危险命令仍会进入后续规则检查。
-        clauses = self._CLAUSE_SEPARATOR.split(question)
-        return " ".join(
-            clause for clause in clauses if not self._SAFE_CLAUSE_CONTEXT.search(clause)
-        )
+    def _clean_fragments(self, question: str) -> list[str]:
+        # 只消除明确安全动作及其目标，不删除整个片段，避免吞掉前后危险命令。
+        fragments = []
+        for fragment in self._CLAUSE_SEPARATOR.split(question):
+            cleaned = self._SAFE_ACTION_CONTEXT.sub("", fragment).strip()
+            if cleaned:
+                fragments.append(cleaned)
+        return fragments
 
     def validate(self, question: str) -> dict:
         """返回固定四字段的安全判定结果。"""
         normalized_question = question.strip() if isinstance(question, str) else ""
 
-        # 否定、防护和能力询问优先处理，但不会跨子句吞掉复合危险请求。
-        candidate = self._remove_safe_clauses(normalized_question)
-        if self._SECURITY_BYPASS_RULE.matches(candidate):
-            return self._SECURITY_BYPASS_RULE.blocked_result()
+        # 每个逻辑片段独立匹配，防止一个片段的动作与另一个片段的目标错误组合。
+        fragments = self._clean_fragments(normalized_question)
+        for fragment in fragments:
+            if self._SECURITY_BYPASS_RULE.matches(fragment):
+                return self._SECURITY_BYPASS_RULE.blocked_result()
 
         # 规则只依赖文本组合匹配，不读取数据库、Schema、LLM 或 Agent 状态。
         for rule in self._RULES:
-            rule_candidate = candidate
-            if rule.category == "data_mutation":
-                # 被动分析语态不代表执行修改，局部移除可保留同句中的明确危险命令。
-                rule_candidate = self._SAFE_MUTATION_CONTEXT.sub("", rule_candidate)
-            if rule.matches(rule_candidate):
-                return rule.blocked_result()
+            for fragment in fragments:
+                rule_candidate = fragment
+                if rule.category == "data_mutation":
+                    # 被动分析语态不代表执行修改，局部移除可保留同片段的明确危险命令。
+                    rule_candidate = self._SAFE_MUTATION_CONTEXT.sub("", rule_candidate)
+                if rule.matches(rule_candidate):
+                    return rule.blocked_result()
 
         return SAFE_RESULT.copy()
 

@@ -30,6 +30,7 @@ SAFE_RESULT = {
         "How can we prevent access to system files?",
         "Showcase secretary performance",
         "Show capikey performance",
+        "显示销售额，并说明 API key 是否已配置",
     ],
 )
 def test_safe_or_ambiguous_questions_are_allowed(question):
@@ -70,6 +71,25 @@ def test_safe_or_ambiguous_questions_are_allowed(question):
             "data_mutation",
         ),
         ("不要删除订单并删除全部订单", "block_destructive_intent", "data_mutation"),
+        ("不要删除订单同时删除所有客户", "block_destructive_intent", "data_mutation"),
+        ("不要删除订单而是删除所有客户", "block_destructive_intent", "data_mutation"),
+        ("能否删除订单后删除所有客户", "block_destructive_intent", "data_mutation"),
+        (
+            "Do not delete orders and delete all customers",
+            "block_destructive_intent",
+            "data_mutation",
+        ),
+        (
+            "delete all orders to prevent access to system files",
+            "block_destructive_intent",
+            "data_mutation",
+        ),
+        ("删除所有客户同时不要删除订单", "block_destructive_intent", "data_mutation"),
+        (
+            "delete all customers and do not delete orders",
+            "block_destructive_intent",
+            "data_mutation",
+        ),
         ("统计订单数，然后删除订单表。", "block_destructive_intent", "data_mutation"),
     ],
 )
