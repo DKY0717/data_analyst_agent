@@ -7,9 +7,11 @@
 import json
 import httpx
 import logging
+import time
 from typing import Optional
 
 from ..config import settings
+from .llm_observability import calculate_estimated_cost, record_call
 from ..utils.exceptions import LLMError, LLMTimeoutError, LLMResponseError
 
 logger = logging.getLogger(__name__)
@@ -72,7 +74,8 @@ class QwenAPIClient:
         self,
         messages: list[dict],
         temperature: float,
-        max_tokens: int = 2000
+        max_tokens: int = 2000,
+        stage: str = "unknown",
     ) -> str:
         """调用 Qwen API 并返回响应内容
 
@@ -88,9 +91,11 @@ class QwenAPIClient:
         """
         payload = self._build_payload(messages, temperature, max_tokens)
         headers = self._build_headers()
+        started_at = time.perf_counter()
 
         # 指数退避重试循环
         for attempt in range(self.max_retries):
+            attempt_count = attempt + 1
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
@@ -112,22 +117,50 @@ class QwenAPIClient:
                     # 从响应中提取生成的文本内容
                     # Qwen API 响应结构: output.choices[0].message.content
                     content = result["output"]["choices"][0]["message"]["content"]
+                    self._record_observability(
+                        stage=stage,
+                        started_at=started_at,
+                        attempt_count=attempt_count,
+                        usage=result.get("usage"),
+                        success=True,
+                    )
                     return content
 
-            except httpx.TimeoutException:
+            except httpx.TimeoutException as exc:
                 # 超时异常，记录日志并决定是否重试
                 logger.warning(f"API 调用超时 (第 {attempt + 1} 次)")
                 if attempt == self.max_retries - 1:
+                    self._record_observability(
+                        stage=stage,
+                        started_at=started_at,
+                        attempt_count=attempt_count,
+                        success=False,
+                        error_type=type(exc).__name__,
+                    )
                     raise LLMTimeoutError(f"API 调用超时，已重试 {self.max_retries} 次")
 
-            except (LLMResponseError, LLMError):
+            except (LLMResponseError, LLMError) as exc:
                 # 响应异常或业务异常，直接抛出不重试
+                self._record_observability(
+                    stage=stage,
+                    started_at=started_at,
+                    attempt_count=attempt_count,
+                    success=False,
+                    error_type=type(exc).__name__,
+                )
                 raise
 
             except Exception as e:
                 # 其他异常，记录日志并决定是否重试
                 logger.error(f"API 调用异常: {e} (第 {attempt + 1} 次)")
                 if attempt == self.max_retries - 1:
+                    self._record_observability(
+                        stage=stage,
+                        started_at=started_at,
+                        attempt_count=attempt_count,
+                        success=False,
+                        error_type=type(e).__name__,
+                    )
                     raise LLMError(f"API 调用失败: {e}")
 
             # 指数退避：第 1 次等 1 秒，第 2 次等 2 秒，第 3 次等 4 秒
@@ -135,6 +168,53 @@ class QwenAPIClient:
             await asyncio.sleep(2 ** attempt)
 
         raise LLMError("API 调用失败，已达最大重试次数")
+
+    def _record_observability(
+        self,
+        stage: str,
+        started_at: float,
+        attempt_count: int,
+        usage: Optional[dict] = None,
+        success: bool = False,
+        error_type: Optional[str] = None,
+    ) -> None:
+        """记录一次逻辑 LLM 调用；观测失败不得影响业务主流程。"""
+        try:
+            usage = usage or {}
+            input_tokens = self._safe_token_count(usage.get("input_tokens"))
+            output_tokens = self._safe_token_count(usage.get("output_tokens"))
+            total_tokens = self._safe_token_count(usage.get("total_tokens"))
+            if not total_tokens:
+                total_tokens = input_tokens + output_tokens
+
+            record_call(
+                {
+                    "stage": stage,
+                    "model": self.model,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": total_tokens,
+                    "latency_ms": max(0, round((time.perf_counter() - started_at) * 1000)),
+                    "attempt_count": attempt_count,
+                    "estimated_cost": calculate_estimated_cost(
+                        input_tokens,
+                        output_tokens,
+                        settings.QWEN_INPUT_PRICE_PER_MILLION_TOKENS,
+                        settings.QWEN_OUTPUT_PRICE_PER_MILLION_TOKENS,
+                    ),
+                    "success": success,
+                    "error_type": error_type,
+                }
+            )
+        except Exception as exc:
+            logger.warning(f"LLM 可观测性记录失败: {type(exc).__name__}")
+
+    def _safe_token_count(self, value: object) -> int:
+        """兼容 DashScope usage 缺失或异常字段，避免观测数据阻断成功调用。"""
+        try:
+            return max(0, int(value or 0))
+        except (TypeError, ValueError):
+            return 0
 
     async def generate_sql(
         self,
@@ -196,7 +276,7 @@ class QwenAPIClient:
         ]
 
         # 调用 API 获取响应
-        content = await self._call_api(messages, SQL_TEMPERATURE)
+        content = await self._call_api(messages, SQL_TEMPERATURE, stage="generate_sql")
 
         # 解析 JSON 响应
         return self._parse_json_response(content, "SQL 生成")
@@ -252,7 +332,7 @@ class QwenAPIClient:
             {"role": "user", "content": user_prompt}
         ]
 
-        content = await self._call_api(messages, SQL_TEMPERATURE)
+        content = await self._call_api(messages, SQL_TEMPERATURE, stage="repair_sql")
         return self._parse_json_response(content, "SQL 修复")
 
     async def generate_answer(
@@ -300,7 +380,7 @@ class QwenAPIClient:
         ]
 
         # 答案生成不需要 JSON 解析，直接返回文本
-        content = await self._call_api(messages, ANSWER_TEMPERATURE)
+        content = await self._call_api(messages, ANSWER_TEMPERATURE, stage="generate_answer")
         return content
 
     def _parse_json_response(self, content: str, context: str) -> dict:

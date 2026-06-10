@@ -6,6 +6,7 @@ import json
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.llm_service import QwenAPIClient
+from app.services.llm_observability import get_calls, start_trace
 from app.utils.exceptions import LLMError, LLMTimeoutError, LLMResponseError
 
 
@@ -102,7 +103,7 @@ class TestGenerateSQLPrompt:
     async def test_generate_sql_prompt_mentions_semantic_layer(self, client):
         captured_messages = {}
 
-        async def fake_call_api(messages, temperature, max_tokens=2000):
+        async def fake_call_api(messages, temperature, max_tokens=2000, stage="unknown"):
             captured_messages["messages"] = messages
             return '{"sql": "SELECT SUM(total_amount) FROM orders", "tables": ["orders"], "explanation": "统计销售额"}'
 
@@ -121,7 +122,7 @@ class TestGenerateSQLPrompt:
     async def test_generate_sql_prompt_includes_conversation_context(self, client):
         captured_messages = {}
 
-        async def fake_call_api(messages, temperature, max_tokens=2000):
+        async def fake_call_api(messages, temperature, max_tokens=2000, stage="unknown"):
             captured_messages["messages"] = messages
             return '{"sql": "SELECT region_name, SUM(total_amount) FROM orders GROUP BY region_name", "tables": ["orders"], "explanation": "按地区拆分"}'
 
@@ -149,7 +150,7 @@ class TestRepairSQLPrompt:
     async def test_repair_prompt_includes_duckdb_date_and_cast_guidance(self, client):
         captured_messages = {}
 
-        async def fake_call_api(messages, temperature, max_tokens=2000):
+        async def fake_call_api(messages, temperature, max_tokens=2000, stage="unknown"):
             captured_messages["messages"] = messages
             return '{"repaired_sql": "SELECT EXTRACT(QUARTER FROM order_date) FROM orders", "repair_reason": "使用 DuckDB 季度函数"}'
 
@@ -165,3 +166,137 @@ class TestRepairSQLPrompt:
 
         assert "EXTRACT(QUARTER FROM date_column)" in system_prompt
         assert "字符串参与算术前必须显式 CAST" in system_prompt
+
+
+class FakeHTTPResponse:
+    def __init__(self, payload, status_code=200, text=""):
+        self.payload = payload
+        self.status_code = status_code
+        self.text = text
+
+    def json(self):
+        return self.payload
+
+
+class FakeAsyncClient:
+    def __init__(self, outcomes):
+        self.outcomes = outcomes
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return False
+
+    async def post(self, *args, **kwargs):
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+class TestCallAPIObservability:
+    """测试 Qwen API 边界能记录真实 usage、耗时、尝试次数与失败类型"""
+
+    @pytest.mark.asyncio
+    async def test_successful_call_records_usage(self, client, monkeypatch):
+        start_trace()
+        outcomes = [
+            FakeHTTPResponse(
+                {
+                    "output": {"choices": [{"message": {"content": "ok"}}]},
+                    "usage": {
+                        "input_tokens": 120,
+                        "output_tokens": 30,
+                        "total_tokens": 150,
+                    },
+                }
+            )
+        ]
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: FakeAsyncClient(outcomes),
+        )
+
+        content = await client._call_api([], 0.1, stage="generate_sql")
+
+        assert content == "ok"
+        assert get_calls()[0] | {"latency_ms": 0} == {
+            "stage": "generate_sql",
+            "model": client.model,
+            "input_tokens": 120,
+            "output_tokens": 30,
+            "total_tokens": 150,
+            "latency_ms": 0,
+            "attempt_count": 1,
+            "estimated_cost": None,
+            "success": True,
+            "error_type": None,
+        }
+
+    @pytest.mark.asyncio
+    async def test_missing_usage_records_zero_tokens(self, client, monkeypatch):
+        start_trace()
+        outcomes = [
+            FakeHTTPResponse({"output": {"choices": [{"message": {"content": "ok"}}]}})
+        ]
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: FakeAsyncClient(outcomes),
+        )
+
+        await client._call_api([], 0.1, stage="generate_answer")
+
+        assert get_calls()[0]["total_tokens"] == 0
+
+    @pytest.mark.asyncio
+    async def test_retry_then_success_records_one_call_with_attempt_count(self, client, monkeypatch):
+        start_trace()
+        outcomes = [
+            RuntimeError("temporary network error"),
+            FakeHTTPResponse(
+                {
+                    "output": {"choices": [{"message": {"content": "ok"}}]},
+                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                }
+            ),
+        ]
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: FakeAsyncClient(outcomes),
+        )
+
+        async def no_sleep(seconds):
+            return None
+
+        monkeypatch.setattr("asyncio.sleep", no_sleep)
+
+        await client._call_api([], 0.1, stage="repair_sql")
+
+        assert len(get_calls()) == 1
+        assert get_calls()[0]["attempt_count"] == 2
+        assert get_calls()[0]["total_tokens"] == 15
+        assert get_calls()[0]["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_final_failure_records_error_type_without_error_message(self, client, monkeypatch):
+        start_trace()
+        outcomes = [RuntimeError("secret server response")] * client.max_retries
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: FakeAsyncClient(outcomes),
+        )
+
+        async def no_sleep(seconds):
+            return None
+
+        monkeypatch.setattr("asyncio.sleep", no_sleep)
+
+        with pytest.raises(LLMError):
+            await client._call_api([], 0.1, stage="repair_sql")
+
+        call = get_calls()[0]
+        assert call["success"] is False
+        assert call["attempt_count"] == client.max_retries
+        assert call["error_type"] == "RuntimeError"
+        assert "secret server response" not in str(call)
