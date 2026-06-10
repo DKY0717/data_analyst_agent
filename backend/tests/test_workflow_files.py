@@ -60,6 +60,7 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert {"qwen_model", "enforce_thresholds"} <= set(inputs)
     assert workflow["permissions"]["contents"] == "read"
     assert "secrets.QWEN_API_KEY" in raw
+    assert "QWEN_API_KEY" not in job.get("env", {})
     assert "pull_request_target" not in raw
     assert "python -m evaluation.evaluator" in commands
     assert "python -m evaluation.repair_evaluator" in commands

@@ -81,6 +81,15 @@ def test_evaluate_quality_rejects_non_numeric_required_metric():
         evaluate_quality(nl2sql_summary, repair_summary)
 
 
+@pytest.mark.parametrize("invalid_value", [float("nan"), float("inf")])
+def test_evaluate_quality_rejects_non_finite_required_metric(invalid_value):
+    nl2sql_summary, repair_summary = passing_summaries()
+    nl2sql_summary["safe_execution_success_rate"] = invalid_value
+
+    with pytest.raises(QualityGateError, match="safe_execution_success_rate"):
+        evaluate_quality(nl2sql_summary, repair_summary)
+
+
 def test_display_metrics_default_to_zero_without_affecting_gate():
     nl2sql_summary, repair_summary = passing_summaries()
     for summary in (nl2sql_summary, repair_summary):

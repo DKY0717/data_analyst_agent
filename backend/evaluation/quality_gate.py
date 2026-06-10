@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import math
 import sys
 from numbers import Real
 from pathlib import Path
@@ -33,14 +34,18 @@ def _required_number(summary: dict, metric: str) -> float:
     value = summary[metric]
     if isinstance(value, bool) or not isinstance(value, Real):
         raise QualityGateError(f"评测摘要指标必须是数字: {metric}")
-    return float(value)
+    numeric_value = float(value)
+    if not math.isfinite(numeric_value):
+        raise QualityGateError(f"评测摘要指标必须是有限数字: {metric}")
+    return numeric_value
 
 
 def _display_number(summary: dict, metric: str) -> float:
     value = summary.get(metric, 0)
     if isinstance(value, bool) or not isinstance(value, Real):
         return 0.0
-    return float(value)
+    numeric_value = float(value)
+    return numeric_value if math.isfinite(numeric_value) else 0.0
 
 
 def evaluate_quality(nl2sql_summary: dict, repair_summary: dict) -> dict:

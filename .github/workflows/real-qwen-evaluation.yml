@@ -28,8 +28,6 @@ jobs:
     timeout-minutes: 45
     env:
       PYTHONPATH: backend
-      RUN_REAL_LLM: "1"
-      QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
       QWEN_MODEL: ${{ inputs.qwen_model }}
       EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
     steps:
@@ -47,6 +45,8 @@ jobs:
 
       - name: Validate Qwen secret
         shell: bash
+        env:
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: |
           if [[ -z "$QWEN_API_KEY" ]]; then
             echo "QWEN_API_KEY GitHub Secret is required." >&2
@@ -60,9 +60,13 @@ jobs:
         run: pytest backend/tests -q
 
       - name: Run real NL2SQL evaluation
+        env:
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: python -m evaluation.evaluator
 
       - name: Run real SQL Repair evaluation
+        env:
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: python -m evaluation.repair_evaluator
 
       - name: Evaluate quality gate
