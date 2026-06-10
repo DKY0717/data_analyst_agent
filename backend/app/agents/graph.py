@@ -16,6 +16,7 @@ from ..db.schema_loader import schema_loader
 from ..security.sql_guard import sql_guard
 from ..db.query_runner import query_runner
 from ..config import settings
+from ..services.llm_observability import get_calls, start_trace
 from ..utils.logger import logger
 
 
@@ -103,6 +104,7 @@ class AgentGraph:
     async def _generate_sql(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 将自然语言问题转换为 SQL"""
         logger.info("节点: generate_sql - 生成 SQL")
+        start_trace(state.get("llm_calls") or [])
         output = await sql_generator.generate(
             state["question"],
             state["schema_context"],
@@ -110,6 +112,7 @@ class AgentGraph:
         )
         return {
             "generated_sql": output.sql,
+            "llm_calls": get_calls(),
             "audit_events": self._append_audit_event(
                 state,
                 "generation",
@@ -173,6 +176,7 @@ class AgentGraph:
         # 修复代理只处理已通过 Guard 但执行失败的 SQL，禁止改写 Guard 拒绝的危险意图。
         error_message = state.get("execution_error") or ""
 
+        start_trace(state.get("llm_calls") or [])
         output = await sql_repair_agent.repair(
             state["generated_sql"],
             error_message,
@@ -182,6 +186,7 @@ class AgentGraph:
         return {
             "generated_sql": output.repaired_sql,
             "retry_count": state["retry_count"] + 1,
+            "llm_calls": get_calls(),
             "audit_events": self._append_audit_event(
                 state,
                 "repair",
@@ -217,6 +222,7 @@ class AgentGraph:
     async def _generate_answer(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 将查询结果转换为自然语言解释"""
         logger.info("节点: generate_answer - 生成答案")
+        start_trace(state.get("llm_calls") or [])
         answer = await answer_generator.generate(
             state["question"],
             state["validated_sql"],
@@ -224,6 +230,7 @@ class AgentGraph:
         )
         return {
             "answer": answer,
+            "llm_calls": get_calls(),
             "audit_events": self._append_audit_event(
                 state,
                 "answer",
@@ -288,6 +295,7 @@ class AgentGraph:
         """
         # 在图执行前读取历史摘要，作为显式 state 传入后续节点，避免节点直接访问外部会话存储。
         conversation_context = session_store.get_context(session_id)
+        start_trace()
 
         # 初始化状态，所有字段设为默认值
         initial_state: AgentState = {
@@ -307,6 +315,7 @@ class AgentGraph:
             "optimization_suggestions": [],
             "audit_events": [],
             "audit_report": None,
+            "llm_calls": [],
         }
 
         logger.info(f"开始处理问题: {question}")

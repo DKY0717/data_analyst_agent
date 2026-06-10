@@ -42,6 +42,34 @@ class AuditEvent(BaseModel):
     rule_id: Optional[str] = None  # 命中的安全规则ID
     details: Dict[str, Any] = Field(default_factory=dict)  # 事件附加信息
 
+
+class LLMCallMetrics(BaseModel):
+    """单次 LLM 逻辑调用指标，不包含 prompt、密钥和原始响应"""
+    stage: str = "unknown"
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    latency_ms: int = 0
+    attempt_count: int = 0
+    estimated_cost: Optional[float] = None
+    success: bool = False
+    error_type: Optional[str] = None
+
+
+class LLMObservability(BaseModel):
+    """一次 Agent 请求内全部 LLM 调用的汇总"""
+    call_count: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    total_latency_ms: int = 0
+    total_attempt_count: int = 0
+    estimated_cost: Optional[float] = None
+    cost_available: bool = False
+    calls: List[LLMCallMetrics] = Field(default_factory=list)
+
+
 class AuditReport(BaseModel):
     """一次查询的安全审计报告"""
     question: str = ""  # 用户问题
@@ -51,6 +79,7 @@ class AuditReport(BaseModel):
     retry_count: int = 0  # 修复重试次数
     limit_injected: bool = False  # 是否发生自动 LIMIT 注入
     blocked_rules: List[str] = Field(default_factory=list)  # 被命中的阻断规则
+    llm_observability: LLMObservability = Field(default_factory=LLMObservability)  # LLM 调用汇总
     events: List[AuditEvent] = Field(default_factory=list)  # 审计事件明细
 
 class QueryResponse(BaseModel):
@@ -117,3 +146,4 @@ class AgentState(BaseModel):
     optimization_suggestions: List[str] = Field(default_factory=list)  # 优化建议列表
     audit_events: List[Dict[str, Any]] = Field(default_factory=list)  # 安全审计事件
     audit_report: Optional[Dict[str, Any]] = None  # 最终安全审计报告
+    llm_calls: List[Dict[str, Any]] = Field(default_factory=list)  # 当前请求 LLM 调用指标

@@ -9,9 +9,9 @@ from typing import Any, Dict, List, Optional
 _llm_calls: ContextVar[List[Dict[str, Any]]] = ContextVar("llm_calls", default=[])
 
 
-def start_trace() -> None:
-    """为当前异步请求创建全新的调用轨迹，避免复用全局客户端时串数据。"""
-    _llm_calls.set([])
+def start_trace(calls: Optional[List[Dict[str, Any]]] = None) -> None:
+    """创建或恢复当前异步请求轨迹，避免 LangGraph 节点任务切换时丢失指标。"""
+    _llm_calls.set(deepcopy(calls) if calls is not None else [])
 
 
 def record_call(call: Dict[str, Any]) -> None:

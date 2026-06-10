@@ -28,6 +28,7 @@ class AgentState(TypedDict):
         conversation_context: 由历史会话生成的追问上下文摘要
         audit_events: 安全审计事件列表
         audit_report: 最终安全审计报告
+        llm_calls: 当前请求内的 LLM 调用指标列表
     """
     question: str
     session_id: Optional[str]
@@ -45,3 +46,4 @@ class AgentState(TypedDict):
     optimization_suggestions: List[str]
     audit_events: List[Dict[str, Any]]
     audit_report: Optional[Dict[str, Any]]
+    llm_calls: List[Dict[str, Any]]

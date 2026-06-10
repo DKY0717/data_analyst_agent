@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.agents.graph import AgentGraph
 from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
+from app.services.llm_observability import record_call
 
 
 # ---- 测试用 fixtures ----
@@ -99,6 +100,74 @@ class TestAgentGraphHappyPath:
             "generation", "guard", "execution", "answer"
         }
         mock_optimizer.optimize.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_full_pipeline_collects_llm_calls_in_audit_report(self):
+        graph = AgentGraph()
+        mock_schema = make_schema_context()
+        mock_sql_output = SQLGeneratorOutput(
+            sql="SELECT COUNT(*) FROM orders",
+            tables=["orders"],
+            columns=[],
+            explanation="统计订单数",
+        )
+
+        async def generate_with_metrics(*args):
+            record_call(
+                {
+                    "stage": "generate_sql",
+                    "model": "qwen-plus",
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "total_tokens": 120,
+                    "latency_ms": 500,
+                    "attempt_count": 1,
+                    "estimated_cost": None,
+                    "success": True,
+                    "error_type": None,
+                }
+            )
+            return mock_sql_output
+
+        async def answer_with_metrics(*args):
+            record_call(
+                {
+                    "stage": "generate_answer",
+                    "model": "qwen-plus",
+                    "input_tokens": 80,
+                    "output_tokens": 30,
+                    "total_tokens": 110,
+                    "latency_ms": 300,
+                    "attempt_count": 1,
+                    "estimated_cost": None,
+                    "success": True,
+                    "error_type": None,
+                }
+            )
+            return "订单总数已统计"
+
+        with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.sql_generator") as mock_gen, \
+             patch("app.agents.graph.sql_guard") as mock_guard, \
+             patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
+             patch("app.agents.graph.answer_generator") as mock_answer:
+            mock_loader.get_full_schema.return_value = mock_schema
+            mock_gen.generate = AsyncMock(side_effect=generate_with_metrics)
+            mock_guard.validate.return_value = {
+                "is_safe": True,
+                "sanitized_sql": "SELECT COUNT(*) FROM orders LIMIT 1000",
+                "reason": None,
+            }
+            mock_runner.execute.return_value = make_query_result_success()
+            mock_optimizer.optimize.return_value = []
+            mock_answer.generate = AsyncMock(side_effect=answer_with_metrics)
+
+            result = await graph.run("统计订单数")
+
+        assert len(result["llm_calls"]) == 2
+        assert result["audit_report"]["llm_observability"]["call_count"] == 2
+        assert result["audit_report"]["llm_observability"]["total_tokens"] == 230
 
 
 class TestAgentGraphValidationFailure:

@@ -3,6 +3,8 @@
 
 from typing import Any, Dict, List, Optional
 
+from ..services.llm_observability import summarize
+
 
 class AuditReportBuilder:
     """创建审计事件，并从最终 AgentState 汇总审计报告。"""
@@ -47,6 +49,7 @@ class AuditReportBuilder:
             "retry_count": final_state.get("retry_count", 0),
             "limit_injected": limit_injected,
             "blocked_rules": blocked_rules,
+            "llm_observability": summarize(final_state.get("llm_calls") or []),
             "events": events,
         }
 
