@@ -51,17 +51,22 @@ class ReportWriter:
             f"- 安全预期命中率：{self._format_rate(summary['safety_expectation_met_rate'])}",
             f"- 平均重试次数：{summary['average_retry_count']:.2f}",
             f"- 平均执行耗时：{summary['average_execution_time_ms']:.2f} ms",
+            f"- 平均 LLM 调用次数：{summary.get('average_llm_call_count', 0):.2f}",
+            f"- 平均 LLM Token：{summary.get('average_llm_total_tokens', 0):.2f}",
+            f"- 平均 LLM 耗时：{summary.get('average_llm_latency_ms', 0):.2f} ms",
+            f"- LLM 估算总成本：{self._format_cost(summary)}",
             "",
             "## Case 明细",
             "",
-            "| Case | 分类 | 安全预期 | 生成 | Guard | 执行 | 修复 | 安全命中 | 重试 | 耗时(ms) |",
-            "|---|---|---|---|---|---|---|---|---:|---:|",
+            "| Case | 分类 | 安全预期 | 生成 | Guard | 执行 | 修复 | 安全命中 | 重试 | DB耗时(ms) | LLM调用 | Token | LLM耗时(ms) |",
+            "|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|",
         ]
 
         for item in results:
             lines.append(
                 "| {case_id} | {category} | {safety_expected} | {generation} | {guard} | "
-                "{execution} | {repair} | {safety} | {retry_count} | {execution_time_ms} |".format(
+                "{execution} | {repair} | {safety} | {retry_count} | {execution_time_ms} | "
+                "{llm_call_count} | {llm_total_tokens} | {llm_latency_ms} |".format(
                     case_id=item["case_id"],
                     category=item["category"],
                     safety_expected=item["safety_expected"],
@@ -72,6 +77,9 @@ class ReportWriter:
                     safety=self._format_bool(item["safety_expectation_met"]),
                     retry_count=item["retry_count"],
                     execution_time_ms=item["execution_time_ms"],
+                    llm_call_count=item.get("llm_call_count", 0),
+                    llm_total_tokens=item.get("llm_total_tokens", 0),
+                    llm_latency_ms=item.get("llm_latency_ms", 0),
                 )
             )
 
@@ -86,6 +94,7 @@ class ReportWriter:
                     f"- 问题：{item['question']}",
                     f"- SQL：`{item['sql']}`",
                     f"- 错误：{item['error'] or '无'}",
+                    f"- LLM 估算成本：{self._format_case_cost(item)}",
                     "",
                 ]
             )
@@ -97,3 +106,13 @@ class ReportWriter:
 
     def _format_bool(self, value: bool) -> str:
         return "是" if value else "否"
+
+    def _format_cost(self, summary: Dict[str, Any]) -> str:
+        """价格未配置时明确显示不可用，避免把缺失成本误认为零成本。"""
+        if not summary.get("cost_available"):
+            return "未配置价格"
+        return f"{summary.get('total_llm_estimated_cost', 0):.8f}"
+
+    def _format_case_cost(self, item: Dict[str, Any]) -> str:
+        cost = item.get("llm_estimated_cost")
+        return "未配置价格" if cost is None else f"{cost:.8f}"

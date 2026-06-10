@@ -23,6 +23,15 @@ async def fake_runner_success(question: str):
         "retry_count": 0,
         "answer": "共 304 个订单",
         "optimization_suggestions": [],
+        "audit_report": {
+            "llm_observability": {
+                "call_count": 2,
+                "total_tokens": 2000,
+                "total_latency_ms": 3000,
+                "estimated_cost": 0.004,
+                "cost_available": True,
+            }
+        },
     }
 
 
@@ -37,6 +46,15 @@ async def fake_runner_unsafe(question: str):
         "retry_count": 0,
         "answer": None,
         "optimization_suggestions": [],
+        "audit_report": {
+            "llm_observability": {
+                "call_count": 1,
+                "total_tokens": 800,
+                "total_latency_ms": 1000,
+                "estimated_cost": None,
+                "cost_available": False,
+            }
+        },
     }
 
 
@@ -59,6 +77,11 @@ async def test_evaluate_safe_case_success():
     assert result["execution_success"] is True
     assert result["safety_expectation_met"] is True
     assert result["execution_time_ms"] == 12
+    assert result["llm_call_count"] == 2
+    assert result["llm_total_tokens"] == 2000
+    assert result["llm_latency_ms"] == 3000
+    assert result["llm_estimated_cost"] == 0.004
+    assert result["llm_cost_available"] is True
 
 
 @pytest.mark.asyncio
@@ -90,6 +113,11 @@ def test_summarize_results_calculates_rates():
             "safety_expectation_met": True,
             "retry_count": 0,
             "execution_time_ms": 10,
+            "llm_call_count": 2,
+            "llm_total_tokens": 2000,
+            "llm_latency_ms": 3000,
+            "llm_estimated_cost": 0.004,
+            "llm_cost_available": True,
         },
         {
             "generation_success": True,
@@ -99,6 +127,11 @@ def test_summarize_results_calculates_rates():
             "safety_expectation_met": True,
             "retry_count": 0,
             "execution_time_ms": 0,
+            "llm_call_count": 1,
+            "llm_total_tokens": 800,
+            "llm_latency_ms": 1000,
+            "llm_estimated_cost": 0.002,
+            "llm_cost_available": True,
         },
         {
             "generation_success": True,
@@ -108,6 +141,11 @@ def test_summarize_results_calculates_rates():
             "safety_expectation_met": True,
             "retry_count": 1,
             "execution_time_ms": 20,
+            "llm_call_count": 3,
+            "llm_total_tokens": 2600,
+            "llm_latency_ms": 4500,
+            "llm_estimated_cost": 0.006,
+            "llm_cost_available": True,
         },
     ]
 
@@ -121,6 +159,52 @@ def test_summarize_results_calculates_rates():
     assert summary["safety_expectation_met_rate"] == 1.0
     assert summary["average_retry_count"] == 1 / 3
     assert summary["average_execution_time_ms"] == 10
+    assert summary["average_llm_call_count"] == 2
+    assert summary["average_llm_total_tokens"] == 1800
+    assert summary["average_llm_latency_ms"] == pytest.approx(8500 / 3)
+    assert summary["total_llm_estimated_cost"] == pytest.approx(0.012)
+    assert summary["cost_available"] is True
+
+
+def test_summary_cost_is_none_when_any_case_cost_is_unavailable():
+    runner = EvaluationRunner(agent_runner=fake_runner_success)
+    results = [
+        {
+            "safety_expected": "safe",
+            "generation_success": True,
+            "guard_passed": True,
+            "execution_success": True,
+            "repair_success": False,
+            "safety_expectation_met": True,
+            "retry_count": 0,
+            "execution_time_ms": 10,
+            "llm_call_count": 2,
+            "llm_total_tokens": 2000,
+            "llm_latency_ms": 3000,
+            "llm_estimated_cost": 0.004,
+            "llm_cost_available": True,
+        },
+        {
+            "safety_expected": "unsafe",
+            "generation_success": True,
+            "guard_passed": False,
+            "execution_success": False,
+            "repair_success": False,
+            "safety_expectation_met": True,
+            "retry_count": 0,
+            "execution_time_ms": 0,
+            "llm_call_count": 1,
+            "llm_total_tokens": 800,
+            "llm_latency_ms": 1000,
+            "llm_estimated_cost": None,
+            "llm_cost_available": False,
+        },
+    ]
+
+    summary = runner.summarize_results(results)
+
+    assert summary["cost_available"] is False
+    assert summary["total_llm_estimated_cost"] is None
 
 
 def test_summary_separates_safe_execution_rate_and_unsafe_block_rate():

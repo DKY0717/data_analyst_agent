@@ -17,6 +17,11 @@ def sample_report():
             "safety_expectation_met_rate": 1.0,
             "average_retry_count": 0.5,
             "average_execution_time_ms": 18,
+            "average_llm_call_count": 1.5,
+            "average_llm_total_tokens": 1400,
+            "average_llm_latency_ms": 2200,
+            "total_llm_estimated_cost": None,
+            "cost_available": False,
         },
         "results": [
             {
@@ -33,6 +38,10 @@ def sample_report():
                 "execution_time_ms": 12,
                 "sql": "SELECT SUM(total_amount) FROM orders LIMIT 1000",
                 "error": None,
+                "llm_call_count": 2,
+                "llm_total_tokens": 2000,
+                "llm_latency_ms": 3000,
+                "llm_estimated_cost": None,
             },
             {
                 "case_id": "block_drop",
@@ -48,6 +57,10 @@ def sample_report():
                 "execution_time_ms": 0,
                 "sql": "DROP TABLE orders",
                 "error": "Only SELECT queries are allowed",
+                "llm_call_count": 1,
+                "llm_total_tokens": 800,
+                "llm_latency_ms": 1400,
+                "llm_estimated_cost": None,
             },
         ],
     }
@@ -72,6 +85,9 @@ def test_report_writer_writes_markdown_and_json(tmp_path):
     assert "monthly_sales" in markdown
     assert "block_drop" in markdown
     assert "DROP TABLE orders" in markdown
+    assert "平均 LLM 调用次数：1.50" in markdown
+    assert "平均 LLM Token：1400.00" in markdown
+    assert "LLM 估算总成本：未配置价格" in markdown
 
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["summary"]["total_cases"] == 2

@@ -33,6 +33,9 @@ class EvaluationRunner:
         generated_sql = final_state.get("generated_sql") or ""
         validated_sql = final_state.get("validated_sql") or ""
         retry_count = final_state.get("retry_count", 0)
+        llm_observability = (final_state.get("audit_report") or {}).get(
+            "llm_observability", {}
+        )
 
         generation_success = bool(generated_sql or validated_sql)
         guard_passed = bool(final_state.get("is_sql_safe"))
@@ -53,6 +56,11 @@ class EvaluationRunner:
             "safety_expectation_met": safety_expectation_met,
             "retry_count": retry_count,
             "execution_time_ms": query_result.get("execution_time_ms", 0),
+            "llm_call_count": llm_observability.get("call_count", 0),
+            "llm_total_tokens": llm_observability.get("total_tokens", 0),
+            "llm_latency_ms": llm_observability.get("total_latency_ms", 0),
+            "llm_estimated_cost": llm_observability.get("estimated_cost"),
+            "llm_cost_available": bool(llm_observability.get("cost_available", False)),
             "sql": validated_sql or generated_sql,
             "error": final_state.get("execution_error") or final_state.get("validation_error"),
         }
@@ -85,10 +93,17 @@ class EvaluationRunner:
                 "safety_expectation_met_rate": 0,
                 "average_retry_count": 0,
                 "average_execution_time_ms": 0,
+                "average_llm_call_count": 0,
+                "average_llm_total_tokens": 0,
+                "average_llm_latency_ms": 0,
+                "total_llm_estimated_cost": None,
+                "cost_available": False,
             }
 
         safe_results = [item for item in results if item.get("safety_expected") == "safe"]
         unsafe_results = [item for item in results if item.get("safety_expected") == "unsafe"]
+
+        cost_available = all(item.get("llm_cost_available", False) for item in results)
 
         return {
             "total_cases": total,
@@ -103,6 +118,21 @@ class EvaluationRunner:
             "safety_expectation_met_rate": self._rate(results, "safety_expectation_met"),
             "average_retry_count": sum(item["retry_count"] for item in results) / total,
             "average_execution_time_ms": sum(item["execution_time_ms"] for item in results) / total,
+            "average_llm_call_count": sum(
+                item.get("llm_call_count", 0) for item in results
+            ) / total,
+            "average_llm_total_tokens": sum(
+                item.get("llm_total_tokens", 0) for item in results
+            ) / total,
+            "average_llm_latency_ms": sum(
+                item.get("llm_latency_ms", 0) for item in results
+            ) / total,
+            "total_llm_estimated_cost": (
+                sum(item.get("llm_estimated_cost", 0) for item in results)
+                if cost_available
+                else None
+            ),
+            "cost_available": cost_available,
         }
 
     def _rate(self, results: List[Dict[str, Any]], key: str) -> float:
