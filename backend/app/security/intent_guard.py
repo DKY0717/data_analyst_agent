@@ -112,7 +112,7 @@ class IntentGuard:
             reason="请求包含明确的批量敏感数据导出意图",
             category="sensitive_export",
             action=_pattern(r"导出|下载|提取|export|download|extract"),
-            target=_pattern(r"手机号|电话号码|身份证|邮箱|phone\s*numbers?|emails?|ssn"),
+            target=_pattern(r"手机号|电话号码|身份证|邮箱|\bphone(?:\s+numbers?)?\b|emails?|ssn"),
             # 批量标记是高置信条件，可降低正常聚合分析被误判的概率。
             extra=_pattern(r"全部|所有|批量|完整|all|every|bulk|entire"),
         ),
