@@ -2,6 +2,7 @@
 # 将同一份结构化评测结果输出为 Markdown 和 JSON，兼顾面试展示与后续自动化分析。
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -11,7 +12,13 @@ class ReportWriter:
     """把评测结果写入固定目录，形成可追溯的版本化报告。"""
 
     def __init__(self, output_dir: str | Path | None = None, timestamp: str | None = None):
-        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent / "reports"
+        default_output_dir = os.getenv("EVALUATION_REPORT_DIR")
+        if output_dir is not None:
+            self.output_dir = Path(output_dir)
+        elif default_output_dir:
+            self.output_dir = Path(default_output_dir)
+        else:
+            self.output_dir = Path(__file__).parent / "reports"
         # 使用时间戳避免覆盖历史报告，方便比较不同版本的 Agent 表现。
         self.timestamp = timestamp or datetime.now().strftime("%Y-%m-%d-%H%M%S")
 

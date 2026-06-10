@@ -92,3 +92,13 @@ def test_report_writer_writes_markdown_and_json(tmp_path):
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["summary"]["total_cases"] == 2
     assert payload["results"][1]["safety_expectation_met"] is True
+
+
+def test_report_writer_uses_environment_report_directory(monkeypatch, tmp_path):
+    monkeypatch.setenv("EVALUATION_REPORT_DIR", str(tmp_path))
+
+    writer = ReportWriter(timestamp="env-output")
+    paths = writer.write(sample_report())
+
+    assert paths["json"].parent == tmp_path
+    assert paths["markdown"].parent == tmp_path

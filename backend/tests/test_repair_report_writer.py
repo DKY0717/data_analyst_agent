@@ -70,3 +70,13 @@ def test_repair_report_writer_writes_markdown_and_json(tmp_path):
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["summary"]["end_to_end_repair_success_rate"] == 1.0
     assert payload["results"][0]["intent_preserved"] is True
+
+
+def test_repair_report_writer_uses_environment_report_directory(monkeypatch, tmp_path):
+    monkeypatch.setenv("EVALUATION_REPORT_DIR", str(tmp_path))
+
+    writer = RepairReportWriter(timestamp="env-output")
+    paths = writer.write(sample_report())
+
+    assert paths["json"].parent == tmp_path
+    assert paths["markdown"].parent == tmp_path

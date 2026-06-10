@@ -1,0 +1,102 @@
+name: Real Qwen Evaluation
+
+"on":
+  workflow_dispatch:
+    inputs:
+      qwen_model:
+        description: Qwen model used by the evaluation
+        required: true
+        default: qwen-plus
+        type: string
+      enforce_thresholds:
+        description: Fail the workflow when quality thresholds are missed
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-qwen-evaluation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  real-qwen-evaluation:
+    name: Real Qwen evaluation and quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONPATH: backend
+      RUN_REAL_LLM: "1"
+      QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+      QWEN_MODEL: ${{ inputs.qwen_model }}
+      EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Validate Qwen secret
+        shell: bash
+        run: |
+          if [[ -z "$QWEN_API_KEY" ]]; then
+            echo "QWEN_API_KEY GitHub Secret is required." >&2
+            exit 1
+          fi
+
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run deterministic backend tests
+        run: pytest backend/tests -q
+
+      - name: Run real NL2SQL evaluation
+        run: python -m evaluation.evaluator
+
+      - name: Run real SQL Repair evaluation
+        run: python -m evaluation.repair_evaluator
+
+      - name: Evaluate quality gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          NL2SQL_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'nl2sql-evaluation-*.json' | sort | tail -n 1)"
+          REPAIR_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'sql-repair-evaluation-*.json' | sort | tail -n 1)"
+          ENFORCE_ARGS=()
+          if [[ "${{ inputs.enforce_thresholds }}" == "true" ]]; then
+            ENFORCE_ARGS+=(--enforce)
+          fi
+          python -m evaluation.quality_gate \
+            --nl2sql-report "$NL2SQL_REPORT" \
+            --repair-report "$REPAIR_REPORT" \
+            --json-output "$EVALUATION_REPORT_DIR/quality-gate.json" \
+            --markdown-output "$EVALUATION_REPORT_DIR/quality-gate.md" \
+            "${ENFORCE_ARGS[@]}"
+
+      - name: Publish evaluation summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$EVALUATION_REPORT_DIR/quality-gate.md" ]]; then
+            cat "$EVALUATION_REPORT_DIR/quality-gate.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## 真实 Qwen 评测未生成质量门禁摘要" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload evaluation reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: real-qwen-evaluation-${{ github.run_id }}
+          path: ${{ runner.temp }}/qwen-evaluation
+          if-no-files-found: warn
+          retention-days: 14

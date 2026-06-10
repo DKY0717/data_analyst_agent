@@ -2,6 +2,7 @@
 # 输出独立中文 Markdown 与 JSON，避免 Repair 指标和 NL2SQL 生成指标混在一起。
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -11,7 +12,13 @@ class RepairReportWriter:
     """写入可追溯的 SQL Repair 故障注入评测报告。"""
 
     def __init__(self, output_dir: str | Path | None = None, timestamp: str | None = None):
-        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent / "reports"
+        default_output_dir = os.getenv("EVALUATION_REPORT_DIR")
+        if output_dir is not None:
+            self.output_dir = Path(output_dir)
+        elif default_output_dir:
+            self.output_dir = Path(default_output_dir)
+        else:
+            self.output_dir = Path(__file__).parent / "reports"
         self.timestamp = timestamp or datetime.now().strftime("%Y-%m-%d-%H%M%S")
 
     def write(self, report: Dict[str, Any]) -> Dict[str, Path]:
