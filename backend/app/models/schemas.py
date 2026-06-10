@@ -131,11 +131,15 @@ class SQLRepairOutput(BaseModel):
 class AgentState(BaseModel):
     """Agent状态模型"""
     question: str  # 用户原始问题
+    intent_is_safe: bool = True  # Intent Guard 是否允许进入后续工作流
+    intent_rule_id: Optional[str] = None  # Intent Guard 命中的规则 ID
+    intent_category: Optional[str] = None  # Intent Guard 命中的风险类别
+    intent_error: Optional[str] = None  # Intent Guard 阻断或异常的稳定原因
     session_id: Optional[str] = None  # 多轮分析会话ID
     conversation_context: Optional[str] = None  # 历史分析上下文摘要
     schema_context: Optional[Dict[str, Any]] = None  # 数据库Schema上下文
-    generated_sql: Optional[str] = None  # 生成的SQL语句
-    validated_sql: Optional[str] = None  # 验证后的SQL语句
+    generated_sql: str = ""  # 生成的SQL语句
+    validated_sql: str = ""  # 验证后的SQL语句
     is_sql_safe: bool = False  # SQL是否安全
     validation_error: Optional[str] = None  # 验证错误信息
     execution_success: bool = False  # 是否执行成功

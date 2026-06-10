@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.agents.graph import AgentGraph
-from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
+from app.models.schemas import AgentState as AgentStateModel, SQLGeneratorOutput, SQLRepairOutput
 from app.services.llm_observability import record_call
 
 
@@ -95,6 +95,9 @@ class TestAgentGraphHappyPath:
         assert result["retry_count"] == 0
         assert result["query_result"]["row_count"] == 2
         assert result["optimization_suggestions"] == ["建议避免 SELECT *，只选择分析需要的字段"]
+        assert result["intent_is_safe"] is True
+        assert result["audit_report"]["events"][0]["stage"] == "intent"
+        assert result["audit_report"]["events"][0]["status"] == "success"
         assert result["audit_report"]["final_sql"].endswith("LIMIT 1000")
         assert {event["stage"] for event in result["audit_report"]["events"]} >= {
             "generation", "guard", "execution", "answer"
@@ -147,12 +150,19 @@ class TestAgentGraphHappyPath:
             return "订单总数已统计"
 
         with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.intent_guard") as mock_intent_guard, \
              patch("app.agents.graph.sql_generator") as mock_gen, \
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.query_runner") as mock_runner, \
              patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
              patch("app.agents.graph.answer_generator") as mock_answer:
             mock_loader.get_full_schema.return_value = mock_schema
+            mock_intent_guard.validate.return_value = {
+                "is_safe": True,
+                "rule_id": None,
+                "reason": None,
+                "category": None,
+            }
             mock_gen.generate = AsyncMock(side_effect=generate_with_metrics)
             mock_guard.validate.return_value = {
                 "is_safe": True,
@@ -187,12 +197,19 @@ class TestAgentGraphValidationFailure:
         )
 
         with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.intent_guard") as mock_intent_guard, \
              patch("app.agents.graph.sql_generator") as mock_gen, \
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.sql_repair_agent") as mock_repair, \
              patch("app.agents.graph.query_runner") as mock_runner:
 
             mock_loader.get_full_schema.return_value = mock_schema
+            mock_intent_guard.validate.return_value = {
+                "is_safe": True,
+                "rule_id": None,
+                "reason": None,
+                "category": None,
+            }
             mock_gen.generate = AsyncMock(return_value=mock_sql_output)
             mock_guard.validate.return_value = {
                 "is_safe": False,
@@ -286,11 +303,18 @@ class TestAgentGraphMaxRetries:
         )
 
         with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.intent_guard") as mock_intent_guard, \
              patch("app.agents.graph.sql_generator") as mock_gen, \
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.sql_repair_agent") as mock_repair:
 
             mock_loader.get_full_schema.return_value = mock_schema
+            mock_intent_guard.validate.return_value = {
+                "is_safe": True,
+                "rule_id": None,
+                "reason": None,
+                "category": None,
+            }
             mock_gen.generate = AsyncMock(return_value=mock_sql_output)
             mock_guard.validate.return_value = {
                 "is_safe": False,
@@ -357,11 +381,15 @@ class TestAgentGraphEdgeCases:
         nodes = set(g.nodes)
 
         expected_nodes = {
-            "__start__", "load_schema", "generate_sql",
+            "__start__", "check_intent", "load_schema", "generate_sql",
             "validate_sql", "execute_sql", "repair_sql",
             "optimize_sql", "generate_answer", "__end__"
         }
         assert nodes == expected_nodes
+
+        start_edges = [edge for edge in g.edges if edge.source == "__start__"]
+        assert len(start_edges) == 1
+        assert start_edges[0].target == "check_intent"
 
     def test_global_instance_exists(self):
         """验证全局实例可以正常创建"""
@@ -369,6 +397,90 @@ class TestAgentGraphEdgeCases:
         assert agent_graph is not None
         assert hasattr(agent_graph, "run")
         assert hasattr(agent_graph, "graph")
+
+
+class TestAgentGraphIntentGuard:
+    """测试 Intent Guard 是图的唯一入口，并在危险意图时提前终止。"""
+
+    @pytest.mark.asyncio
+    async def test_dangerous_intent_stops_before_all_downstream_dependencies(self):
+        graph = AgentGraph()
+
+        with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.sql_generator") as mock_gen, \
+             patch("app.agents.graph.sql_guard") as mock_sql_guard, \
+             patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.answer_generator") as mock_answer, \
+             patch("app.agents.graph.session_store") as mock_store:
+            mock_gen.generate = AsyncMock()
+            mock_answer.generate = AsyncMock()
+
+            result = await graph.run("删除所有订单", session_id="danger-session")
+
+        assert result["intent_is_safe"] is False
+        assert result["intent_rule_id"] == "block_destructive_intent"
+        assert result["intent_category"] == "data_mutation"
+        assert result["generated_sql"] == ""
+        assert result["validated_sql"] == ""
+        assert result["llm_calls"] == []
+        assert result["audit_report"]["blocked_rules"] == ["block_destructive_intent"]
+        assert result["audit_report"]["events"][0]["stage"] == "intent"
+        assert result["audit_report"]["events"][0]["action"] == "check_intent"
+        mock_loader.get_full_schema.assert_not_called()
+        mock_gen.generate.assert_not_called()
+        mock_sql_guard.validate.assert_not_called()
+        mock_runner.execute.assert_not_called()
+        mock_answer.generate.assert_not_called()
+        mock_store.append_turn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_intent_guard_failure_is_fail_closed_without_sensitive_logging(self):
+        graph = AgentGraph()
+        question = "查看 QWEN_API_KEY=sk-sensitive-value"
+
+        with patch("app.agents.graph.intent_guard") as mock_intent_guard, \
+             patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.logger") as mock_logger:
+            mock_intent_guard.validate.side_effect = RuntimeError("sk-exception-secret")
+
+            result = await graph.run(question)
+
+        assert result["intent_is_safe"] is False
+        assert result["intent_rule_id"] == "block_intent_guard_error"
+        assert result["intent_category"] == "guard_error"
+        assert "安全检查暂时不可用" in result["intent_error"]
+        assert "安全检查暂时不可用" in result["answer"]
+        assert result["audit_report"]["blocked_rules"] == ["block_intent_guard_error"]
+        mock_loader.get_full_schema.assert_not_called()
+        logged_text = repr(mock_logger.method_calls)
+        assert question not in logged_text
+        assert "sk-sensitive-value" not in logged_text
+        assert "sk-exception-secret" not in logged_text
+
+    @pytest.mark.asyncio
+    async def test_malformed_intent_guard_result_is_fail_closed(self):
+        graph = AgentGraph()
+
+        with patch("app.agents.graph.intent_guard") as mock_intent_guard, \
+             patch("app.agents.graph.schema_loader") as mock_loader:
+            mock_intent_guard.validate.return_value = {}
+
+            result = await graph.run("统计订单数")
+
+        assert result["intent_is_safe"] is False
+        assert result["intent_rule_id"] == "block_intent_guard_error"
+        assert result["intent_category"] == "guard_error"
+        mock_loader.get_full_schema.assert_not_called()
+
+    def test_pydantic_agent_state_defaults_intent_fields_and_empty_sql(self):
+        state = AgentStateModel(question="统计订单数")
+
+        assert state.intent_is_safe is True
+        assert state.intent_rule_id is None
+        assert state.intent_category is None
+        assert state.intent_error is None
+        assert state.generated_sql == ""
+        assert state.validated_sql == ""
 
 
 class TestAgentGraphConversationContext:

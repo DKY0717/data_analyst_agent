@@ -76,6 +76,37 @@ def test_build_report_collects_blocked_rules():
     assert report["limit_injected"] is False
 
 
+def test_build_report_collects_intent_blocked_rule():
+    builder = AuditReportBuilder()
+    events = [
+        builder.make_event(
+            "intent",
+            "check_intent",
+            "blocked",
+            "请求包含明确的数据修改或删除意图",
+            rule_id="block_destructive_intent",
+        ),
+    ]
+
+    report = builder.build_report(
+        {
+            "intent_is_safe": False,
+            "intent_rule_id": "block_destructive_intent",
+            "generated_sql": "",
+            "validated_sql": "",
+            "is_sql_safe": False,
+            "execution_success": False,
+            "retry_count": 0,
+            "llm_calls": [],
+        },
+        events,
+    )
+
+    assert report["final_sql"] == ""
+    assert report["blocked_rules"] == ["block_destructive_intent"]
+    assert report["events"][0]["stage"] == "intent"
+
+
 def test_build_report_deduplicates_blocked_rules_across_retries():
     builder = AuditReportBuilder()
     events = [

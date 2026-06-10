@@ -13,6 +13,10 @@ class AgentState(TypedDict):
 
     字段说明:
         question: 用户的原始自然语言问题
+        intent_is_safe: Intent Guard 是否允许请求进入后续工作流
+        intent_rule_id: Intent Guard 命中的规则 ID
+        intent_category: Intent Guard 命中的风险类别
+        intent_error: Intent Guard 阻断或异常时的稳定原因
         schema_context: 数据库 Schema 信息，由 load_schema 节点填充
         generated_sql: LLM 生成的 SQL 语句
         validated_sql: 经过 SQL Guard 校验和清理后的 SQL（含自动 LIMIT）
@@ -31,6 +35,10 @@ class AgentState(TypedDict):
         llm_calls: 当前请求内的 LLM 调用指标列表
     """
     question: str
+    intent_is_safe: bool
+    intent_rule_id: Optional[str]
+    intent_category: Optional[str]
+    intent_error: Optional[str]
     session_id: Optional[str]
     conversation_context: Optional[str]
     schema_context: Optional[Dict[str, Any]]

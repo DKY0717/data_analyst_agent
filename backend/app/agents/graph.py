@@ -13,6 +13,7 @@ from .sql_optimizer import sql_optimizer
 from .session_store import session_store
 from .audit import audit_report_builder
 from ..db.schema_loader import schema_loader
+from ..security.intent_guard import intent_guard
 from ..security.sql_guard import sql_guard
 from ..db.query_runner import query_runner
 from ..config import settings
@@ -31,15 +32,16 @@ class AgentGraph:
         """构建 LangGraph 状态图
 
         节点顺序:
-        load_schema → generate_sql → validate_sql → execute_sql → generate_answer
-                                                ↓           ↓
-                                           (不安全)     (执行失败)
-                                                ↓           ↓
-                                             end        repair_sql → validate_sql (循环)
+        check_intent → load_schema → generate_sql → validate_sql → execute_sql → generate_answer
+             ↓                                           ↓           ↓
+          (不安全)                                    (不安全)     (执行失败)
+             ↓                                           ↓           ↓
+            end                                         end        repair_sql → validate_sql (循环)
         """
         workflow = StateGraph(AgentState)
 
         # 注册所有节点
+        workflow.add_node("check_intent", self._check_intent)
         workflow.add_node("load_schema", self._load_schema)
         workflow.add_node("generate_sql", self._generate_sql)
         workflow.add_node("validate_sql", self._validate_sql)
@@ -49,12 +51,22 @@ class AgentGraph:
         workflow.add_node("generate_answer", self._generate_answer)
 
         # 设置入口节点
-        workflow.set_entry_point("load_schema")
+        workflow.set_entry_point("check_intent")
 
         # 固定边：线性流程
         workflow.add_edge("load_schema", "generate_sql")
         workflow.add_edge("generate_sql", "validate_sql")
         workflow.add_edge("generate_answer", END)
+
+        # Intent Guard 是唯一入口，危险请求在读取 Schema 或调用任何外部依赖前终止。
+        workflow.add_conditional_edges(
+            "check_intent",
+            self._should_load_schema,
+            {
+                "load_schema": "load_schema",
+                "end": END,
+            },
+        )
 
         # 条件边：SQL 校验后决定执行还是修复还是终止
         workflow.add_conditional_edges(
@@ -84,6 +96,50 @@ class AgentGraph:
         return workflow.compile()
 
     # ---- 节点实现 ----
+
+    async def _check_intent(self, state: AgentState) -> Dict[str, Any]:
+        """在进入数据分析工作流前执行确定性意图安全检查。"""
+        logger.info("节点: check_intent - 校验用户意图")
+        try:
+            result = intent_guard.validate(state["question"])
+            is_safe = bool(result["is_safe"])
+            reason = result.get("reason")
+            answer = None if is_safe else "请求包含高风险操作意图，已被安全策略阻止"
+            return {
+                "intent_is_safe": is_safe,
+                "intent_rule_id": result.get("rule_id"),
+                "intent_category": result.get("category"),
+                "intent_error": reason,
+                "answer": answer,
+                "audit_events": self._append_audit_event(
+                    state,
+                    "intent",
+                    "check_intent",
+                    "success" if is_safe else "blocked",
+                    "用户意图通过安全检查" if is_safe else answer,
+                    rule_id=result.get("rule_id"),
+                    details={"category": result.get("category")} if result.get("category") else None,
+                ),
+            }
+        except Exception:
+            # 调用或结果解析异常时均 fail-closed，日志不携带问题、异常消息或潜在敏感值。
+            logger.warning("Intent Guard 安全检查异常，已阻断请求")
+            reason = "安全检查暂时不可用，请稍后重试"
+            return {
+                "intent_is_safe": False,
+                "intent_rule_id": "block_intent_guard_error",
+                "intent_category": "guard_error",
+                "intent_error": reason,
+                "answer": reason,
+                "audit_events": self._append_audit_event(
+                    state,
+                    "intent",
+                    "check_intent",
+                    "blocked",
+                    reason,
+                    rule_id="block_intent_guard_error",
+                ),
+            }
 
     async def _load_schema(self, state: AgentState) -> Dict[str, Any]:
         """加载数据库 Schema，供后续 SQL 生成使用"""
@@ -266,6 +322,10 @@ class AgentGraph:
 
     # ---- 条件判断函数 ----
 
+    def _should_load_schema(self, state: AgentState) -> str:
+        """意图安全时进入 Schema 加载，否则立即终止。"""
+        return "load_schema" if state["intent_is_safe"] else "end"
+
     def _should_execute(self, state: AgentState) -> str:
         """校验后决策：安全 SQL 执行，Guard 拒绝的 SQL 立即终止。"""
         if state["is_sql_safe"]:
@@ -300,11 +360,15 @@ class AgentGraph:
         # 初始化状态，所有字段设为默认值
         initial_state: AgentState = {
             "question": question,
+            "intent_is_safe": True,
+            "intent_rule_id": None,
+            "intent_category": None,
+            "intent_error": None,
             "session_id": session_id,
             "conversation_context": conversation_context,
             "schema_context": None,
-            "generated_sql": None,
-            "validated_sql": None,
+            "generated_sql": "",
+            "validated_sql": "",
             "is_sql_safe": False,
             "validation_error": None,
             "execution_success": False,
@@ -318,7 +382,8 @@ class AgentGraph:
             "llm_calls": [],
         }
 
-        logger.info(f"开始处理问题: {question}")
+        # 不在日志中记录原始问题，避免危险请求或凭据值进入日志。
+        logger.info("开始处理用户问题")
         final_state = await self.graph.ainvoke(initial_state)
         logger.info(f"处理完成，重试次数: {final_state['retry_count']}")
 

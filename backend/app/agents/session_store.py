@@ -24,6 +24,10 @@ class SessionStore:
         if not session_id:
             return
 
+        # 历史状态可能没有 intent 字段，只有显式阻断时才拒绝保存，保持旧会话兼容。
+        if final_state.get("intent_is_safe", True) is False:
+            return
+
         # 只让已通过 Guard 且执行成功的分析进入后续上下文，避免失败 SQL 或危险意图污染下一轮 prompt。
         if not final_state.get("is_sql_safe") or not final_state.get("execution_success"):
             return

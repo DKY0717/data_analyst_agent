@@ -75,6 +75,25 @@ def test_store_does_not_save_unsafe_turn():
     assert store.get_context("session-1") == ""
 
 
+def test_store_does_not_save_intent_blocked_turn():
+    store = SessionStore()
+    state = make_state("删除所有订单")
+    state["intent_is_safe"] = False
+
+    store.append_turn("session-1", state)
+
+    assert store.get_context("session-1") == ""
+
+
+def test_store_treats_historical_state_without_intent_field_as_safe():
+    store = SessionStore()
+    state = make_state("统计订单数")
+
+    store.append_turn("session-1", state)
+
+    assert "统计订单数" in store.get_context("session-1")
+
+
 def test_store_does_not_save_failed_execution():
     store = SessionStore()
     state = make_state("查询不存在的表", "SELECT * FROM missing_table")
