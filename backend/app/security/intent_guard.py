@@ -66,6 +66,7 @@ class IntentGuard:
         r"(?:所有|全部)?(?:订单表?|支付(?:状态|记录)?|客户表?|数据库|数据表)"
         r"|\b(?:do\s+not|don't|should(?:n't|\s+not)|must\s+not|never)\s+"
         r"(?:delete|remove|show|read|export|access|bypass|ignore|disable)\b\s*"
+        r"(?:(?:the|any|our|my|your|their)\s+)?"
         r"(?:all|every|bulk|entire|the\s+entire)?\s*"
         r"(?:orders?|payments?|customers?|database|tables?|api[_\s-]?(?:key|token)"
         r"|access[_\s-]?token|secret|password|credentials?|system\s+files?|host\s+files?"

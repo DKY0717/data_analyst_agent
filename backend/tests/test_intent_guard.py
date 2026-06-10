@@ -31,6 +31,8 @@ SAFE_RESULT = {
         "Showcase secretary performance",
         "Show capikey performance",
         "显示销售额，并说明 API key 是否已配置",
+        "Do not show the API key; only report whether it is configured",
+        "Do not read the system files",
     ],
 )
 def test_safe_or_ambiguous_questions_are_allowed(question):
