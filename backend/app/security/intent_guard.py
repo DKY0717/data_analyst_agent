@@ -51,10 +51,11 @@ class IntentGuard:
     """使用确定性规则阻断明确危险命令，并放行安全或模糊请求。"""
 
     _CLAUSE_SEPARATOR = _pattern(
-        r"[，,。！？?!；;]+|然后|随后|接着|同时|而是|并且|但是|并|但|却"
+        r"然后|随后|接着|同时|而是|并且|但是|并|但|却"
         r"|后(?=\s*(?:删除|清空|销毁|修改|更新|导出|读取|查看|访问|绕过|忽略|禁用|跳过))"
         r"|\b(?:then|and\s+then|and|but|while|whereas)\b"
     )
+    _SOFT_PUNCTUATION = _pattern(r"[，,。！？?!；;:：]+")
     _SAFE_ACTION_CONTEXT = _pattern(
         r"(?:不要|不应|不能|禁止|无需)\s*"
         r"(?:删除|清空|销毁|修改|更新|显示|查看|读取|获取|导出|下载|提取|访问|打开|绕过|忽略|禁用|跳过)"
@@ -143,7 +144,9 @@ class IntentGuard:
         # 只消除明确安全动作及其目标，不删除整个片段，避免吞掉前后危险命令。
         fragments = []
         for fragment in self._CLAUSE_SEPARATOR.split(question):
-            cleaned = self._SAFE_ACTION_CONTEXT.sub("", fragment).strip()
+            # 软标点只分隔短语，不代表独立意图，归一后仍允许动作与目标组合匹配。
+            normalized = self._SOFT_PUNCTUATION.sub(" ", fragment)
+            cleaned = self._SAFE_ACTION_CONTEXT.sub("", normalized).strip()
             if cleaned:
                 fragments.append(cleaned)
         return fragments
