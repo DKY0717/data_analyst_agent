@@ -146,7 +146,7 @@ npm run build
 
 第一版检测模式：
 
-- `QWEN_API_KEY=` 后跟非占位值。
+- `QWEN_API_KEY=` 后跟非占位值。<!-- secret-scan: allow -->
 - `Authorization: Bearer`。
 - 常见 `sk-` 格式密钥。
 - DashScope API Key 的明显硬编码模式。
@@ -350,13 +350,13 @@ git ls-files -z | python scripts/check_secrets.py
 
 允许：
 
-- `.env.example` 中的 `QWEN_API_KEY=your_api_key_here`。
+- `.env.example` 中的 `QWEN_API_KEY=your_api_key_here`。<!-- secret-scan: allow -->
 - 文档中仅出现变量名 `QWEN_API_KEY`。
 - 文档中作为说明出现 `Authorization` 或 `Bearer` 单词，但没有真实凭据。
 
 阻止：
 
-- `QWEN_API_KEY=` 后出现非占位值。
+- `QWEN_API_KEY=` 后出现非占位值。<!-- secret-scan: allow -->
 - `Authorization: Bearer <token>`。
 - 疑似真实 `sk-...` Token。
 

@@ -202,9 +202,9 @@ git commit -m "feat: add quality gate CLI outputs"
 ```python
 assert scan_text("QWEN_API_KEY=your_api_key_here", ".env.example") == []
 assert scan_text("文档提到 QWEN_API_KEY", "README.md") == []
-assert scan_text("QWEN_API_KEY=real-secret-value", "config.py")
-assert scan_text("Authorization: Bearer abcdefghijklmnop", "config.py")
-assert scan_text("token = 'sk-abcdefghijklmnop'", "config.py")
+assert scan_text("QWEN_API_KEY=real-secret-value", "config.py")  # secret-scan: allow
+assert scan_text("Authorization: Bearer abcdefghijklmnop", "config.py")  # secret-scan: allow
+assert scan_text("token = 'sk-abcdefghijklmnop'", "config.py")  # secret-scan: allow
 ```
 
 - [ ] **Step 2: 编写失败测试，验证输出不泄露 Secret**
@@ -484,7 +484,7 @@ Run:
 
 ```powershell
 git diff --check
-rg -n "pull_request_target|QWEN_API_KEY=.*[^e]$" .github README.md docs scripts backend
+rg -n "pull_request_target|QWEN_API_KEY=.*[^e]$" .github README.md docs scripts backend  # secret-scan: allow
 ```
 
 检查工作流没有宽权限、没有打印 Secret、没有 `pull_request_target`。
