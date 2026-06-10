@@ -21,6 +21,20 @@ def _get_bool(env_key: str, default: bool) -> bool:
     return val in ("true", "1", "yes", "on")
 
 
+def _get_optional_non_negative_float(env_key: str) -> float | None:
+    """读取可选非负价格；空值表示不进行成本估算。"""
+    val = os.getenv(env_key, "").strip()
+    if not val:
+        return None
+    try:
+        parsed = float(val)
+    except ValueError:
+        raise ValueError(f"Environment variable {env_key} must be a number, got: {val}")
+    if parsed < 0:
+        raise ValueError(f"Environment variable {env_key} must be non-negative, got: {val}")
+    return parsed
+
+
 class Settings:
     """Application settings"""
 
@@ -36,6 +50,12 @@ class Settings:
     QWEN_API_KEY: str = os.getenv("QWEN_API_KEY", "")
     QWEN_API_URL: str = os.getenv("QWEN_API_URL", "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation")
     QWEN_MODEL: str = os.getenv("QWEN_MODEL", "qwen-turbo")
+    QWEN_INPUT_PRICE_PER_MILLION_TOKENS: float | None = _get_optional_non_negative_float(
+        "QWEN_INPUT_PRICE_PER_MILLION_TOKENS"
+    )
+    QWEN_OUTPUT_PRICE_PER_MILLION_TOKENS: float | None = _get_optional_non_negative_float(
+        "QWEN_OUTPUT_PRICE_PER_MILLION_TOKENS"
+    )
 
     # SQL Configuration
     SQL_TIMEOUT: int = _get_int("SQL_TIMEOUT", 30)
