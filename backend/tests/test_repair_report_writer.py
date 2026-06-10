@@ -17,6 +17,11 @@ def sample_report():
             "intent_preservation_rate": 1.0,
             "end_to_end_repair_success_rate": 1.0,
             "average_execution_time_ms": 4,
+            "average_llm_call_count": 1,
+            "average_llm_total_tokens": 600,
+            "average_llm_latency_ms": 900,
+            "total_llm_estimated_cost": None,
+            "cost_available": False,
         },
         "results": [
             {
@@ -35,6 +40,10 @@ def sample_report():
                 "end_to_end_success": True,
                 "execution_time_ms": 4,
                 "error": None,
+                "llm_call_count": 1,
+                "llm_total_tokens": 600,
+                "llm_latency_ms": 900,
+                "llm_estimated_cost": None,
             }
         ],
     }
@@ -55,6 +64,8 @@ def test_repair_report_writer_writes_markdown_and_json(tmp_path):
     assert "wrong_column" in markdown
     assert "column revenue not found" in markdown
     assert "SELECT SUM(total_amount)" in markdown
+    assert "平均 LLM Token：600.00" in markdown
+    assert "LLM 估算总成本：未配置价格" in markdown
 
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["summary"]["end_to_end_repair_success_rate"] == 1.0

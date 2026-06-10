@@ -40,17 +40,22 @@ class RepairReportWriter:
             f"- 意图保持率：{self._format_rate(summary['intent_preservation_rate'])}",
             f"- 端到端修复成功率：{self._format_rate(summary['end_to_end_repair_success_rate'])}",
             f"- 平均修复后执行耗时：{summary['average_execution_time_ms']:.2f} ms",
+            f"- 平均 LLM 调用次数：{summary.get('average_llm_call_count', 0):.2f}",
+            f"- 平均 LLM Token：{summary.get('average_llm_total_tokens', 0):.2f}",
+            f"- 平均 LLM 耗时：{summary.get('average_llm_latency_ms', 0):.2f} ms",
+            f"- LLM 估算总成本：{self._format_cost(summary)}",
             "",
             "## Case 明细",
             "",
-            "| Case | 故障注入 | Repair 输出 | Guard | 执行 | 意图保持 | 端到端成功 | 耗时(ms) |",
-            "|---|---|---|---|---|---|---|---:|",
+            "| Case | 故障注入 | Repair 输出 | Guard | 执行 | 意图保持 | 端到端成功 | DB耗时(ms) | LLM调用 | Token | LLM耗时(ms) |",
+            "|---|---|---|---|---|---|---|---:|---:|---:|---:|",
         ]
 
         for item in results:
             lines.append(
                 "| {case_id} | {failure} | {repair} | {guard} | {execution} | "
-                "{intent} | {end_to_end} | {execution_time_ms} |".format(
+                "{intent} | {end_to_end} | {execution_time_ms} | {llm_call_count} | "
+                "{llm_total_tokens} | {llm_latency_ms} |".format(
                     case_id=item["case_id"],
                     failure=self._format_bool(item["failure_injected"]),
                     repair=self._format_bool(item["repair_output_success"]),
@@ -59,6 +64,9 @@ class RepairReportWriter:
                     intent=self._format_bool(item["intent_preserved"]),
                     end_to_end=self._format_bool(item["end_to_end_success"]),
                     execution_time_ms=item["execution_time_ms"],
+                    llm_call_count=item.get("llm_call_count", 0),
+                    llm_total_tokens=item.get("llm_total_tokens", 0),
+                    llm_latency_ms=item.get("llm_latency_ms", 0),
                 )
             )
 
@@ -74,6 +82,7 @@ class RepairReportWriter:
                     f"- 修复 SQL：`{item['repaired_sql'] or '无'}`",
                     f"- 修复原因：{item['repair_reason'] or '无'}",
                     f"- 最终错误：{item['error'] or '无'}",
+                    f"- LLM 估算成本：{self._format_case_cost(item)}",
                     "",
                 ]
             )
@@ -85,3 +94,12 @@ class RepairReportWriter:
 
     def _format_bool(self, value: bool) -> str:
         return "是" if value else "否"
+
+    def _format_cost(self, summary: Dict[str, Any]) -> str:
+        if not summary.get("cost_available"):
+            return "未配置价格"
+        return f"{summary.get('total_llm_estimated_cost', 0):.8f}"
+
+    def _format_case_cost(self, item: Dict[str, Any]) -> str:
+        cost = item.get("llm_estimated_cost")
+        return "未配置价格" if cost is None else f"{cost:.8f}"

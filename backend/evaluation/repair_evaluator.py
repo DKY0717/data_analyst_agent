@@ -11,6 +11,7 @@ from app.agents.sql_repair import sql_repair_agent
 from app.db.query_runner import query_runner
 from app.db.schema_loader import schema_loader
 from app.security.sql_guard import sql_guard
+from app.services.llm_observability import start_trace, summarize
 from evaluation.repair_report_writer import RepairReportWriter
 
 
@@ -42,18 +43,19 @@ class RepairEvaluationRunner:
 
     async def evaluate_case(self, case: Dict[str, Any]) -> Dict[str, Any]:
         """运行单条故障注入、Repair、Guard、执行和意图检查流程。"""
+        start_trace()
         result = self._empty_result(case)
 
         original_guard = self.guard.validate(case["original_sql"])
         result["original_guard_passed"] = bool(original_guard["is_safe"])
         if not original_guard["is_safe"]:
             result["error"] = original_guard.get("reason")
-            return result
+            return self._with_llm_metrics(result)
 
         original_execution = self.query_runner.execute(original_guard["sanitized_sql"])
         if original_execution.get("success"):
             result["error"] = "错误 SQL 意外执行成功，未形成确定性故障注入"
-            return result
+            return self._with_llm_metrics(result)
 
         result["failure_injected"] = True
         result["original_error"] = original_execution.get("error")
@@ -67,7 +69,7 @@ class RepairEvaluationRunner:
         except Exception as exc:
             # 单条 LLM 或 Repair 异常只记录结果，整批评测继续运行。
             result["error"] = str(exc)
-            return result
+            return self._with_llm_metrics(result)
 
         result["repair_output_success"] = True
         result["repaired_sql"] = repair_output.repaired_sql
@@ -77,7 +79,7 @@ class RepairEvaluationRunner:
         result["repaired_guard_passed"] = bool(repaired_guard["is_safe"])
         if not repaired_guard["is_safe"]:
             result["error"] = repaired_guard.get("reason")
-            return result
+            return self._with_llm_metrics(result)
 
         repaired_execution = self.query_runner.execute(repaired_guard["sanitized_sql"])
         result["execution_success"] = bool(repaired_execution.get("success"))
@@ -95,7 +97,7 @@ class RepairEvaluationRunner:
                 result["intent_preserved"],
             ]
         )
-        return result
+        return self._with_llm_metrics(result)
 
     async def evaluate_all(self) -> Dict[str, Any]:
         """逐条运行 case；任一 case 的结构化失败不会终止整批。"""
@@ -147,8 +149,14 @@ class RepairEvaluationRunner:
                 "intent_preservation_rate": 0,
                 "end_to_end_repair_success_rate": 0,
                 "average_execution_time_ms": 0,
+                "average_llm_call_count": 0,
+                "average_llm_total_tokens": 0,
+                "average_llm_latency_ms": 0,
+                "total_llm_estimated_cost": None,
+                "cost_available": False,
             }
 
+        cost_available = all(result.get("llm_cost_available", False) for result in results)
         return {
             "total_cases": total,
             "failure_injection_rate": self._rate(results, "failure_injected"),
@@ -160,6 +168,21 @@ class RepairEvaluationRunner:
             "average_execution_time_ms": sum(
                 result["execution_time_ms"] for result in results
             ) / total,
+            "average_llm_call_count": sum(
+                result.get("llm_call_count", 0) for result in results
+            ) / total,
+            "average_llm_total_tokens": sum(
+                result.get("llm_total_tokens", 0) for result in results
+            ) / total,
+            "average_llm_latency_ms": sum(
+                result.get("llm_latency_ms", 0) for result in results
+            ) / total,
+            "total_llm_estimated_cost": (
+                sum(result.get("llm_estimated_cost", 0) for result in results)
+                if cost_available
+                else None
+            ),
+            "cost_available": cost_available,
         }
 
     def _rate(self, results: List[Dict[str, Any]], key: str) -> float:
@@ -185,8 +208,27 @@ class RepairEvaluationRunner:
             "intent_preserved": False,
             "end_to_end_success": False,
             "execution_time_ms": 0,
+            "llm_call_count": 0,
+            "llm_total_tokens": 0,
+            "llm_latency_ms": 0,
+            "llm_estimated_cost": None,
+            "llm_cost_available": False,
             "error": None,
         }
+
+    def _with_llm_metrics(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """把当前 Repair case 的独立调用轨迹写入结果，供报告统一汇总。"""
+        llm_summary = summarize()
+        result.update(
+            {
+                "llm_call_count": llm_summary["call_count"],
+                "llm_total_tokens": llm_summary["total_tokens"],
+                "llm_latency_ms": llm_summary["total_latency_ms"],
+                "llm_estimated_cost": llm_summary["estimated_cost"],
+                "llm_cost_available": llm_summary["cost_available"],
+            }
+        )
+        return result
 
 
 async def main_async() -> None:

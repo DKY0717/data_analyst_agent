@@ -4,6 +4,7 @@
 import pytest
 
 from app.models.schemas import SQLRepairOutput
+from app.services.llm_observability import record_call
 from evaluation.repair_evaluator import RepairEvaluationRunner
 
 
@@ -199,6 +200,11 @@ def test_summarize_results_calculates_repair_metrics():
             "intent_preserved": True,
             "end_to_end_success": True,
             "execution_time_ms": 10,
+            "llm_call_count": 1,
+            "llm_total_tokens": 500,
+            "llm_latency_ms": 800,
+            "llm_estimated_cost": 0.001,
+            "llm_cost_available": True,
         },
         {
             "failure_injected": True,
@@ -208,6 +214,11 @@ def test_summarize_results_calculates_repair_metrics():
             "intent_preserved": False,
             "end_to_end_success": False,
             "execution_time_ms": 0,
+            "llm_call_count": 1,
+            "llm_total_tokens": 700,
+            "llm_latency_ms": 1000,
+            "llm_estimated_cost": 0.002,
+            "llm_cost_available": True,
         },
     ]
 
@@ -221,6 +232,63 @@ def test_summarize_results_calculates_repair_metrics():
     assert summary["intent_preservation_rate"] == 0.5
     assert summary["end_to_end_repair_success_rate"] == 0.5
     assert summary["average_execution_time_ms"] == 5
+    assert summary["average_llm_call_count"] == 1
+    assert summary["average_llm_total_tokens"] == 600
+    assert summary["average_llm_latency_ms"] == 900
+    assert summary["total_llm_estimated_cost"] == pytest.approx(0.003)
+    assert summary["cost_available"] is True
+
+
+@pytest.mark.asyncio
+async def test_each_repair_case_uses_independent_llm_trace():
+    class MetricsRepairAgent:
+        async def repair(self, original_sql, error_message, schema_context):
+            tokens = 300 if "revenue" in original_sql else 600
+            record_call(
+                {
+                    "stage": "repair_sql",
+                    "model": "qwen-plus",
+                    "input_tokens": tokens - 100,
+                    "output_tokens": 100,
+                    "total_tokens": tokens,
+                    "latency_ms": 500,
+                    "attempt_count": 1,
+                    "estimated_cost": None,
+                    "success": True,
+                    "error_type": None,
+                }
+            )
+            return SQLRepairOutput(
+                repaired_sql="SELECT SUM(total_amount) FROM orders",
+                repair_reason="修复字段",
+            )
+
+    runner = RepairEvaluationRunner(
+        guard=FakeGuard(
+            [
+                safe("SELECT SUM(revenue) FROM orders"),
+                safe("SELECT SUM(total_amount) FROM orders"),
+                safe("SELECT SUM(bad_amount) FROM orders"),
+                safe("SELECT SUM(total_amount) FROM orders"),
+            ]
+        ),
+        query_runner=FakeQueryRunner([failed(), succeeded(), failed(), succeeded()]),
+        repair_agent=MetricsRepairAgent(),
+        schema_loader=lambda: {"tables": {"orders": {}}},
+    )
+    second_case = {
+        **CASE,
+        "id": "wrong_column_2",
+        "original_sql": "SELECT SUM(bad_amount) FROM orders",
+        "forbidden_sql_fragments": ["bad_amount"],
+    }
+
+    first = await runner.evaluate_case(CASE)
+    second = await runner.evaluate_case(second_case)
+
+    assert first["llm_total_tokens"] == 300
+    assert second["llm_total_tokens"] == 600
+    assert first["llm_call_count"] == second["llm_call_count"] == 1
 
 
 @pytest.mark.asyncio
