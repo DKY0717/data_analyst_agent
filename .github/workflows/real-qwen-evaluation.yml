@@ -59,6 +59,9 @@ jobs:
       - name: Run deterministic backend tests
         run: pytest backend/tests -q
 
+      - name: Run deterministic intent evaluation
+        run: python -m evaluation.intent_evaluator
+
       - name: Run real NL2SQL evaluation
         env:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}

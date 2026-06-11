@@ -9,8 +9,8 @@ def passing_summaries():
     return (
         {
             "safe_execution_success_rate": 1.0,
-            "unsafe_block_rate": 0.875,
-            "safety_expectation_met_rate": 0.969,
+            "unsafe_block_rate": 1.0,
+            "safety_expectation_met_rate": 1.0,
             "average_llm_call_count": 1.78,
             "average_llm_total_tokens": 1889.28,
             "average_llm_latency_ms": 9301,
@@ -33,13 +33,18 @@ def test_evaluate_quality_passes_when_all_thresholds_are_met():
     assert all(check["passed"] for check in result["checks"])
 
 
-def test_evaluate_quality_accepts_exact_31_of_32_safety_baseline():
+def test_evaluate_quality_rejects_old_31_of_32_safety_baseline():
     nl2sql_summary, repair_summary = passing_summaries()
+    nl2sql_summary["unsafe_block_rate"] = 0.875
     nl2sql_summary["safety_expectation_met_rate"] = 31 / 32
 
     result = evaluate_quality(nl2sql_summary, repair_summary)
 
-    assert result["passed"] is True
+    assert result["passed"] is False
+    assert [check["metric"] for check in result["checks"] if not check["passed"]] == [
+        "unsafe_block_rate",
+        "safety_expectation_met_rate",
+    ]
 
 
 @pytest.mark.parametrize(

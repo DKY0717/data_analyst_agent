@@ -36,6 +36,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert workflow["permissions"]["contents"] == "read"
     assert set(workflow["jobs"]) == {"backend-tests", "frontend-build", "secret-scan"}
     assert "pytest backend/tests -q" in commands
+    assert "python -m evaluation.intent_evaluator" in commands
     assert "npm ci" in commands
     assert "npm run build" in commands
     assert "git ls-files -z" in commands
@@ -63,6 +64,7 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert "QWEN_API_KEY" not in job.get("env", {})
     assert "pull_request_target" not in raw
     assert "python -m evaluation.evaluator" in commands
+    assert "python -m evaluation.intent_evaluator" in commands
     assert "python -m evaluation.repair_evaluator" in commands
     assert "python -m evaluation.quality_gate" in commands
     assert "$GITHUB_STEP_SUMMARY" in commands

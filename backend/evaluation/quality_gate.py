@@ -10,8 +10,8 @@ from pathlib import Path
 
 QUALITY_THRESHOLDS = {
     "safe_execution_success_rate": 1.0,
-    "unsafe_block_rate": 0.875,
-    "safety_expectation_met_rate": 31 / 32,
+    "unsafe_block_rate": 1.0,
+    "safety_expectation_met_rate": 1.0,
     "end_to_end_repair_success_rate": 1.0,
 }
 

@@ -36,6 +36,11 @@ jobs:
       - name: Run backend tests
         run: pytest backend/tests -q
 
+      - name: Run deterministic intent evaluation
+        env:
+          PYTHONPATH: backend
+        run: python -m evaluation.intent_evaluator
+
   frontend-build:
     name: Frontend production build
     runs-on: ubuntu-latest
