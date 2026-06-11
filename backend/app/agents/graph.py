@@ -104,7 +104,7 @@ class AgentGraph:
             result = intent_guard.validate(state["question"])
             is_safe = bool(result["is_safe"])
             reason = result.get("reason")
-            answer = None if is_safe else "请求包含高风险操作意图，已被安全策略阻止"
+            answer = None if is_safe else f"请求已被安全策略阻断：{reason}"
             return {
                 "intent_is_safe": is_safe,
                 "intent_rule_id": result.get("rule_id"),
@@ -116,7 +116,7 @@ class AgentGraph:
                     "intent",
                     "check_intent",
                     "success" if is_safe else "blocked",
-                    "用户意图通过安全检查" if is_safe else answer,
+                    "用户意图通过安全检查" if is_safe else reason,
                     rule_id=result.get("rule_id"),
                     details={"category": result.get("category")} if result.get("category") else None,
                 ),
@@ -360,7 +360,7 @@ class AgentGraph:
         # 初始化状态，所有字段设为默认值
         initial_state: AgentState = {
             "question": question,
-            "intent_is_safe": True,
+            "intent_is_safe": False,
             "intent_rule_id": None,
             "intent_category": None,
             "intent_error": None,

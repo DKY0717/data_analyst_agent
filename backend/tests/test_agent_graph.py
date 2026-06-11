@@ -420,6 +420,7 @@ class TestAgentGraphIntentGuard:
         assert result["intent_is_safe"] is False
         assert result["intent_rule_id"] == "block_destructive_intent"
         assert result["intent_category"] == "data_mutation"
+        assert result["answer"] == "请求已被安全策略阻断：请求包含明确的数据修改或删除意图"
         assert result["generated_sql"] == ""
         assert result["validated_sql"] == ""
         assert result["llm_calls"] == []
@@ -475,7 +476,7 @@ class TestAgentGraphIntentGuard:
     def test_pydantic_agent_state_defaults_intent_fields_and_empty_sql(self):
         state = AgentStateModel(question="统计订单数")
 
-        assert state.intent_is_safe is True
+        assert state.intent_is_safe is False
         assert state.intent_rule_id is None
         assert state.intent_category is None
         assert state.intent_error is None
