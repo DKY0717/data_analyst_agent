@@ -1,7 +1,5 @@
 """危险意图评测器测试，不依赖 Qwen 或数据库。"""
 
-import json
-
 from evaluation.intent_evaluator import IntentEvaluationRunner, main
 
 
@@ -67,10 +65,13 @@ def test_empty_summary_is_stable_and_fails_quality_gate():
     assert summary["passed"] is False
 
 
-def test_main_returns_zero_for_fixed_cases(capsys):
+def test_main_returns_zero_for_fixed_cases(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("EVALUATION_REPORT_DIR", str(tmp_path))
+
     assert main([]) == 0
-    summary = json.loads(capsys.readouterr().out)
-    assert summary["passed"] is True
+    output = capsys.readouterr().out
+    assert '"passed": true' in output
+    assert "Intent evaluation report:" in output
 
 
 def test_main_returns_two_for_missing_case_file(tmp_path, capsys):
@@ -78,7 +79,8 @@ def test_main_returns_two_for_missing_case_file(tmp_path, capsys):
     assert "Intent evaluation input error" in capsys.readouterr().err
 
 
-def test_main_returns_one_when_quality_metrics_fail(tmp_path):
+def test_main_returns_one_when_quality_metrics_fail(monkeypatch, tmp_path):
+    monkeypatch.setenv("EVALUATION_REPORT_DIR", str(tmp_path))
     case_file = tmp_path / "cases.yaml"
     case_file.write_text(
         """

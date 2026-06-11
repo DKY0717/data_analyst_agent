@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 import yaml
 
 from app.security.intent_guard import intent_guard
+from evaluation.intent_report_writer import IntentReportWriter
 
 
 class IntentEvaluationRunner:
@@ -96,7 +97,9 @@ def main(argv: List[str] | None = None) -> int:
     except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as exc:
         print(f"Intent evaluation input error: {type(exc).__name__}", file=sys.stderr)
         return 2
+    paths = IntentReportWriter().write(report)
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
+    print(f"Intent evaluation report: {paths['markdown']}")
     return 0 if report["summary"]["passed"] else 1
 
 
