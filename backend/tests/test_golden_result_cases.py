@@ -98,21 +98,92 @@ EXPECTED_FIXED_ASSERTIONS = {
     },
 }
 
-EXPECTED_SQL_FRAGMENTS = {
-    "monthly_sales_2024": ["extract(year from order_date) = 2024", "sum(total_amount)"],
-    "top_products_by_sales": ["sum(oi.quantity * oi.unit_price)", "limit 5"],
-    "sales_by_region": ["extract(year from o.order_date) = 2024", "sum(o.total_amount)"],
-    "sales_by_category": ["sum(oi.quantity * oi.unit_price)"],
-    "refund_rate_by_category": [
-        "count(distinct r.refund_id)",
-        "count(distinct o.order_id)",
-        "left join refunds",
-    ],
-    "average_order_value_2024": [
-        "extract(year from order_date) = 2024",
-        "sum(total_amount)",
-    ],
-    "repeat_purchase_rate": ["count(distinct order_id)", "order_count > 1"],
+EXPECTED_REFERENCE_SQL = {
+    "monthly_sales_2024": """
+        SELECT strftime(order_date, '%Y-%m') AS month,
+               SUM(total_amount) AS sales_amount
+        FROM orders
+        WHERE EXTRACT(YEAR FROM order_date) = 2024
+        GROUP BY month
+        ORDER BY month
+    """,
+    "top_products_by_sales": """
+        SELECT p.product_name,
+               SUM(oi.quantity * oi.unit_price) AS sales_amount
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.product_id
+        GROUP BY p.product_id, p.product_name
+        ORDER BY sales_amount DESC, p.product_name
+        LIMIT 5
+    """,
+    "customer_count_by_region": """
+        SELECT r.region_name,
+               COUNT(DISTINCT c.customer_id) AS customer_count
+        FROM customers c
+        JOIN regions r ON c.region_id = r.region_id
+        GROUP BY r.region_name
+    """,
+    "sales_by_region": """
+        SELECT r.region_name,
+               SUM(o.total_amount) AS sales_amount
+        FROM orders o
+        JOIN customers c ON o.customer_id = c.customer_id
+        JOIN regions r ON c.region_id = r.region_id
+        WHERE EXTRACT(YEAR FROM o.order_date) = 2024
+        GROUP BY r.region_name
+    """,
+    "sales_by_category": """
+        SELECT c.category_name,
+               SUM(oi.quantity * oi.unit_price) AS sales_amount
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.product_id
+        JOIN categories c ON p.category_id = c.category_id
+        GROUP BY c.category_name
+    """,
+    "refund_rate_by_category": """
+        SELECT c.category_name,
+               COALESCE(
+                   COUNT(DISTINCT r.refund_id) * 1.0
+                     / NULLIF(COUNT(DISTINCT o.order_id), 0),
+                   0.0
+               ) AS refund_rate
+        FROM orders o
+        JOIN order_items oi ON o.order_id = oi.order_id
+        JOIN products p ON oi.product_id = p.product_id
+        JOIN categories c ON p.category_id = c.category_id
+        LEFT JOIN refunds r ON o.order_id = r.order_id
+        GROUP BY c.category_name
+    """,
+    "average_order_value_2024": """
+        SELECT SUM(total_amount) * 1.0
+                 / COUNT(DISTINCT order_id) AS average_order_value
+        FROM orders
+        WHERE EXTRACT(YEAR FROM order_date) = 2024
+    """,
+    "repeat_purchase_rate": """
+        WITH customer_order_stats AS (
+            SELECT customer_id, COUNT(DISTINCT order_id) AS order_count
+            FROM orders
+            GROUP BY customer_id
+        )
+        SELECT COUNT(DISTINCT CASE WHEN order_count > 1 THEN customer_id END) * 1.0
+                 / COUNT(DISTINCT customer_id) AS repeat_purchase_rate
+        FROM customer_order_stats
+    """,
+    "payment_method_sales": """
+        SELECT p.payment_method,
+               SUM(o.total_amount) AS sales_amount
+        FROM orders o
+        JOIN payments p ON o.order_id = p.order_id
+        GROUP BY p.payment_method
+    """,
+    "monthly_order_count": """
+        SELECT strftime(order_date, '%Y-%m') AS month,
+               COUNT(DISTINCT order_id) AS order_count
+        FROM orders
+        GROUP BY month
+        ORDER BY month
+    """,
 }
 
 
@@ -195,12 +266,11 @@ def test_core_business_cases_match_exact_fixed_assertions():
         assert cases[case_id]["fixed_assertions"] == expected, case_id
 
 
-def test_reference_sql_preserves_key_business_definitions():
-    """关键 SQL 片段用于防止时间范围、金额来源和业务指标口径漂移。"""
+def test_reference_sql_matches_exact_normalized_contract():
+    """完整 SQL 契约锁定 JOIN、表达式、别名、过滤、排序和 LIMIT。"""
     cases = load_cases_by_id()
 
-    for case_id, expected_fragments in EXPECTED_SQL_FRAGMENTS.items():
-        normalized_sql = normalize_sql(cases[case_id]["reference_sql"])
-
-        for fragment in expected_fragments:
-            assert fragment in normalized_sql, f"{case_id}: missing {fragment}"
+    for case_id, expected_sql in EXPECTED_REFERENCE_SQL.items():
+        assert normalize_sql(cases[case_id]["reference_sql"]) == normalize_sql(
+            expected_sql
+        ), case_id

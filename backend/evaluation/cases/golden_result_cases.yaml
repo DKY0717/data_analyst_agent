@@ -93,8 +93,11 @@ cases:
     category: business_metric
     reference_sql: |
       SELECT c.category_name,
-             COUNT(DISTINCT r.refund_id) * 1.0
-               / NULLIF(COUNT(DISTINCT o.order_id), 0) AS refund_rate
+             COALESCE(
+                 COUNT(DISTINCT r.refund_id) * 1.0
+                   / NULLIF(COUNT(DISTINCT o.order_id), 0),
+                 0.0
+             ) AS refund_rate
       FROM orders o
       JOIN order_items oi ON o.order_id = oi.order_id
       JOIN products p ON oi.product_id = p.product_id
