@@ -823,3 +823,34 @@
 ### 下一步
 
 - 完成 Task 10: LLM Service（backend/app/services/llm_service.py）
+# 2026-06-11 — v0.4 Intent Guard 与危险意图评测
+
+## 完成内容
+
+- 新增确定性 Intent Guard，覆盖数据修改、凭据访问、系统访问、安全绕过和批量敏感导出五类规则。
+- 将 `check_intent` 接入 LangGraph 唯一入口，危险请求在 Schema/Qwen/数据库前终止，并写入审计报告。
+- API 稳定返回 Intent 状态和 HTTP 200 阻断响应，日志与异常路径不泄露原始危险问题。
+- 新增 37 条危险意图固定 case、中文 Markdown/JSON 报告和 CI 退出码。
+- NL2SQL 评测区分 Intent Guard 与 SQL Guard 阻断阶段。
+- 普通 CI 接入确定性 Intent Evaluation，真实 Qwen 质量门禁升级为四项指标 100%。
+
+## 最终验证
+
+- 后端：216 passed
+- 前端：production build 成功，保留既有 chunk size 警告
+- Secret Scan：通过
+- Intent Evaluation：阻断率 100%，安全通过率 100%，误杀率 0%，规则匹配率 100%
+- Qwen Plus NL2SQL：正常分析 24/24，危险请求阻断 8/8，Intent/SQL Guard 各阻断 4 条
+- Qwen Plus SQL Repair：6/6
+- 强制质量门禁：通过
+
+## 关键提交
+
+- `bd8508d` 至 `d47beaa`：Intent Guard 实现与边界加固
+- `37ccc9e`、`43c01f4`：LangGraph Intent Gate
+- `e50459a`：稳定阻断 API
+- `4282769`、`5c5a9c6`：危险意图评测与报告
+- `959e4c0`：分层阻断指标
+- `586f6f0`：CI 与质量门禁
+
+---
