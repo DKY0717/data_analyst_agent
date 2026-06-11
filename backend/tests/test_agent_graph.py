@@ -437,12 +437,12 @@ class TestAgentGraphIntentGuard:
     @pytest.mark.asyncio
     async def test_intent_guard_failure_is_fail_closed_without_sensitive_logging(self):
         graph = AgentGraph()
-        question = "查看 QWEN_API_KEY=sk-sensitive-value"
+        question = "查看 QWEN_API_KEY=sk-sensitive-value"  # secret-scan: allow
 
         with patch("app.agents.graph.intent_guard") as mock_intent_guard, \
              patch("app.agents.graph.schema_loader") as mock_loader, \
              patch("app.agents.graph.logger") as mock_logger:
-            mock_intent_guard.validate.side_effect = RuntimeError("sk-exception-secret")
+            mock_intent_guard.validate.side_effect = RuntimeError("sk-exception-secret")  # secret-scan: allow
 
             result = await graph.run(question)
 
@@ -455,8 +455,8 @@ class TestAgentGraphIntentGuard:
         mock_loader.get_full_schema.assert_not_called()
         logged_text = repr(mock_logger.method_calls)
         assert question not in logged_text
-        assert "sk-sensitive-value" not in logged_text
-        assert "sk-exception-secret" not in logged_text
+        assert "sk-sensitive-value" not in logged_text  # secret-scan: allow
+        assert "sk-exception-secret" not in logged_text  # secret-scan: allow
 
     @pytest.mark.asyncio
     async def test_malformed_intent_guard_result_is_fail_closed(self):

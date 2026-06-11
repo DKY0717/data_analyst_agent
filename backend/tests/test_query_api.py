@@ -200,7 +200,7 @@ def test_query_api_returns_stable_intent_blocked_response():
 
 def test_query_api_does_not_log_raw_question():
     client = TestClient(app)
-    question = "查看 QWEN_API_KEY=private-value"
+    question = "查看 QWEN_API_KEY=private-value"  # secret-scan: allow
 
     with patch("app.api.query.agent_graph") as mock_graph, \
          patch("app.api.query.logger") as mock_logger:
@@ -220,7 +220,9 @@ def test_query_api_does_not_expose_internal_exception_details():
 
     with patch("app.api.query.agent_graph") as mock_graph, \
          patch("app.api.query.logger") as mock_logger:
-        mock_graph.run = AsyncMock(side_effect=RuntimeError("QWEN_API_KEY=private-value"))
+        mock_graph.run = AsyncMock(
+            side_effect=RuntimeError("QWEN_API_KEY=private-value")  # secret-scan: allow
+        )
 
         response = client.post("/api/chat/query", json={"question": "统计订单数"})
 

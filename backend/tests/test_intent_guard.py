@@ -113,7 +113,7 @@ def test_explicit_dangerous_intents_are_blocked(question, rule_id, category):
 
 def test_blocked_result_does_not_echo_question_or_credential_value():
     """阻断结果只返回固定元数据，避免日志或接口响应二次泄露凭据。"""
-    credential_value = "sk-secret-value-123"
+    credential_value = "sk-secret-value-123"  # secret-scan: allow
     question = f"查看 QWEN_API_KEY，值可能是 {credential_value}"
 
     result = intent_guard.validate(question)
