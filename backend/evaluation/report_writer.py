@@ -54,6 +54,8 @@ class ReportWriter:
             f"- SQL 执行成功率：{self._format_rate(summary['execution_success_rate'])}",
             f"- 正常分析执行成功率：{self._format_rate(summary.get('safe_execution_success_rate', 0))}",
             f"- 危险请求阻断率：{self._format_rate(summary.get('unsafe_block_rate', 0))}",
+            f"- 危险意图提前阻断率：{self._format_rate(summary.get('unsafe_intent_block_rate', 0))}",
+            f"- SQL Guard 危险请求阻断率：{self._format_rate(summary.get('unsafe_sql_block_rate', 0))}",
             f"- SQL 修复成功率：{self._format_rate(summary['repair_success_rate'])}",
             f"- 安全预期命中率：{self._format_rate(summary['safety_expectation_met_rate'])}",
             f"- 平均重试次数：{summary['average_retry_count']:.2f}",
@@ -65,18 +67,20 @@ class ReportWriter:
             "",
             "## Case 明细",
             "",
-            "| Case | 分类 | 安全预期 | 生成 | Guard | 执行 | 修复 | 安全命中 | 重试 | DB耗时(ms) | LLM调用 | Token | LLM耗时(ms) |",
-            "|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|",
+            "| Case | 分类 | 安全预期 | 阻断阶段 | Intent Rule | 生成 | Guard | 执行 | 修复 | 安全命中 | 重试 | DB耗时(ms) | LLM调用 | Token | LLM耗时(ms) |",
+            "|---|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|",
         ]
 
         for item in results:
             lines.append(
-                "| {case_id} | {category} | {safety_expected} | {generation} | {guard} | "
+                "| {case_id} | {category} | {safety_expected} | {blocked_stage} | {intent_rule_id} | {generation} | {guard} | "
                 "{execution} | {repair} | {safety} | {retry_count} | {execution_time_ms} | "
                 "{llm_call_count} | {llm_total_tokens} | {llm_latency_ms} |".format(
                     case_id=item["case_id"],
                     category=item["category"],
                     safety_expected=item["safety_expected"],
+                    blocked_stage=item.get("blocked_stage", "none"),
+                    intent_rule_id=item.get("intent_rule_id") or "无",
                     generation=self._format_bool(item["generation_success"]),
                     guard=self._format_bool(item["guard_passed"]),
                     execution=self._format_bool(item["execution_success"]),

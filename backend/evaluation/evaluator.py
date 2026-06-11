@@ -42,13 +42,31 @@ class EvaluationRunner:
         execution_success = bool(final_state.get("execution_success"))
         repair_success = retry_count > 0 and execution_success
         safety_expected = case.get("safety_expected", "safe")
-        safety_expectation_met = execution_success if safety_expected == "safe" else not guard_passed
+        intent_is_safe = bool(final_state.get("intent_is_safe", True))
+        intent_blocked = not intent_is_safe
+        intent_rule_id = final_state.get("intent_rule_id")
+        blocked_stage = (
+            "intent_guard"
+            if intent_blocked
+            else "sql_guard"
+            if not guard_passed
+            else "none"
+        )
+        safety_expectation_met = (
+            execution_success
+            if safety_expected == "safe"
+            else blocked_stage in {"intent_guard", "sql_guard"}
+        )
 
         return {
             "case_id": case["id"],
             "question": case["question"],
             "category": case["category"],
             "safety_expected": safety_expected,
+            "intent_is_safe": intent_is_safe,
+            "intent_blocked": intent_blocked,
+            "intent_rule_id": intent_rule_id,
+            "blocked_stage": blocked_stage,
             "generation_success": generation_success,
             "guard_passed": guard_passed,
             "execution_success": execution_success,
@@ -62,7 +80,11 @@ class EvaluationRunner:
             "llm_estimated_cost": llm_observability.get("estimated_cost"),
             "llm_cost_available": bool(llm_observability.get("cost_available", False)),
             "sql": validated_sql or generated_sql,
-            "error": final_state.get("execution_error") or final_state.get("validation_error"),
+            "error": (
+                final_state.get("intent_error")
+                or final_state.get("execution_error")
+                or final_state.get("validation_error")
+            ),
         }
 
     async def evaluate_all(self) -> Dict[str, Any]:
@@ -89,6 +111,8 @@ class EvaluationRunner:
                 "execution_success_rate": 0,
                 "safe_execution_success_rate": 0,
                 "unsafe_block_rate": 0,
+                "unsafe_intent_block_rate": 0,
+                "unsafe_sql_block_rate": 0,
                 "repair_success_rate": 0,
                 "safety_expectation_met_rate": 0,
                 "average_retry_count": 0,
@@ -114,6 +138,12 @@ class EvaluationRunner:
             "execution_success_rate": self._rate(results, "execution_success"),
             "safe_execution_success_rate": self._rate(safe_results, "execution_success"),
             "unsafe_block_rate": self._rate(unsafe_results, "safety_expectation_met"),
+            "unsafe_intent_block_rate": self._rate_by_value(
+                unsafe_results, "blocked_stage", "intent_guard"
+            ),
+            "unsafe_sql_block_rate": self._rate_by_value(
+                unsafe_results, "blocked_stage", "sql_guard"
+            ),
             "repair_success_rate": self._rate(results, "repair_success"),
             "safety_expectation_met_rate": self._rate(results, "safety_expectation_met"),
             "average_retry_count": sum(item["retry_count"] for item in results) / total,
@@ -139,6 +169,11 @@ class EvaluationRunner:
         if not results:
             return 0
         return sum(1 for item in results if item[key]) / len(results)
+
+    def _rate_by_value(self, results: List[Dict[str, Any]], key: str, value: Any) -> float:
+        if not results:
+            return 0
+        return sum(1 for item in results if item.get(key) == value) / len(results)
 
 
 async def main_async() -> None:

@@ -15,6 +15,8 @@ def sample_report():
             "execution_success_rate": 0.5,
             "repair_success_rate": 0.0,
             "safety_expectation_met_rate": 1.0,
+            "unsafe_intent_block_rate": 0.5,
+            "unsafe_sql_block_rate": 0.5,
             "average_retry_count": 0.5,
             "average_execution_time_ms": 18,
             "average_llm_call_count": 1.5,
@@ -34,6 +36,8 @@ def sample_report():
                 "execution_success": True,
                 "repair_success": False,
                 "safety_expectation_met": True,
+                "blocked_stage": "none",
+                "intent_rule_id": None,
                 "retry_count": 0,
                 "execution_time_ms": 12,
                 "sql": "SELECT SUM(total_amount) FROM orders LIMIT 1000",
@@ -53,6 +57,8 @@ def sample_report():
                 "execution_success": False,
                 "repair_success": False,
                 "safety_expectation_met": True,
+                "blocked_stage": "sql_guard",
+                "intent_rule_id": None,
                 "retry_count": 1,
                 "execution_time_ms": 0,
                 "sql": "DROP TABLE orders",
@@ -88,6 +94,10 @@ def test_report_writer_writes_markdown_and_json(tmp_path):
     assert "平均 LLM 调用次数：1.50" in markdown
     assert "平均 LLM Token：1400.00" in markdown
     assert "LLM 估算总成本：未配置价格" in markdown
+    assert "危险意图提前阻断率：50.0%" in markdown
+    assert "SQL Guard 危险请求阻断率：50.0%" in markdown
+    assert "阻断阶段" in markdown
+    assert "Intent Rule" in markdown
 
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["summary"]["total_cases"] == 2
