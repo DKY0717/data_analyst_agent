@@ -1,0 +1,183 @@
+cases:
+  - id: monthly_sales_2024
+    question: 统计 2024 年每个月的销售额，按月份升序排列
+    category: time_series
+    reference_sql: |
+      SELECT strftime(order_date, '%Y-%m') AS month,
+             SUM(total_amount) AS sales_amount
+      FROM orders
+      WHERE EXTRACT(YEAR FROM order_date) = 2024
+      GROUP BY month
+      ORDER BY month
+    comparison:
+      mode: ordered
+      required_columns: [month, sales_amount]
+      order_by: [month]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      row_count: 12
+
+  - id: top_products_by_sales
+    question: 找出销售额最高的 5 个商品
+    category: top_n
+    reference_sql: |
+      SELECT p.product_name,
+             SUM(oi.quantity * oi.unit_price) AS sales_amount
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.product_id
+      GROUP BY p.product_id, p.product_name
+      ORDER BY sales_amount DESC, p.product_name
+      LIMIT 5
+    comparison:
+      mode: top_n
+      required_columns: [product_name, sales_amount]
+      order_by: [sales_amount, product_name]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      row_count: 5
+
+  - id: customer_count_by_region
+    question: 统计各地区的客户数量
+    category: dimension
+    reference_sql: |
+      SELECT r.region_name,
+             COUNT(DISTINCT c.customer_id) AS customer_count
+      FROM customers c
+      JOIN regions r ON c.region_id = r.region_id
+      GROUP BY r.region_name
+    comparison:
+      mode: unordered
+      required_columns: [region_name, customer_count]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      row_count: 5
+      sum_column:
+        column: customer_count
+        value: 100
+
+  - id: sales_by_region
+    question: 统计 2024 年各地区的销售额
+    category: dimension
+    reference_sql: |
+      SELECT r.region_name,
+             SUM(o.total_amount) AS sales_amount
+      FROM orders o
+      JOIN customers c ON o.customer_id = c.customer_id
+      JOIN regions r ON c.region_id = r.region_id
+      WHERE EXTRACT(YEAR FROM o.order_date) = 2024
+      GROUP BY r.region_name
+    comparison:
+      mode: unordered
+      required_columns: [region_name, sales_amount]
+      absolute_tolerance: 0.001
+
+  - id: sales_by_category
+    question: 统计各商品类别的销售额
+    category: aggregation
+    reference_sql: |
+      SELECT c.category_name,
+             SUM(oi.quantity * oi.unit_price) AS sales_amount
+      FROM order_items oi
+      JOIN products p ON oi.product_id = p.product_id
+      JOIN categories c ON p.category_id = c.category_id
+      GROUP BY c.category_name
+    comparison:
+      mode: unordered
+      required_columns: [category_name, sales_amount]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      row_count: 8
+
+  - id: refund_rate_by_category
+    question: 统计各商品类别的退款率
+    category: business_metric
+    reference_sql: |
+      SELECT c.category_name,
+             COUNT(DISTINCT r.refund_id) * 1.0
+               / NULLIF(COUNT(DISTINCT o.order_id), 0) AS refund_rate
+      FROM orders o
+      JOIN order_items oi ON o.order_id = oi.order_id
+      JOIN products p ON oi.product_id = p.product_id
+      JOIN categories c ON p.category_id = c.category_id
+      LEFT JOIN refunds r ON o.order_id = r.order_id
+      GROUP BY c.category_name
+    comparison:
+      mode: unordered
+      required_columns: [category_name, refund_rate]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      row_count: 8
+
+  - id: average_order_value_2024
+    question: 计算 2024 年的平均客单价
+    category: business_metric
+    reference_sql: |
+      SELECT SUM(total_amount) * 1.0
+               / COUNT(DISTINCT order_id) AS average_order_value
+      FROM orders
+      WHERE EXTRACT(YEAR FROM order_date) = 2024
+    comparison:
+      mode: scalar
+      required_columns: [average_order_value]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      scalar:
+        column: average_order_value
+        value: 1956.7938144329896
+        absolute_tolerance: 0.001
+
+  - id: repeat_purchase_rate
+    question: 计算客户复购率
+    category: business_metric
+    reference_sql: |
+      WITH customer_order_stats AS (
+          SELECT customer_id, COUNT(DISTINCT order_id) AS order_count
+          FROM orders
+          GROUP BY customer_id
+      )
+      SELECT COUNT(DISTINCT CASE WHEN order_count > 1 THEN customer_id END) * 1.0
+               / COUNT(DISTINCT customer_id) AS repeat_purchase_rate
+      FROM customer_order_stats
+    comparison:
+      mode: scalar
+      required_columns: [repeat_purchase_rate]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      scalar:
+        column: repeat_purchase_rate
+        value: 0.76
+        absolute_tolerance: 0.001
+
+  - id: payment_method_sales
+    question: 统计各支付方式对应的销售额
+    category: dimension
+    reference_sql: |
+      SELECT p.payment_method,
+             SUM(o.total_amount) AS sales_amount
+      FROM orders o
+      JOIN payments p ON o.order_id = p.order_id
+      GROUP BY p.payment_method
+    comparison:
+      mode: unordered
+      required_columns: [payment_method, sales_amount]
+      absolute_tolerance: 0.001
+
+  - id: monthly_order_count
+    question: 统计每个月的订单数量，按月份升序排列
+    category: time_series
+    reference_sql: |
+      SELECT strftime(order_date, '%Y-%m') AS month,
+             COUNT(DISTINCT order_id) AS order_count
+      FROM orders
+      GROUP BY month
+      ORDER BY month
+    comparison:
+      mode: ordered
+      required_columns: [month, order_count]
+      order_by: [month]
+      absolute_tolerance: 0.001
+    fixed_assertions:
+      row_count: 36
+      sum_column:
+        column: order_count
+        value: 304
