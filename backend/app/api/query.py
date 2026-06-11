@@ -23,21 +23,27 @@ async def query(request: QueryRequest):
     6. LLM 生成自然语言答案
     """
     try:
-        logger.info(f"收到查询请求: {request.question}")
+        logger.info("收到查询请求")
 
         # session_id 只做透传；多轮上下文由 AgentGraph 和 SessionStore 统一管理。
         result = await agent_graph.run(request.question, session_id=request.session_id)
+
+        # 阻断请求没有查询结果，统一归一为空对象以保持稳定的 HTTP 200 响应。
+        query_result = result.get("query_result") or {}
 
         # 构造响应（兼容 answer 为 None 的情况，即重试耗尽）
         response = QueryResponse(
             question=result["question"],
             session_id=result.get("session_id") or request.session_id,
+            intent_is_safe=result.get("intent_is_safe", True),
+            intent_rule_id=result.get("intent_rule_id"),
+            intent_category=result.get("intent_category"),
             sql=result.get("validated_sql") or result.get("generated_sql") or "",
             is_sql_safe=result.get("is_sql_safe", False),
-            columns=result.get("query_result", {}).get("columns", []),
-            rows=result.get("query_result", {}).get("rows", []),
+            columns=query_result.get("columns", []),
+            rows=query_result.get("rows", []),
             answer=result.get("answer") or "抱歉，处理您的问题时遇到困难，请尝试换个问法。",
-            execution_time_ms=result.get("query_result", {}).get("execution_time_ms", 0),
+            execution_time_ms=query_result.get("execution_time_ms", 0),
             retry_count=result.get("retry_count", 0),
             optimization_suggestions=result.get("optimization_suggestions", []),
             audit_report=result.get("audit_report"),
@@ -49,6 +55,7 @@ async def query(request: QueryRequest):
             data=response
         )
 
-    except Exception as e:
-        logger.error(f"查询处理失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        # 异常原文可能包含凭据、SQL 或数据库细节，只记录稳定消息并返回通用错误。
+        logger.error("查询处理失败")
+        raise HTTPException(status_code=500, detail="查询处理失败，请稍后重试")

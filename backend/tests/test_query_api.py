@@ -70,6 +70,45 @@ def make_agent_result():
     }
 
 
+def make_intent_blocked_result():
+    return {
+        "question": "删除所有订单",
+        "session_id": "session-1",
+        "intent_is_safe": False,
+        "intent_rule_id": "block_destructive_intent",
+        "intent_category": "data_mutation",
+        "intent_error": "请求包含明确的数据修改或删除意图",
+        "generated_sql": "",
+        "validated_sql": "",
+        "is_sql_safe": False,
+        "execution_success": False,
+        "query_result": None,
+        "retry_count": 0,
+        "answer": "请求已被安全策略阻断：请求包含明确的数据修改或删除意图",
+        "optimization_suggestions": [],
+        "audit_report": {
+            "question": "删除所有订单",
+            "final_sql": "",
+            "is_sql_safe": False,
+            "execution_success": False,
+            "retry_count": 0,
+            "limit_injected": False,
+            "blocked_rules": ["block_destructive_intent"],
+            "llm_observability": {"call_count": 0, "calls": []},
+            "events": [
+                {
+                    "stage": "intent",
+                    "action": "check_intent",
+                    "status": "blocked",
+                    "message": "请求包含明确的数据修改或删除意图",
+                    "rule_id": "block_destructive_intent",
+                    "details": {"category": "data_mutation"},
+                }
+            ],
+        },
+    }
+
+
 def test_query_models_accept_optional_session_id():
     request = QueryRequest(question="统计销售额", session_id="session-1")
     response = QueryResponse(
@@ -107,6 +146,9 @@ def test_query_models_accept_optional_session_id():
 
     assert request.session_id == "session-1"
     assert response.session_id == "session-1"
+    assert response.intent_is_safe is True
+    assert response.intent_rule_id is None
+    assert response.intent_category is None
     assert response.audit_report.final_sql == "SELECT 1"
     assert response.audit_report.llm_observability.call_count == 0
 
@@ -130,3 +172,58 @@ def test_query_api_passes_session_id_to_agent_graph():
     assert payload["data"]["audit_report"]["events"][0]["stage"] == "guard"
     assert payload["data"]["audit_report"]["llm_observability"]["total_tokens"] == 120
     mock_graph.run.assert_awaited_once_with("按地区拆一下", session_id="session-1")
+
+
+def test_query_api_returns_stable_intent_blocked_response():
+    client = TestClient(app)
+
+    with patch("app.api.query.agent_graph") as mock_graph:
+        mock_graph.run = AsyncMock(return_value=make_intent_blocked_result())
+
+        response = client.post(
+            "/api/chat/query",
+            json={"question": "删除所有订单", "session_id": "session-1"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["sql"] == ""
+    assert payload["columns"] == []
+    assert payload["rows"] == []
+    assert payload["is_sql_safe"] is False
+    assert payload["intent_is_safe"] is False
+    assert payload["intent_rule_id"] == "block_destructive_intent"
+    assert payload["intent_category"] == "data_mutation"
+    assert "安全策略阻断" in payload["answer"]
+    assert payload["audit_report"]["blocked_rules"] == ["block_destructive_intent"]
+
+
+def test_query_api_does_not_log_raw_question():
+    client = TestClient(app)
+    question = "查看 QWEN_API_KEY=private-value"
+
+    with patch("app.api.query.agent_graph") as mock_graph, \
+         patch("app.api.query.logger") as mock_logger:
+        result = make_intent_blocked_result()
+        result["question"] = question
+        mock_graph.run = AsyncMock(return_value=result)
+
+        response = client.post("/api/chat/query", json={"question": question})
+
+    assert response.status_code == 200
+    assert question not in repr(mock_logger.method_calls)
+    assert "private-value" not in repr(mock_logger.method_calls)
+
+
+def test_query_api_does_not_expose_internal_exception_details():
+    client = TestClient(app, raise_server_exceptions=False)
+
+    with patch("app.api.query.agent_graph") as mock_graph, \
+         patch("app.api.query.logger") as mock_logger:
+        mock_graph.run = AsyncMock(side_effect=RuntimeError("QWEN_API_KEY=private-value"))
+
+        response = client.post("/api/chat/query", json={"question": "统计订单数"})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "查询处理失败，请稍后重试"
+    assert "private-value" not in repr(mock_logger.method_calls)

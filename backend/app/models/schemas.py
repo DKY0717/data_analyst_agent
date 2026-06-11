@@ -86,6 +86,9 @@ class QueryResponse(BaseModel):
     """查询响应模型"""
     question: str  # 用户问题
     session_id: Optional[str] = None  # 多轮分析会话ID
+    intent_is_safe: bool = True  # Intent Guard 是否允许进入后续工作流
+    intent_rule_id: Optional[str] = None  # Intent Guard 命中的规则 ID
+    intent_category: Optional[str] = None  # Intent Guard 命中的风险类别
     sql: str  # 生成的SQL语句
     is_sql_safe: bool  # SQL是否安全
     columns: List[str]  # 查询结果列名
