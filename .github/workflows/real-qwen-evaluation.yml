@@ -29,7 +29,6 @@ jobs:
     env:
       PYTHONPATH: backend
       QWEN_MODEL: ${{ inputs.qwen_model }}
-      EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -60,25 +59,32 @@ jobs:
         run: pytest backend/tests -q
 
       - name: Run deterministic intent evaluation
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
         run: python -m evaluation.intent_evaluator
 
       - name: Run real NL2SQL evaluation
         env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: python -m evaluation.evaluator
 
       - name: Run real SQL Repair evaluation
         env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: python -m evaluation.repair_evaluator
 
       - name: Run real result correctness evaluation
         env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: python -m evaluation.result_correctness_evaluator
 
       - name: Evaluate quality gate
         shell: bash
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
         run: |
           set -euo pipefail
           NL2SQL_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'nl2sql-evaluation-*.json' | sort | tail -n 1)"
@@ -97,6 +103,8 @@ jobs:
       - name: Publish evaluation summary
         if: always()
         shell: bash
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
         run: |
           if [[ -f "$EVALUATION_REPORT_DIR/quality-gate.md" ]]; then
             cat "$EVALUATION_REPORT_DIR/quality-gate.md" >> "$GITHUB_STEP_SUMMARY"

@@ -913,3 +913,10 @@
 
 - 推送当前 main 的 v0.5 提交，手动运行 GitHub `Real Qwen Evaluation` 验证云端 artifact。
 - 下一阶段可建设 Schema Context Manager，并使用 v0.5 黄金基准约束正确率不能回退。
+
+### 云端验收补充
+
+- 推送 v0.5 后，基础 CI 成功，但 GitHub 将 `Real Qwen Evaluation` 判定为无效工作流。
+- 根因是 job 级 `env` 使用了 runner 分配后才可用的 `runner.temp` 上下文。
+- 将 `EVALUATION_REPORT_DIR` 移到评测、质量门禁和摘要 step 的环境变量，并增加 Workflow 回归测试。
+- 定向回归：`7 passed`。

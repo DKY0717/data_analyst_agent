@@ -50,6 +50,21 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     triggers = workflow_triggers(workflow)
     commands = workflow_commands(workflow)
     job = workflow["jobs"]["real-qwen-evaluation"]
+    evaluation_commands = {
+        "python -m evaluation.intent_evaluator",
+        "python -m evaluation.evaluator",
+        "python -m evaluation.repair_evaluator",
+        "python -m evaluation.result_correctness_evaluator",
+        "python -m evaluation.quality_gate",
+    }
+    evaluation_steps = [
+        step
+        for step in job["steps"]
+        if any(command in str(step.get("run", "")) for command in evaluation_commands)
+    ]
+    summary_steps = [
+        step for step in job["steps"] if "$GITHUB_STEP_SUMMARY" in str(step.get("run", ""))
+    ]
     upload_steps = [
         step
         for step in job["steps"]
@@ -74,7 +89,13 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert commands.index(
         "python -m evaluation.result_correctness_evaluator"
     ) < commands.index("python -m evaluation.quality_gate")
-    assert job["env"]["EVALUATION_REPORT_DIR"]
+    # runner.temp 在 job 级 env 尚不可用；报告目录必须等 runner 分配后在 step 级注入。
+    assert "EVALUATION_REPORT_DIR" not in job.get("env", {})
+    assert all(
+        step.get("env", {}).get("EVALUATION_REPORT_DIR")
+        == "${{ runner.temp }}/qwen-evaluation"
+        for step in [*evaluation_steps, *summary_steps]
+    )
     assert "$GITHUB_STEP_SUMMARY" in commands
     assert len(upload_steps) == 1
     assert upload_steps[0]["if"] == "always()"
