@@ -1,6 +1,8 @@
 """比较 Agent 与黄金参考查询的结构化结果。"""
 
-from collections import deque
+import re
+import reprlib
+from collections import Counter, deque
 from datetime import date, datetime, time
 from decimal import Decimal, InvalidOperation
 from math import isfinite
@@ -11,6 +13,7 @@ SUPPORTED_MODES = {"unordered", "ordered", "top_n", "scalar"}
 MAX_SAMPLE_COLUMNS = 20
 MAX_SAMPLE_STRING_LENGTH = 200
 TRUNCATION_MARKER = "...[truncated]"
+MEMORY_ADDRESS_PATTERN = re.compile(r"0x[0-9a-fA-F]+")
 FAILURE_ORDER = (
     "column_mismatch",
     "row_count_mismatch",
@@ -273,13 +276,18 @@ class ResultComparator:
     def _column_indexes(columns: Sequence[str]) -> Dict[str, int]:
         return {column.casefold(): index for index, column in enumerate(columns)}
 
-    @staticmethod
+    @classmethod
     def _project_rows(
+        cls,
         rows: Sequence[Sequence[Any]],
         indexes: Dict[str, int],
         required_keys: Sequence[str],
     ) -> List[Tuple[Any, ...]]:
-        return [tuple(row[indexes[key]] for key in required_keys) for row in rows]
+        # 分析结果中的复杂值先规范化为有界稳定摘要，避免匹配和诊断阶段泄露或放大数据。
+        return [
+            tuple(cls._normalize_result_value(row[indexes[key]]) for key in required_keys)
+            for row in rows
+        ]
 
     @staticmethod
     def _row_count_matches(
@@ -317,24 +325,13 @@ class ResultComparator:
         expected_rows: Sequence[Sequence[Any]],
         tolerance: Decimal,
     ) -> Tuple[bool, List[int], List[int]]:
-        # 先按精确规范化键消除完全相同的行，常见的大量重复结果可在线性时间完成。
-        expected_by_key: Dict[Tuple[Any, ...], deque[int]] = {}
-        remaining_expected = set(range(len(expected_rows)))
-        remaining_actual = []
-        for expected_index, row in enumerate(expected_rows):
-            key = cls._exact_row_key(row)
-            if key is not None:
-                expected_by_key.setdefault(key, deque()).append(expected_index)
-        for actual_index, row in enumerate(actual_rows):
-            key = cls._exact_row_key(row)
-            matches = expected_by_key.get(key) if key is not None else None
-            if matches:
-                remaining_expected.remove(matches.popleft())
-            else:
-                remaining_actual.append(actual_index)
+        # 只有整体精确多重集合完全相等时才能快速成功；局部精确消除会破坏容差全局匹配。
+        if cls._exact_multisets_equal(actual_rows, expected_rows):
+            return True, [], []
 
-        remaining_expected_list = sorted(remaining_expected)
-        # 容差会破坏普通哈希 Counter 的等价关系，只对精确消除后的剩余行做二分图匹配。
+        remaining_actual = list(range(len(actual_rows)))
+        remaining_expected_list = list(range(len(expected_rows)))
+        # 未整体精确相等时保留全部行，让增广路径可以重新分配任何局部精确配对。
         candidates = [
             [
                 expected_index
@@ -406,6 +403,23 @@ class ResultComparator:
         )
 
     @classmethod
+    def _exact_multisets_equal(
+        cls,
+        actual_rows: Sequence[Sequence[Any]],
+        expected_rows: Sequence[Sequence[Any]],
+    ) -> bool:
+        if len(actual_rows) != len(expected_rows):
+            return False
+
+        actual_keys = [cls._exact_row_key(row) for row in actual_rows]
+        expected_keys = [cls._exact_row_key(row) for row in expected_rows]
+        if any(key is None for key in actual_keys) or any(
+            key is None for key in expected_keys
+        ):
+            return False
+        return Counter(actual_keys) == Counter(expected_keys)
+
+    @classmethod
     def _exact_row_key(cls, row: Sequence[Any]) -> Optional[Tuple[Any, ...]]:
         keys = []
         for value in row:
@@ -455,11 +469,36 @@ class ResultComparator:
             return abs(actual_decimal - expected_decimal) <= tolerance
         return cls._normalize_non_number(actual) == cls._normalize_non_number(expected)
 
-    @staticmethod
-    def _normalize_non_number(value: Any) -> Any:
+    @classmethod
+    def _normalize_result_value(cls, value: Any) -> Any:
+        if isinstance(value, bool) or cls._is_number(value):
+            return value
+        return cls._normalize_non_number(value)
+
+    @classmethod
+    def _normalize_non_number(cls, value: Any) -> Any:
         if isinstance(value, (datetime, date, time)):
             return value.isoformat()
-        return value
+        if isinstance(value, str) or value is None:
+            return value
+        return cls._complex_value_summary(value)
+
+    @classmethod
+    def _complex_value_summary(cls, value: Any) -> str:
+        type_name = type(value).__name__
+        try:
+            # reprlib 在展开嵌套容器和大字节串前施加上限，避免诊断本身制造大对象。
+            representation = reprlib.repr(value)
+        except Exception:
+            representation = "<repr unavailable>"
+        stable_repr = MEMORY_ADDRESS_PATTERN.sub("0x...", representation)
+        summary = f"{type_name}: {stable_repr}"
+        if "..." in stable_repr:
+            return (
+                summary[: MAX_SAMPLE_STRING_LENGTH - len(TRUNCATION_MARKER)]
+                + TRUNCATION_MARKER
+            )
+        return cls._sample_string(summary)
 
     @staticmethod
     def _is_number(value: Any) -> bool:
@@ -620,7 +659,11 @@ class ResultComparator:
     @classmethod
     def _sample_value(cls, value: Any) -> Any:
         if isinstance(value, Decimal):
-            return str(value)
+            return cls._sample_string(str(value))
+        if isinstance(value, bool) or isinstance(value, int) or value is None:
+            return value
+        if isinstance(value, float):
+            return value if isfinite(value) else cls._complex_value_summary(value)
         normalized = cls._normalize_non_number(value)
         if isinstance(normalized, str):
             return cls._sample_string(normalized)

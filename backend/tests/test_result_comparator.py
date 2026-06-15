@@ -1,5 +1,6 @@
 """ResultComparator 的确定性契约测试。"""
 
+import json
 from datetime import date, datetime, time
 from decimal import Decimal
 from time import perf_counter
@@ -19,6 +20,13 @@ RESULT_FIELDS = {
     "failure_types",
     "diff_samples",
 }
+
+
+class ComplexValue:
+    """为复杂值摘要测试提供含内存地址的可识别 repr。"""
+
+    def __repr__(self):
+        return f"ComplexValue(at={hex(id(self))}, payload=" + ("z" * 1000) + ")"
 
 
 @pytest.fixture
@@ -182,7 +190,7 @@ def test_unordered_ignores_order_but_preserves_duplicate_row_differences(compara
     assert mismatched["failure_types"] == ["value_mismatch"]
 
 
-def test_unordered_eliminates_limit_sized_exact_duplicates_before_tolerance_matching(
+def test_unordered_uses_fast_path_for_limit_sized_exact_duplicate_multisets(
     comparator,
 ):
     rows = [["same"]] * 1000
@@ -196,7 +204,36 @@ def test_unordered_eliminates_limit_sized_exact_duplicates_before_tolerance_matc
     elapsed = perf_counter() - started_at
 
     assert result["result_correct"] is True
-    # 完全相同行应走精确键消除；宽松上限用于防止退化回平方级匹配，同时避免 CI 抖动。
+    # 整体精确多重集合完全相等时应直接成功，避免进入平方级容差图。
+    assert elapsed < 1.0
+
+
+def test_unordered_tolerance_matching_preserves_global_augmenting_paths(comparator):
+    result = compare(
+        comparator,
+        actual={"columns": ["value"], "rows": [[0.0], [0.1]]},
+        expected={"columns": ["value"], "rows": [[0.1], [0.2]]},
+        absolute_tolerance=0.11,
+    )
+
+    assert result["values_matched"] is True
+    assert result["result_correct"] is True
+    assert result["diff_samples"] == []
+
+
+def test_unordered_uses_fast_path_for_complex_duplicate_multisets(comparator):
+    rows = [[{"nested": [1, 2, {"ok": True}]}]] * 1000
+
+    started_at = perf_counter()
+    result = compare(
+        comparator,
+        actual={"columns": ["value"], "rows": rows},
+        expected={"columns": ["value"], "rows": list(reversed(rows))},
+    )
+    elapsed = perf_counter() - started_at
+
+    assert result["result_correct"] is True
+    # 复杂值先安全规范化，再参与整体精确多重集合快速判断。
     assert elapsed < 1.0
 
 
@@ -392,6 +429,44 @@ def test_diff_samples_limit_columns_and_truncate_large_strings(comparator):
                 assert len(row) <= 20
                 assert all(len(str(value)) <= 220 for value in row)
                 assert any("[truncated]" in str(value) for value in row)
+
+
+def test_diff_samples_summarize_complex_values_and_remain_json_bounded(comparator):
+    actual_values = [
+        b"x" * 1_000_000,
+        Decimal("9" * 1000),
+        ["nested", {"payload": "l" * 1000}],
+        {"nested": [1, {"payload": "y" * 1000}]},
+        ("tuple", ["nested", "list"]),
+        ComplexValue(),
+    ]
+    columns = [f"value_{index}" for index in range(len(actual_values))]
+    result = compare(
+        comparator,
+        actual={"columns": columns, "rows": [actual_values]},
+        expected={"columns": columns, "rows": [["different"] * len(columns)]},
+    )
+
+    encoded = json.dumps(result)
+    actual_sample = result["diff_samples"][0]["actual"]
+
+    assert len(encoded) < 5000
+    assert len(actual_sample) <= 20
+    assert all(
+        isinstance(value, (str, int, float, bool)) or value is None
+        for value in actual_sample
+    )
+    assert all(
+        not isinstance(value, str) or len(value) <= 220 for value in actual_sample
+    )
+    assert "bytes" in actual_sample[0]
+    assert "list" in actual_sample[2]
+    assert "dict" in actual_sample[3]
+    assert "tuple" in actual_sample[4]
+    assert "ComplexValue" in actual_sample[5]
+    assert all(
+        "[truncated]" in actual_sample[index] for index in (0, 1, 2, 3, 5)
+    )
 
 
 def test_column_diff_samples_are_limited_and_truncated(comparator):
