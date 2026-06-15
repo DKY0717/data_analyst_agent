@@ -8,6 +8,9 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 SUPPORTED_MODES = {"unordered", "ordered", "top_n", "scalar"}
+MAX_SAMPLE_COLUMNS = 20
+MAX_SAMPLE_STRING_LENGTH = 200
+TRUNCATION_MARKER = "...[truncated]"
 FAILURE_ORDER = (
     "column_mismatch",
     "row_count_mismatch",
@@ -41,7 +44,7 @@ class ResultComparator:
         try:
             actual_columns, actual_rows = self._validate_result(actual)
             expected_columns, expected_rows = self._validate_result(expected)
-            mode, required_columns, tolerance = self._validate_comparison(
+            mode, required_columns, _order_by, tolerance = self._validate_comparison(
                 comparison, expected_columns
             )
             self._validate_fixed_assertions(fixed_assertions)
@@ -49,8 +52,10 @@ class ResultComparator:
             actual_indexes = self._column_indexes(actual_columns)
             expected_indexes = self._column_indexes(expected_columns)
             required_keys = [column.casefold() for column in required_columns]
-            columns_matched = all(
-                key in actual_indexes and key in expected_indexes for key in required_keys
+            # 黄金 case 通过 required_columns 锁定完整输出契约，额外列与缺少列都应失败。
+            columns_matched = (
+                set(actual_indexes) == set(required_keys)
+                and set(expected_indexes) == set(required_keys)
             )
 
             if columns_matched:
@@ -67,11 +72,18 @@ class ResultComparator:
             row_count_matched = self._row_count_matches(
                 mode, actual_rows, expected_rows
             )
-            values_matched = (
-                columns_matched
-                and row_count_matched
-                and self._multiset_matches(actual_projected, expected_projected, tolerance)
-            )
+            matching_complete = False
+            unmatched_actual: List[int] = []
+            unmatched_expected: List[int] = []
+            if columns_matched:
+                (
+                    matching_complete,
+                    unmatched_actual,
+                    unmatched_expected,
+                ) = self._multiset_match_result(
+                    actual_projected, expected_projected, tolerance
+                )
+            values_matched = columns_matched and row_count_matched and matching_complete
             order_matched = self._order_matches(
                 mode,
                 columns_matched,
@@ -112,7 +124,8 @@ class ResultComparator:
                 expected_rows=expected_projected,
                 columns_matched=columns_matched,
                 values_matched=values_matched,
-                tolerance=tolerance,
+                unmatched_actual=unmatched_actual,
+                unmatched_expected=unmatched_expected,
             )
 
             return {
@@ -169,7 +182,7 @@ class ResultComparator:
     @classmethod
     def _validate_comparison(
         cls, comparison: Any, expected_columns: Sequence[str]
-    ) -> Tuple[str, List[str], Decimal]:
+    ) -> Tuple[str, List[str], List[str], Decimal]:
         if not isinstance(comparison, dict):
             raise ValueError("comparison must be a dict")
 
@@ -178,16 +191,38 @@ class ResultComparator:
             raise ValueError("unsupported comparison mode")
 
         required_columns = comparison.get("required_columns", expected_columns)
-        if not cls._is_sequence(required_columns) or not all(
-            isinstance(column, str) and column for column in required_columns
+        if (
+            not cls._is_sequence(required_columns)
+            or not required_columns
+            or not all(
+                isinstance(column, str) and column for column in required_columns
+            )
         ):
             raise ValueError("required_columns must contain strings")
         required_keys = [column.casefold() for column in required_columns]
         if len(required_keys) != len(set(required_keys)):
             raise ValueError("required_columns must be unique ignoring case")
 
+        order_by = comparison.get("order_by")
+        if mode in {"ordered", "top_n"}:
+            if (
+                not cls._is_sequence(order_by)
+                or not order_by
+                or not all(isinstance(column, str) and column for column in order_by)
+            ):
+                raise ValueError("ordered modes require order_by")
+            order_keys = [column.casefold() for column in order_by]
+            if len(order_keys) != len(set(order_keys)) or not set(order_keys).issubset(
+                required_keys
+            ):
+                raise ValueError("order_by must reference required_columns")
+        else:
+            if "order_by" in comparison:
+                raise ValueError("unordered and scalar modes do not accept order_by")
+            order_by = []
+
         tolerance = cls._to_tolerance(comparison.get("absolute_tolerance", 0.001))
-        return mode, list(required_columns), tolerance
+        return mode, list(required_columns), list(order_by), tolerance
 
     @classmethod
     def _validate_fixed_assertions(cls, fixed_assertions: Any) -> None:
@@ -218,8 +253,14 @@ class ResultComparator:
                 or not set(assertion).issubset(allowed_keys)
                 or not isinstance(assertion["column"], str)
                 or not assertion["column"]
-                or not cls._is_number(assertion["value"])
             ):
+                raise ValueError("malformed fixed assertion")
+            value_is_valid = (
+                cls._is_number(assertion["value"])
+                if assertion_name == "sum_column"
+                else cls._is_scalar_assertion_value(assertion["value"])
+            )
+            if not value_is_valid:
                 raise ValueError("malformed fixed assertion")
             if "absolute_tolerance" in assertion:
                 cls._to_tolerance(assertion["absolute_tolerance"])
@@ -270,28 +311,46 @@ class ResultComparator:
         )
 
     @classmethod
-    def _multiset_matches(
+    def _multiset_match_result(
         cls,
         actual_rows: Sequence[Sequence[Any]],
         expected_rows: Sequence[Sequence[Any]],
         tolerance: Decimal,
-    ) -> bool:
-        if len(actual_rows) != len(expected_rows):
-            return False
+    ) -> Tuple[bool, List[int], List[int]]:
+        # 先按精确规范化键消除完全相同的行，常见的大量重复结果可在线性时间完成。
+        expected_by_key: Dict[Tuple[Any, ...], deque[int]] = {}
+        remaining_expected = set(range(len(expected_rows)))
+        remaining_actual = []
+        for expected_index, row in enumerate(expected_rows):
+            key = cls._exact_row_key(row)
+            if key is not None:
+                expected_by_key.setdefault(key, deque()).append(expected_index)
+        for actual_index, row in enumerate(actual_rows):
+            key = cls._exact_row_key(row)
+            matches = expected_by_key.get(key) if key is not None else None
+            if matches:
+                remaining_expected.remove(matches.popleft())
+            else:
+                remaining_actual.append(actual_index)
 
-        # 容差会破坏普通哈希 Counter 的等价关系，因此使用二分图匹配保留重复行语义。
+        remaining_expected_list = sorted(remaining_expected)
+        # 容差会破坏普通哈希 Counter 的等价关系，只对精确消除后的剩余行做二分图匹配。
         candidates = [
             [
                 expected_index
-                for expected_index, expected in enumerate(expected_rows)
-                if cls._row_matches(actual, expected, tolerance)
+                for expected_index in remaining_expected_list
+                if cls._row_matches(
+                    actual_rows[actual_index],
+                    expected_rows[expected_index],
+                    tolerance,
+                )
             ]
-            for actual in actual_rows
+            for actual_index in remaining_actual
         ]
         matched_actual_by_expected: Dict[int, int] = {}
         matched_expected_by_actual: Dict[int, int] = {}
 
-        for start_actual in range(len(actual_rows)):
+        for start_actual in range(len(remaining_actual)):
             queue = deque([start_actual])
             visited_actual = {start_actual}
             visited_expected = set()
@@ -315,7 +374,7 @@ class ResultComparator:
                         queue.append(previous_actual)
 
             if unmatched_expected is None:
-                return False
+                continue
 
             expected_index = unmatched_expected
             while True:
@@ -327,7 +386,48 @@ class ResultComparator:
                     break
                 expected_index = previous_expected
 
-        return True
+        matched_actual_indexes = {
+            remaining_actual[actual_position]
+            for actual_position in matched_expected_by_actual
+        }
+        matched_expected_indexes = set(matched_actual_by_expected)
+        unmatched_actual = [
+            index for index in remaining_actual if index not in matched_actual_indexes
+        ]
+        unmatched_expected = [
+            index
+            for index in remaining_expected_list
+            if index not in matched_expected_indexes
+        ]
+        return (
+            not unmatched_actual and not unmatched_expected,
+            unmatched_actual,
+            unmatched_expected,
+        )
+
+    @classmethod
+    def _exact_row_key(cls, row: Sequence[Any]) -> Optional[Tuple[Any, ...]]:
+        keys = []
+        for value in row:
+            key = cls._exact_value_key(value)
+            if key is None:
+                return None
+            keys.append(key)
+        return tuple(keys)
+
+    @classmethod
+    def _exact_value_key(cls, value: Any) -> Optional[Tuple[Any, ...]]:
+        if isinstance(value, bool):
+            return ("bool", value)
+        if cls._is_number(value):
+            decimal_value = cls._finite_decimal_or_none(value)
+            return None if decimal_value is None else ("number", decimal_value)
+        normalized = cls._normalize_non_number(value)
+        try:
+            hash(normalized)
+        except TypeError:
+            return None
+        return ("value", type(normalized).__name__, normalized)
 
     @classmethod
     def _row_matches(
@@ -340,8 +440,19 @@ class ResultComparator:
 
     @classmethod
     def _value_matches(cls, actual: Any, expected: Any, tolerance: Decimal) -> bool:
+        # Python 中 bool 是 int 的子类，这里显式隔离，避免 True == 1 隐藏类型错误。
+        if isinstance(actual, bool) or isinstance(expected, bool):
+            return (
+                isinstance(actual, bool)
+                and isinstance(expected, bool)
+                and actual == expected
+            )
         if cls._is_number(actual) and cls._is_number(expected):
-            return abs(cls._to_decimal(actual) - cls._to_decimal(expected)) <= tolerance
+            actual_decimal = cls._finite_decimal_or_none(actual)
+            expected_decimal = cls._finite_decimal_or_none(expected)
+            if actual_decimal is None or expected_decimal is None:
+                return False
+            return abs(actual_decimal - expected_decimal) <= tolerance
         return cls._normalize_non_number(actual) == cls._normalize_non_number(expected)
 
     @staticmethod
@@ -353,6 +464,20 @@ class ResultComparator:
     @staticmethod
     def _is_number(value: Any) -> bool:
         return isinstance(value, (Decimal, int, float)) and not isinstance(value, bool)
+
+    @staticmethod
+    def _is_scalar_assertion_value(value: Any) -> bool:
+        return (
+            isinstance(value, (Decimal, int, float, bool, str, datetime, date, time))
+            or value is None
+        )
+
+    @classmethod
+    def _finite_decimal_or_none(cls, value: Any) -> Optional[Decimal]:
+        try:
+            return cls._to_decimal(value)
+        except ValueError:
+            return None
 
     @classmethod
     def _to_decimal(cls, value: Any) -> Decimal:
@@ -387,7 +512,10 @@ class ResultComparator:
             return True
 
         indexes = cls._column_indexes(expected_columns)
-        if "row_count" in fixed_assertions and len(expected_rows) != fixed_assertions["row_count"]:
+        if (
+            "row_count" in fixed_assertions
+            and len(expected_rows) != fixed_assertions["row_count"]
+        ):
             return False
 
         if "sum_column" in fixed_assertions:
@@ -437,16 +565,17 @@ class ResultComparator:
         expected_rows: Sequence[Sequence[Any]],
         columns_matched: bool,
         values_matched: bool,
-        tolerance: Decimal,
+        unmatched_actual: Sequence[int],
+        unmatched_expected: Sequence[int],
     ) -> List[Dict[str, Any]]:
         if self.max_diff_samples == 0:
             return []
         if not columns_matched:
             return [
                 {
-                    "actual_columns": list(actual_columns),
-                    "expected_columns": list(expected_columns),
-                    "required_columns": list(required_columns),
+                    "actual_columns": self._sample_columns(actual_columns),
+                    "expected_columns": self._sample_columns(expected_columns),
+                    "required_columns": self._sample_columns(required_columns),
                 }
             ]
         # 值集合已匹配时无需重复返回样本；顺序差异由 order_mismatch 单独表达。
@@ -454,37 +583,51 @@ class ResultComparator:
             return []
 
         samples = []
-        matched_expected = set()
-        for actual in actual_rows:
-            match = next(
-                (
-                    index
-                    for index, expected in enumerate(expected_rows)
-                    if index not in matched_expected
-                    and self._row_matches(actual, expected, tolerance)
-                ),
-                None,
+        # 直接复用主匹配得到的未匹配索引，避免诊断阶段的贪心算法制造虚假差异。
+        for actual_index in unmatched_actual:
+            samples.append(
+                {"actual": self._sample_row(actual_rows[actual_index]), "expected": None}
             )
-            if match is None:
-                samples.append({"actual": self._sample_row(actual), "expected": None})
-            else:
-                matched_expected.add(match)
             if len(samples) >= self.max_diff_samples:
                 return samples
 
-        for index, expected in enumerate(expected_rows):
-            if index not in matched_expected:
-                samples.append({"actual": None, "expected": self._sample_row(expected)})
+        for expected_index in unmatched_expected:
+            samples.append(
+                {
+                    "actual": None,
+                    "expected": self._sample_row(expected_rows[expected_index]),
+                }
+            )
             if len(samples) >= self.max_diff_samples:
                 break
         return samples
 
     @classmethod
     def _sample_row(cls, row: Iterable[Any]) -> List[Any]:
-        return [cls._sample_value(value) for value in row]
+        values = list(row)
+        sampled = [cls._sample_value(value) for value in values[:MAX_SAMPLE_COLUMNS]]
+        if len(values) > MAX_SAMPLE_COLUMNS:
+            sampled[-1] = TRUNCATION_MARKER
+        return sampled
+
+    @classmethod
+    def _sample_columns(cls, columns: Sequence[str]) -> List[str]:
+        sampled = [cls._sample_string(column) for column in columns[:MAX_SAMPLE_COLUMNS]]
+        if len(columns) > MAX_SAMPLE_COLUMNS:
+            sampled[-1] = TRUNCATION_MARKER
+        return sampled
 
     @classmethod
     def _sample_value(cls, value: Any) -> Any:
         if isinstance(value, Decimal):
             return str(value)
-        return cls._normalize_non_number(value)
+        normalized = cls._normalize_non_number(value)
+        if isinstance(normalized, str):
+            return cls._sample_string(normalized)
+        return normalized
+
+    @staticmethod
+    def _sample_string(value: str) -> str:
+        if len(value) <= MAX_SAMPLE_STRING_LENGTH:
+            return value
+        return value[:MAX_SAMPLE_STRING_LENGTH] + TRUNCATION_MARKER
