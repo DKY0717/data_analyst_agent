@@ -940,3 +940,9 @@
 
 - 用户审核正式设计文档。
 - 审核通过后编写逐任务、TDD 驱动的 v0.6 实施计划。
+
+### 设计审核后进展
+
+- 用户确认继续实施规划。
+- 已将 v0.6 拆分为四个连续里程碑和十五个 TDD 任务，覆盖稳定契约、意图解析、Grounding、图路由、主动澄清、分层评测、消融实验和严格发布门禁。
+- 实施计划：`docs/superpowers/plans/2026-06-15-v0.6-hierarchical-intent-schema-grounding-implementation.md`。
