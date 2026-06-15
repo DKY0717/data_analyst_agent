@@ -1,5 +1,6 @@
 metrics:
   sales_amount:
+    candidate_id: sales_by_order_total
     name: 销售额
     aliases:
       - 销售额
@@ -9,10 +10,13 @@ metrics:
     expression: SUM(orders.total_amount)
     default_table: orders
     dimension_overrides:
-      category: SUM(order_items.quantity * order_items.unit_price)
+      category:
+        candidate_id: sales_by_item_amount
+        expression: SUM(order_items.quantity * order_items.unit_price)
     description: 已下单订单的总金额；按商品类别拆分时必须使用订单明细金额，避免订单总额在明细 JOIN 后重复累加。
 
   order_count:
+    candidate_id: order_count
     name: 订单数
     aliases:
       - 订单数
@@ -23,6 +27,7 @@ metrics:
     description: 去重后的订单数量。
 
   customer_count:
+    candidate_id: customer_count
     name: 客户数
     aliases:
       - 客户数
@@ -33,6 +38,7 @@ metrics:
     description: 去重后的客户数量。
 
   average_order_value:
+    candidate_id: average_order_value
     name: 客单价
     aliases:
       - 客单价
@@ -43,6 +49,7 @@ metrics:
     description: 销售额除以订单数。
 
   refund_rate:
+    candidate_id: refund_rate_by_order
     name: 退款率
     aliases:
       - 退款率
@@ -55,6 +62,7 @@ metrics:
     description: 退款记录数除以订单数。
 
   repeat_purchase_rate:
+    candidate_id: repeat_purchase_rate
     name: 复购率
     aliases:
       - 复购率
@@ -65,6 +73,7 @@ metrics:
 
 dimensions:
   month:
+    candidate_id: order_month
     name: 月份
     aliases:
       - 月份
@@ -75,6 +84,7 @@ dimensions:
     description: 默认按 orders.order_date 截取年月。
 
   quarter:
+    candidate_id: order_quarter
     name: 季度
     aliases:
       - 季度
@@ -85,6 +95,7 @@ dimensions:
     description: 使用 DuckDB EXTRACT 组合年份和季度，禁止使用不受支持的 strftime %q 或 %Q 格式符。
 
   region:
+    candidate_id: region_name
     name: 地区
     aliases:
       - 地区
@@ -101,6 +112,7 @@ dimensions:
     description: 订单通过客户关联地区。
 
   category:
+    candidate_id: category_name
     name: 商品类别
     aliases:
       - 商品类别
@@ -116,6 +128,7 @@ dimensions:
     description: 订单明细通过商品关联商品类别。
 
   payment_method:
+    candidate_id: payment_method
     name: 支付方式
     aliases:
       - 支付方式

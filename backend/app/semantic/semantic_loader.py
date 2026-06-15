@@ -64,7 +64,13 @@ class SemanticLoader:
             ).items():
                 dimension = self.get_dimensions().get(dimension_key, {})
                 dimension_name = dimension.get("name", dimension_key)
-                lines.append(f"  按{dimension_name}时使用: {expression}")
+                # v0.6 覆盖项升级为结构化候选；兼容旧字符串配置便于平滑迁移。
+                override_expression = (
+                    expression.get("expression")
+                    if isinstance(expression, dict)
+                    else expression
+                )
+                lines.append(f"  按{dimension_name}时使用: {override_expression}")
             lines.append(f"  说明: {metric.get('description', '')}")
 
         lines.append("")

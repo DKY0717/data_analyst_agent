@@ -25,3 +25,16 @@ def test_schema_loader_get_full_schema():
     schema = loader.get_full_schema()
     assert "tables" in schema
     assert isinstance(schema["tables"], dict)
+
+
+def test_schema_loader_exposes_foreign_keys():
+    """Schema 路由依赖结构化外键，不能让下游从文本中猜测关联关系。"""
+    loader = SchemaLoader()
+
+    orders = loader.get_table_schema("orders")
+
+    assert {
+        "column": "customer_id",
+        "referenced_table": "customers",
+        "referenced_column": "customer_id",
+    } in orders["foreign_keys"]

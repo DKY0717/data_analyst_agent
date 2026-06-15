@@ -81,3 +81,15 @@ def test_quarter_dimension_uses_duckdb_supported_expression():
 
     assert dimension is not None
     assert any("EXTRACT(QUARTER FROM orders.order_date)" in field for field in dimension["fields"])
+
+
+def test_semantic_items_expose_stable_candidate_ids():
+    """稳定候选 ID 用于 Grounding、澄清恢复和分层评测，不能依赖展示文案。"""
+    loader = SemanticLoader()
+
+    metric = loader.find_metric("销售额")
+    dimension = loader.find_dimension("地区")
+
+    assert metric["candidate_id"] == "sales_by_order_total"
+    assert metric["dimension_overrides"]["category"]["candidate_id"] == "sales_by_item_amount"
+    assert dimension["candidate_id"] == "region_name"

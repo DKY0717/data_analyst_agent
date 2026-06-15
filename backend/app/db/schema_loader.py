@@ -1,6 +1,7 @@
 # Schema加载器模块
 # 从数据库中读取表结构信息，供SQL生成器使用
 
+import re
 from typing import Dict, List, Any
 
 from ..db.connection import db_connection
@@ -54,27 +55,23 @@ class SchemaLoader:
         try:
             with self.db.get_session() as conn:
                 # 获取列信息
-                columns = conn.execute(f"""
+                columns = conn.execute("""
                     SELECT column_name, data_type, is_nullable
                     FROM information_schema.columns
-                    WHERE table_name = '{table_name}'
+                    WHERE table_schema = 'main'
+                    AND table_name = ?
                     ORDER BY ordinal_position
-                """).fetchall()
+                """, [table_name]).fetchall()
 
-                # 获取主键信息（使用DuckDB兼容的方式）
-                # DuckDB使用pg_constraint系统表
-                primary_keys = []
-                try:
-                    pk_result = conn.execute(f"""
-                        SELECT column_name
-                        FROM information_schema.key_column_usage
-                        WHERE table_name = '{table_name}'
-                        AND constraint_name LIKE '%_pkey'
-                    """).fetchall()
-                    primary_keys = [pk[0] for pk in pk_result]
-                except Exception:
-                    # 如果查询失败，返回空列表
-                    pass
+                # DuckDB 0.9 尚未暴露标准 table_constraints，统一从约束目录读取主外键。
+                constraints = conn.execute("""
+                    SELECT constraint_type, constraint_text, constraint_column_names
+                    FROM duckdb_constraints()
+                    WHERE schema_name = 'main'
+                    AND table_name = ?
+                    ORDER BY constraint_index
+                """, [table_name]).fetchall()
+                primary_keys, foreign_keys = self._parse_constraints(constraints)
 
                 return {
                     "table_name": table_name,
@@ -86,7 +83,8 @@ class SchemaLoader:
                         }
                         for col in columns
                     ],
-                    "primary_keys": primary_keys
+                    "primary_keys": primary_keys,
+                    "foreign_keys": foreign_keys,
                 }
         except Exception as e:
             logger.error(f"获取表 {table_name} 结构失败: {e}")
@@ -113,6 +111,45 @@ class SchemaLoader:
         except Exception as e:
             logger.error(f"获取完整Schema失败: {e}")
             raise SchemaLoadError(f"获取完整Schema失败: {e}")
+
+    @staticmethod
+    def _parse_constraints(constraints: List[tuple]) -> tuple[List[str], List[Dict[str, str]]]:
+        """将 DuckDB 约束目录转换为下游路由可直接使用的稳定结构。"""
+        primary_keys: List[str] = []
+        foreign_keys: List[Dict[str, str]] = []
+
+        for constraint_type, constraint_text, column_names in constraints:
+            local_columns = list(column_names or [])
+            if constraint_type == "PRIMARY KEY":
+                primary_keys.extend(local_columns)
+                continue
+            if constraint_type != "FOREIGN KEY":
+                continue
+
+            # DuckDB 0.9 只结构化返回本地列，引用表与列需从固定约束文本中提取。
+            match = re.search(
+                r"REFERENCES\s+(?:[\w\"]+\.)?([\w\"]+)\s*\(([^)]+)\)",
+                constraint_text or "",
+                re.IGNORECASE,
+            )
+            if not match:
+                continue
+            referenced_table = match.group(1).strip('"')
+            referenced_columns = [
+                column.strip().strip('"') for column in match.group(2).split(",")
+            ]
+            for local_column, referenced_column in zip(
+                local_columns, referenced_columns
+            ):
+                foreign_keys.append(
+                    {
+                        "column": local_column,
+                        "referenced_table": referenced_table,
+                        "referenced_column": referenced_column,
+                    }
+                )
+
+        return primary_keys, foreign_keys
 
 # 全局Schema加载器实例
 schema_loader = SchemaLoader()

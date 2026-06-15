@@ -954,3 +954,9 @@
   - 稳定候选 ID、关键文本、置信度和最多两轮澄清均有模型级边界校验。
   - TDD RED 已确认模块缺失；GREEN 契约测试 `5 passed`，相关回归 `18 passed`。
   - 完成规格符合性与代码质量两轮审查。
+- ✅ Task 2：扩展 Schema Loader 并构建 Metadata Catalog
+  - Schema Loader 从 DuckDB 约束目录输出结构化主外键，并将表名查询改为参数化。
+  - 语义层为指标、维度和粒度覆盖增加稳定候选 ID，同时保持现有 Prompt 兼容。
+  - Metadata Catalog 合并物理 Schema、业务语义与规范 Join 边，并返回隔离副本。
+  - TDD RED 已确认 Catalog 缺失；定向测试 `15 passed`，完整后端回归 `330 passed`。
+  - 完成规格符合性与代码质量两轮审查。
