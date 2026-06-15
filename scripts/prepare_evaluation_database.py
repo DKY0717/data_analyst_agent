@@ -1,15 +1,19 @@
 """重建真实评测使用的固定 DuckDB 数据库。"""
 
+import sys
 from pathlib import Path
 
 import duckdb
-
-from database.seed_data import seed_database
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATABASE_PATH = ROOT / "data" / "database.duckdb"
 INIT_SQL_PATH = ROOT / "database" / "init.sql"
+
+# 脚本直接执行时 Python 只加入 scripts/；显式加入仓库根目录以加载 database 包。
+sys.path.insert(0, str(ROOT))
+
+from database.seed_data import seed_database
 
 
 def prepare_evaluation_database(database_path: Path = DEFAULT_DATABASE_PATH) -> Path:

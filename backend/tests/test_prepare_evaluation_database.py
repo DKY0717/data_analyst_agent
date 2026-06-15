@@ -1,6 +1,15 @@
+import importlib.util
+from pathlib import Path
+
 import duckdb
 
-from scripts.prepare_evaluation_database import prepare_evaluation_database
+
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPT_PATH = ROOT / "scripts" / "prepare_evaluation_database.py"
+SPEC = importlib.util.spec_from_file_location("prepare_evaluation_database", SCRIPT_PATH)
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
+prepare_evaluation_database = MODULE.prepare_evaluation_database
 
 
 def test_prepare_evaluation_database_rebuilds_repeatably(tmp_path):
