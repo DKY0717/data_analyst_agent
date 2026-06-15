@@ -145,6 +145,29 @@ class TestGenerateSQLPrompt:
         assert "按地区拆一下" in user_prompt
 
 
+class TestParseAnalysisIntentPrompt:
+    """测试分析意图 Prompt 只要求业务概念，不提前绑定物理 Schema。"""
+
+    @pytest.mark.asyncio
+    async def test_parse_analysis_intent_requests_structured_business_intent(self, client):
+        captured = {}
+
+        async def fake_call_api(messages, temperature, max_tokens=2000, stage="unknown"):
+            captured["messages"] = messages
+            captured["stage"] = stage
+            return '{"task_types": ["aggregation"], "metrics": [], "dimensions": [], "filters": [], "missing_slots": ["metric"], "overall_confidence": 0.4}'
+
+        client._call_api = fake_call_api
+
+        result = await client.parse_analysis_intent("分析经营情况", "业务指标: 销售额")
+
+        system_prompt = captured["messages"][0]["content"]
+        assert captured["stage"] == "parse_analysis_intent"
+        assert "禁止输出 SQL" in system_prompt
+        assert "禁止输出物理表名" in system_prompt
+        assert result["missing_slots"] == ["metric"]
+
+
 class TestRepairSQLPrompt:
     """测试 SQL Repair prompt 是否包含已验证的 DuckDB 修复约束"""
 

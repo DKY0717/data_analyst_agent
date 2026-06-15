@@ -283,6 +283,53 @@ class QwenAPIClient:
         # 解析 JSON 响应
         return self._parse_json_response(content, "SQL 生成")
 
+    async def parse_analysis_intent(
+        self,
+        question: str,
+        semantic_summary: str,
+    ) -> dict:
+        """将复杂分析问题解析为结构化业务意图，不提前绑定物理 Schema。"""
+        system_prompt = """你是数据分析意图解析器。请将用户问题转换为结构化业务意图。
+
+要求：
+1. 只表达任务类型、指标概念、维度概念、过滤条件、时间粒度、排序和缺失槽位
+2. 使用业务语义摘要中的稳定英文 key 表达已知指标和维度
+3. 对隐式、多意图或不确定表达保留合理置信度，不要猜测不存在的业务概念
+4. 禁止输出 SQL
+5. 禁止输出物理表名或物理字段名
+6. 禁止输出内部推理过程
+7. 返回严格 JSON，不要包含其他文本
+
+输出格式：
+{
+  "task_types": ["aggregation"],
+  "metrics": [{"concept": "sales_amount", "confidence": 0.9, "evidence": "销售额"}],
+  "dimensions": [{"concept": "region", "confidence": 0.9, "evidence": "地区"}],
+  "filters": [],
+  "time_granularity": null,
+  "ranking": null,
+  "missing_slots": [],
+  "conflicts": [],
+  "overall_confidence": 0.9
+}"""
+        user_prompt = f"""业务语义摘要：
+{semantic_summary}
+
+用户问题：{question}
+
+请输出结构化分析意图。"""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        content = await self._call_api(
+            messages,
+            SQL_TEMPERATURE,
+            max_tokens=1600,
+            stage="parse_analysis_intent",
+        )
+        return self._parse_json_response(content, "分析意图")
+
     async def repair_sql(
         self,
         original_sql: str,
