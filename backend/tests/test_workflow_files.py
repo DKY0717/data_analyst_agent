@@ -66,7 +66,15 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert "python -m evaluation.evaluator" in commands
     assert "python -m evaluation.intent_evaluator" in commands
     assert "python -m evaluation.repair_evaluator" in commands
+    assert "python -m evaluation.result_correctness_evaluator" in commands
     assert "python -m evaluation.quality_gate" in commands
+    assert commands.index("python -m evaluation.evaluator") < commands.index(
+        "python -m evaluation.result_correctness_evaluator"
+    )
+    assert commands.index(
+        "python -m evaluation.result_correctness_evaluator"
+    ) < commands.index("python -m evaluation.quality_gate")
+    assert job["env"]["EVALUATION_REPORT_DIR"]
     assert "$GITHUB_STEP_SUMMARY" in commands
     assert len(upload_steps) == 1
     assert upload_steps[0]["if"] == "always()"

@@ -893,9 +893,12 @@
   - JSON 与 Markdown 均过滤未知结果字段，不写入完整大结果集。
   - ResultCorrectnessEvaluator CLI 已接入报告输出。
   - 定向测试：`12 passed`。
-- ⏳ Task 7：接入手动真实 Qwen Workflow
-- ⏸️ Task 8：待开始
+- ✅ Task 7：接入手动真实 Qwen Workflow
+  - 正确性评测位于真实 NL2SQL/Repair 评测之后、质量门禁之前。
+  - 复用统一报告目录和 artifact 上传，第一版只记录基线，不阻塞普通 PR。
+  - Workflow 契约测试：`2 passed`。
+- ⏳ Task 8：文档、真实 Qwen 基线与最终验收
 
 ### 下一步
 
-- 接入手动真实 Qwen Workflow，并运行首轮真实基线和最终验收。
+- 更新 v0.5 文档，运行首轮真实 Qwen Plus 正确性基线和最终验收。

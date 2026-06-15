@@ -72,6 +72,11 @@ jobs:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: python -m evaluation.repair_evaluator
 
+      - name: Run real result correctness evaluation
+        env:
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+        run: python -m evaluation.result_correctness_evaluator
+
       - name: Evaluate quality gate
         shell: bash
         run: |
