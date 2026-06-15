@@ -10,11 +10,12 @@
 - **LLM SQL 安全治理**：SQLGlot AST 校验只允许安全查询，拦截多语句、系统表、危险 DuckDB 文件读取函数，并自动注入 LIMIT。
 - **SQL 自动修复闭环**：SQL 执行失败后将错误信息反馈给修复 Agent，最多重试 3 次，每次修复后重新经过 SQL Guard。
 - **规则化 SQL 优化建议**：基于 SQL AST、查询结果规模和 DuckDB EXPLAIN 执行计划生成可解释优化建议。
-- **三类评测体系**：内置 37 条危险意图 case、32 条 NL2SQL case 和 6 条确定性 SQL Repair 故障注入 case。
+- **四类评测体系**：内置 37 条危险意图 case、32 条 NL2SQL case、6 条确定性 SQL Repair 故障注入 case，以及 10 条结果正确性黄金 case。
+- **结果正确性黄金基准**：使用人工审核参考 SQL、固定业务断言和四种比较模式，区分“SQL 能执行”和“分析结果算正确”。
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
 - **LLM 调用可观测性**：记录每次 Qwen 调用的节点、Token、耗时、尝试次数和可选估算成本，并接入审计与离线评测报告。
-- **可验证工程质量**：后端测试使用隔离 DuckDB 测试库；当前后端测试覆盖 216 个用例，并接入 GitHub Actions 与 100% 安全质量门禁。
+- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `319 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
 
 ## 核心功能
 
@@ -23,6 +24,7 @@
 - **SQL 自动修复** — 执行失败时 LLM 分析错误并修复，最多重试 3 次
 - **SQL 优化建议** — 基于 EXPLAIN、结果规模和 SQL 结构输出优化建议
 - **离线评测报告** — 固定 NL2SQL case 与确定性 Repair 故障集量化生成、执行、修复和安全表现
+- **结果正确性评测** — 用黄金参考 SQL 验证列结构、结果值、排序和核心业务指标
 - **多轮分析上下文** — 基于 session_id 复用上一轮分析意图，支持连续追问
 - **安全审计报告** — 输出 Guard 命中规则、LIMIT 注入、修复次数和执行事件
 - **LLM 资源审计** — 区分数据库执行与模型调用耗时，量化 Token、重试和可选成本
@@ -195,7 +197,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`216 passed`。
+当前验证结果：`319 passed`。
 
 ## 运行评测
 
@@ -204,14 +206,15 @@ cd backend
 python -m evaluation.evaluator
 python -m evaluation.repair_evaluator
 python -m evaluation.intent_evaluator
+python -m evaluation.result_correctness_evaluator
 ```
 
-危险意图评测包含 37 条固定 case；NL2SQL 评测包含 32 条固定 case；SQL Repair 评测包含 6 条确定性故障注入 case。当前真实 Qwen Plus 基线为正常分析 `24/24`、危险请求阻断 `8/8`、Repair `6/6`，确定性意图评测的阻断率和安全通过率均为 `100%`、误杀率为 `0%`。
+危险意图评测包含 37 条固定 case；NL2SQL 评测包含 32 条固定 case；SQL Repair 评测包含 6 条确定性故障注入 case；结果正确性评测包含 10 条人工审核黄金 case。当前真实 Qwen Plus 基线为正常分析 `24/24`、危险请求阻断 `8/8`、Repair `6/6`。结果正确性首轮为 `5/10`，修复稳定输出别名和类别销售额粒度后，相同 case 复测为 `10/10`。
 
 ## CI 与质量门禁
 
 - PR 和 `main` 分支 push 自动运行完整后端测试、前端生产构建、Secret Scan 和确定性 Intent Evaluation，不使用真实 Qwen Secret。
-- GitHub Actions 的 `Real Qwen Evaluation` 支持手动选择模型并运行两套真实评测；需要在仓库 Secret 中配置 `QWEN_API_KEY`。
+- GitHub Actions 的 `Real Qwen Evaluation` 支持手动选择模型并运行 NL2SQL、Repair 和结果正确性真实评测；需要在仓库 Secret 中配置 `QWEN_API_KEY`。
 - 质量门禁要求正常分析执行率、危险请求阻断率、安全预期命中率和 Repair 端到端成功率全部达到 `100%`。
 - 手动评测默认仅告警；启用 `enforce_thresholds` 后，任一门禁下降会使工作流失败。Markdown/JSON 报告和门禁结果始终上传为 artifact。
 
@@ -221,6 +224,7 @@ python -m evaluation.intent_evaluator
 
 - [开发文档 v0.3：企业级 NL2SQL Agent 升级版](docs/data_analyst_agent_开发文档_v_0_3.md)
 - [开发文档 v0.4：Intent Guard 与危险意图评测](docs/data_analyst_agent_开发文档_v_0_4.md)
+- [开发文档 v0.5：结果正确性黄金基准](docs/data_analyst_agent_开发文档_v_0_5.md)
 - [项目面试讲述稿](docs/interview_guide.md)
 - [数据库设计](docs/database_design_md.md)
 - [前端工作台开发说明](docs/frontend_workbench_development_notes.md)

@@ -882,23 +882,34 @@
   - 单条失败稳定分类且不中断整批；报告结果不保存完整结果集。
   - 汇总结果正确率、列/值/排序匹配率、核心业务指标准确率和参考查询健康指标。
   - 定向及相关回归：`91 passed`。
+  - Commit：`e655f54`
 - ✅ Task 5：验证参考 SQL 与固定断言
   - 10 条参考 SQL 全部经过 SQL Guard 并在固定种子 DuckDB 上执行成功。
   - 参考结果列与 required_columns 一致，固定业务断言全部通过。
   - 种子脚本支持注入隔离连接并在每次入口重置随机种子，pytest 不再依赖本地业务库。
   - 完整后端回归：`315 passed`。
+  - Commit：`ed5a527`
 - ✅ Task 6：输出中文结果正确性报告
   - 新增 CorrectnessReportWriter，同时输出 UTF-8 JSON 与中文 Markdown。
   - 报告展示八项正确性/参考查询指标，失败明细最多五条。
   - JSON 与 Markdown 均过滤未知结果字段，不写入完整大结果集。
   - ResultCorrectnessEvaluator CLI 已接入报告输出。
   - 定向测试：`12 passed`。
+  - Commit：`7a9ad84`
 - ✅ Task 7：接入手动真实 Qwen Workflow
   - 正确性评测位于真实 NL2SQL/Repair 评测之后、质量门禁之前。
   - 复用统一报告目录和 artifact 上传，第一版只记录基线，不阻塞普通 PR。
   - Workflow 契约测试：`2 passed`。
-- ⏳ Task 8：文档、真实 Qwen 基线与最终验收
+  - Commit：`a1efae7`
+- ✅ Task 8：文档、真实 Qwen 基线与最终验收
+  - 首轮真实 Qwen Plus 正确率 `5/10（50%）`，发现四条输出别名漂移和一条商品类别销售额重复聚合。
+  - 未放宽比较标准；语义层新增稳定英文输出别名和商品类别粒度覆盖表达式，SQL 生成 prompt 同步强化。
+  - 相同 10 条 case 复测达到 `10/10（100%）`，八项结果正确性指标全部为 `100%`。
+  - 新增 v0.5 开发文档，并同步 README、面试稿、工作日志和前后两份真实报告。
+  - 最终后端：`319 passed`；前端 production build 成功；Intent Evaluation 和 Secret Scan 全部达标。
+  - 基线修复 Commit：`b53a0b2`
 
 ### 下一步
 
-- 更新 v0.5 文档，运行首轮真实 Qwen Plus 正确性基线和最终验收。
+- 推送当前 main 的 v0.5 提交，手动运行 GitHub `Real Qwen Evaluation` 验证云端 artifact。
+- 下一阶段可建设 Schema Context Manager，并使用 v0.5 黄金基准约束正确率不能回退。

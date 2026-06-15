@@ -1,0 +1,285 @@
+{
+  "summary": {
+    "total_cases": 10,
+    "result_correctness_rate": 0.5,
+    "column_match_rate": 0.6,
+    "value_match_rate": 0.5,
+    "order_match_rate": 1.0,
+    "business_metric_accuracy": 0.3333333333333333,
+    "reference_guard_pass_rate": 1.0,
+    "reference_execution_success_rate": 1.0,
+    "fixed_assertion_pass_rate": 1.0
+  },
+  "results": [
+    {
+      "case_id": "monthly_sales_2024",
+      "question": "统计 2024 年每个月的销售额，按月份升序排列",
+      "category": "time_series",
+      "agent_sql": "SELECT STRFTIME(o.order_date, '%Y-%m') AS month, SUM(o.total_amount) AS sales_amount FROM orders AS o WHERE o.order_date >= '2024-01-01' AND o.order_date < '2025-01-01' GROUP BY STRFTIME(o.order_date, '%Y-%m') ORDER BY month ASC LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": true,
+      "values_matched": true,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": true,
+      "failure_type": null,
+      "comparison_failure_types": [],
+      "diff_samples": []
+    },
+    {
+      "case_id": "top_products_by_sales",
+      "question": "找出销售额最高的 5 个商品",
+      "category": "top_n",
+      "agent_sql": "SELECT p.product_name, SUM(oi.quantity * oi.unit_price) AS sales_amount FROM orders AS o JOIN order_items AS oi ON o.order_id = oi.order_id JOIN products AS p ON oi.product_id = p.product_id GROUP BY p.product_name ORDER BY sales_amount DESC LIMIT 5",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": true,
+      "values_matched": true,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": true,
+      "failure_type": null,
+      "comparison_failure_types": [],
+      "diff_samples": []
+    },
+    {
+      "case_id": "customer_count_by_region",
+      "question": "统计各地区的客户数量",
+      "category": "dimension",
+      "agent_sql": "SELECT r.region_name, COUNT(DISTINCT c.customer_id) AS customer_count FROM customers AS c JOIN regions AS r ON c.region_id = r.region_id GROUP BY r.region_name ORDER BY customer_count DESC LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": true,
+      "values_matched": true,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": true,
+      "failure_type": null,
+      "comparison_failure_types": [],
+      "diff_samples": []
+    },
+    {
+      "case_id": "sales_by_region",
+      "question": "统计 2024 年各地区的销售额",
+      "category": "dimension",
+      "agent_sql": "SELECT r.region_name, SUM(o.total_amount) AS 销售额 FROM orders AS o JOIN customers AS c ON o.customer_id = c.customer_id JOIN regions AS r ON c.region_id = r.region_id WHERE STRFTIME(o.order_date, '%Y') = '2024' GROUP BY r.region_name ORDER BY 销售额 DESC LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": false,
+      "values_matched": false,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": false,
+      "failure_type": "column_mismatch",
+      "comparison_failure_types": [
+        "column_mismatch"
+      ],
+      "diff_samples": [
+        {
+          "actual_columns": [
+            "region_name",
+            "销售额"
+          ],
+          "expected_columns": [
+            "region_name",
+            "sales_amount"
+          ],
+          "required_columns": [
+            "region_name",
+            "sales_amount"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "sales_by_category",
+      "question": "统计各商品类别的销售额",
+      "category": "aggregation",
+      "agent_sql": "SELECT c.category_name, SUM(o.total_amount) AS sales_amount FROM orders AS o JOIN order_items AS oi ON o.order_id = oi.order_id JOIN products AS p ON oi.product_id = p.product_id JOIN categories AS c ON p.category_id = c.category_id GROUP BY c.category_name ORDER BY sales_amount DESC LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": true,
+      "values_matched": false,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": false,
+      "failure_type": "value_mismatch",
+      "comparison_failure_types": [
+        "value_mismatch"
+      ],
+      "diff_samples": [
+        {
+          "actual": [
+            "Electronics",
+            "521131.00"
+          ],
+          "expected": null
+        },
+        {
+          "actual": [
+            "Home",
+            "250523.00"
+          ],
+          "expected": null
+        },
+        {
+          "actual": [
+            "Clothing",
+            "243494.00"
+          ],
+          "expected": null
+        },
+        {
+          "actual": [
+            "Sports",
+            "204047.00"
+          ],
+          "expected": null
+        },
+        {
+          "actual": [
+            "Beauty",
+            "202667.00"
+          ],
+          "expected": null
+        }
+      ]
+    },
+    {
+      "case_id": "refund_rate_by_category",
+      "question": "统计各商品类别的退款率",
+      "category": "business_metric",
+      "agent_sql": "SELECT c.category_name, COUNT(DISTINCT r.refund_id) * 1.0 / COUNT(DISTINCT o.order_id) AS refund_rate FROM orders AS o JOIN order_items AS oi ON o.order_id = oi.order_id JOIN products AS p ON oi.product_id = p.product_id JOIN categories AS c ON p.category_id = c.category_id LEFT JOIN refunds AS r ON o.order_id = r.order_id GROUP BY c.category_name ORDER BY refund_rate DESC LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": true,
+      "values_matched": true,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": true,
+      "failure_type": null,
+      "comparison_failure_types": [],
+      "diff_samples": []
+    },
+    {
+      "case_id": "average_order_value_2024",
+      "question": "计算 2024 年的平均客单价",
+      "category": "business_metric",
+      "agent_sql": "SELECT SUM(o.total_amount) * 1.0 / COUNT(DISTINCT o.order_id) AS avg_order_value FROM orders AS o WHERE o.order_date >= '2024-01-01' AND o.order_date < '2025-01-01' LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": false,
+      "values_matched": false,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": false,
+      "failure_type": "column_mismatch",
+      "comparison_failure_types": [
+        "column_mismatch"
+      ],
+      "diff_samples": [
+        {
+          "actual_columns": [
+            "avg_order_value"
+          ],
+          "expected_columns": [
+            "average_order_value"
+          ],
+          "required_columns": [
+            "average_order_value"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "repeat_purchase_rate",
+      "question": "计算客户复购率",
+      "category": "business_metric",
+      "agent_sql": "WITH customer_order_stats AS (SELECT o.customer_id, COUNT(DISTINCT o.order_id) AS order_count FROM orders AS o GROUP BY o.customer_id) SELECT COUNT(DISTINCT CASE WHEN cos.order_count > 1 THEN cos.customer_id END) * 1.0 / COUNT(DISTINCT cos.customer_id) AS 复购率 FROM customer_order_stats AS cos LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": false,
+      "values_matched": false,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": false,
+      "failure_type": "column_mismatch",
+      "comparison_failure_types": [
+        "column_mismatch"
+      ],
+      "diff_samples": [
+        {
+          "actual_columns": [
+            "复购率"
+          ],
+          "expected_columns": [
+            "repeat_purchase_rate"
+          ],
+          "required_columns": [
+            "repeat_purchase_rate"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "payment_method_sales",
+      "question": "统计各支付方式对应的销售额",
+      "category": "dimension",
+      "agent_sql": "SELECT p.payment_method, SUM(o.total_amount) AS 销售额 FROM orders AS o JOIN payments AS p ON o.order_id = p.order_id GROUP BY p.payment_method ORDER BY 销售额 DESC LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": false,
+      "values_matched": false,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": false,
+      "failure_type": "column_mismatch",
+      "comparison_failure_types": [
+        "column_mismatch"
+      ],
+      "diff_samples": [
+        {
+          "actual_columns": [
+            "payment_method",
+            "销售额"
+          ],
+          "expected_columns": [
+            "payment_method",
+            "sales_amount"
+          ],
+          "required_columns": [
+            "payment_method",
+            "sales_amount"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "monthly_order_count",
+      "question": "统计每个月的订单数量，按月份升序排列",
+      "category": "time_series",
+      "agent_sql": "SELECT STRFTIME(o.order_date, '%Y-%m') AS month, COUNT(DISTINCT o.order_id) AS order_count FROM orders AS o GROUP BY STRFTIME(o.order_date, '%Y-%m') ORDER BY month ASC LIMIT 1000",
+      "agent_execution_success": true,
+      "reference_guard_passed": true,
+      "reference_execution_success": true,
+      "columns_matched": true,
+      "values_matched": true,
+      "order_matched": true,
+      "fixed_assertions_matched": true,
+      "result_correct": true,
+      "failure_type": null,
+      "comparison_failure_types": [],
+      "diff_samples": []
+    }
+  ]
+}
