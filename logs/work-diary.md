@@ -868,10 +868,15 @@
 ### 当前进度
 
 - ✅ Task 1：建立 10 条黄金 case 与参考 SQL
-- ⏳ Task 2：实现 ReferenceQueryRunner
-- ⏸️ Task 3-8：待开始
+- ✅ Task 2：实现 ReferenceQueryRunner
+  - 参考 SQL 必须先通过 Guard，只执行非空 `sanitized_sql`。
+  - Guard 和执行器畸形返回均严格 fail-closed。
+  - 本模块使用稳定错误消息，不向报告传播敏感异常文本。
+  - Commit：`f98c22f`、`1b614b0`、`33ae97b`
+- ⏳ Task 3：实现 ResultComparator
+- ⏸️ Task 4-8：待开始
 
 ### 下一步
 
-- 实现只允许安全参考 SQL 执行的 `ReferenceQueryRunner`。
+- 实现支持四种模式、数值容差与固定断言的 `ResultComparator`。
 - Task 5 集中验证参考 SQL 执行结果和固定断言，避免结构契约测试依赖数据库。
