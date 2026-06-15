@@ -53,10 +53,18 @@ class SemanticLoader:
         lines: list[str] = []
 
         lines.append("业务指标:")
-        for metric in self.get_metrics().values():
+        for metric_key, metric in self.get_metrics().items():
+            # 稳定英文 key 同时作为结果列契约，避免模型按中文问题自由生成中文别名。
             lines.append(f"- {metric['name']} = {metric['expression']}")
+            lines.append(f"  输出别名: {metric_key}")
             if metric.get("required_joins"):
                 lines.append(f"  需要 JOIN: {'; '.join(metric['required_joins'])}")
+            for dimension_key, expression in metric.get(
+                "dimension_overrides", {}
+            ).items():
+                dimension = self.get_dimensions().get(dimension_key, {})
+                dimension_name = dimension.get("name", dimension_key)
+                lines.append(f"  按{dimension_name}时使用: {expression}")
             lines.append(f"  说明: {metric.get('description', '')}")
 
         lines.append("")

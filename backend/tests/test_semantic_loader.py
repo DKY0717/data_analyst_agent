@@ -60,6 +60,19 @@ def test_format_for_prompt_contains_metrics_dimensions_and_defaults():
     assert "默认时间字段: orders.order_date" in summary
 
 
+def test_format_for_prompt_exposes_stable_metric_aliases_and_dimension_overrides():
+    """语义摘要必须明确稳定输出别名和粒度覆盖，避免列漂移与 JOIN 后重复汇总。"""
+    loader = SemanticLoader()
+
+    summary = loader.format_for_prompt()
+
+    assert "销售额 = SUM(orders.total_amount)" in summary
+    assert "输出别名: sales_amount" in summary
+    assert "按商品类别时使用: SUM(order_items.quantity * order_items.unit_price)" in summary
+    assert "输出别名: average_order_value" in summary
+    assert "输出别名: repeat_purchase_rate" in summary
+
+
 def test_quarter_dimension_uses_duckdb_supported_expression():
     """季度维度应给出 DuckDB 可执行表达式，避免 LLM 猜测不存在的 %q/%Q 格式符。"""
     loader = SemanticLoader()

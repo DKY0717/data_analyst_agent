@@ -116,6 +116,8 @@ class TestGenerateSQLPrompt:
 
         assert "优先遵循业务语义层" in system_prompt
         assert "业务指标口径" in system_prompt
+        assert "稳定英文 key 作为输出别名" in system_prompt
+        assert "粒度覆盖表达式" in system_prompt
         assert "业务语义层" in user_prompt
 
     @pytest.mark.asyncio

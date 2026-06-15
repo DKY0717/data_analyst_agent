@@ -8,7 +8,9 @@ metrics:
       - 成交金额
     expression: SUM(orders.total_amount)
     default_table: orders
-    description: 已下单订单的总金额，默认使用 orders.total_amount 汇总。
+    dimension_overrides:
+      category: SUM(order_items.quantity * order_items.unit_price)
+    description: 已下单订单的总金额；按商品类别拆分时必须使用订单明细金额，避免订单总额在明细 JOIN 后重复累加。
 
   order_count:
     name: 订单数
