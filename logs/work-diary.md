@@ -873,10 +873,19 @@
   - Guard 和执行器畸形返回均严格 fail-closed。
   - 本模块使用稳定错误消息，不向报告传播敏感异常文本。
   - Commit：`f98c22f`、`1b614b0`、`33ae97b`
-- ⏳ Task 3：实现 ResultComparator
-- ⏸️ Task 4-8：待开始
+- ✅ Task 3：实现 ResultComparator
+  - 支持 unordered、ordered、top_n、scalar 四种比较模式、数值容差与固定断言。
+  - 真实比较无损，差异摘要严格限量，容差匹配保留全局最优匹配语义。
+  - Commit：`95f588e`、`6175535`、`9fa104b`、`ad4782a`
+- ✅ Task 4：实现 ResultCorrectnessEvaluator
+  - 使用可注入 Agent、ReferenceQueryRunner 和 ResultComparator 独立评估结果正确性。
+  - 单条失败稳定分类且不中断整批；报告结果不保存完整结果集。
+  - 汇总结果正确率、列/值/排序匹配率、核心业务指标准确率和参考查询健康指标。
+  - 定向及相关回归：`91 passed`。
+- ⏳ Task 5：验证参考 SQL 与固定断言
+- ⏸️ Task 6-8：待开始
 
 ### 下一步
 
-- 实现支持四种模式、数值容差与固定断言的 `ResultComparator`。
-- Task 5 集中验证参考 SQL 执行结果和固定断言，避免结构契约测试依赖数据库。
+- Task 5 集中验证参考 SQL 执行结果和固定断言。
+- 随后实现中文正确性报告、接入手动真实 Qwen Workflow 并运行首轮真实基线。
