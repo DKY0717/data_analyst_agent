@@ -83,6 +83,10 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert "python -m evaluation.repair_evaluator" in commands
     assert "python -m evaluation.result_correctness_evaluator" in commands
     assert "python -m evaluation.quality_gate" in commands
+    assert "python scripts/prepare_evaluation_database.py" in commands
+    assert commands.index("python scripts/prepare_evaluation_database.py") < commands.index(
+        "python -m evaluation.evaluator"
+    )
     assert commands.index("python -m evaluation.evaluator") < commands.index(
         "python -m evaluation.result_correctness_evaluator"
     )

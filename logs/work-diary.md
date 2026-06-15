@@ -920,3 +920,4 @@
 - 根因是 job 级 `env` 使用了 runner 分配后才可用的 `runner.temp` 上下文。
 - 将 `EVALUATION_REPORT_DIR` 移到评测、质量门禁和摘要 step 的环境变量，并增加 Workflow 回归测试。
 - 定向回归：`7 passed`。
+- 修复后首次云端真实评测发现 runner 缺少固定 DuckDB；新增可重复执行的评测库重建脚本，在评测前创建表结构并写入固定种子，同时增加数据库与 Workflow 顺序契约测试。
