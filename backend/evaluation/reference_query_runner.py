@@ -22,13 +22,20 @@ class ReferenceQueryRunner:
         try:
             # 参考 SQL 也必须经过 Guard，执行器只能接收 Guard 清洗后的 SQL。
             guard_result = self.guard.validate(reference_sql)
-            sanitized_sql = guard_result.get("sanitized_sql", "")
-            guard_passed = bool(guard_result.get("is_safe"))
+            guard_payload = guard_result if isinstance(guard_result, dict) else {}
+            guard_sanitized_sql = guard_payload.get("sanitized_sql", "")
+            sanitized_sql = guard_sanitized_sql if isinstance(guard_sanitized_sql, str) else ""
+            # Guard 契约必须精确满足安全标记和非空 SQL，任何畸形返回都按阻断处理。
+            guard_passed = (
+                guard_payload.get("is_safe") is True
+                and isinstance(guard_sanitized_sql, str)
+                and bool(guard_sanitized_sql.strip())
+            )
 
             if not guard_passed:
                 return self._result(
                     sanitized_sql=sanitized_sql,
-                    error=guard_result.get("reason") or "参考 SQL 未通过安全校验",
+                    error=guard_payload.get("reason") or "参考 SQL 未通过安全校验",
                     error_type="reference_guard_blocked",
                 )
 
@@ -56,11 +63,12 @@ class ReferenceQueryRunner:
                 sanitized_sql=sanitized_sql,
             )
         except Exception as exc:
-            logger.error(f"参考 SQL 执行发生意外异常: {type(exc).__name__}: {exc}")
+            # 意外异常可能携带凭据或数据库细节，日志和返回值只保留稳定摘要。
+            logger.error("参考 SQL 执行发生意外异常，异常类型=%s", type(exc).__name__)
             return self._result(
                 guard_passed=guard_passed,
                 sanitized_sql=sanitized_sql,
-                error=str(exc),
+                error="参考 SQL 执行发生意外异常",
                 error_type="reference_unexpected_error",
             )
 

@@ -1,6 +1,10 @@
 # ReferenceQueryRunner 测试
 # 使用可注入的 fake 依赖，验证参考 SQL 始终先经过 Guard，且所有结果路径字段稳定。
 
+import logging
+
+import pytest
+
 from evaluation.reference_query_runner import ReferenceQueryRunner
 
 
@@ -101,6 +105,45 @@ def test_reference_runner_does_not_execute_blocked_sql():
     assert query.calls == []
 
 
+@pytest.mark.parametrize(
+    "guard_result",
+    [
+        None,
+        {
+            "is_safe": "false",
+            "sanitized_sql": "SELECT 1 LIMIT 1000",
+            "reason": None,
+        },
+        {
+            "is_safe": True,
+            "sanitized_sql": "",
+            "reason": None,
+        },
+        {
+            "is_safe": True,
+            "sanitized_sql": "   ",
+            "reason": None,
+        },
+        {
+            "is_safe": True,
+            "sanitized_sql": 123,
+            "reason": None,
+        },
+    ],
+)
+def test_reference_runner_fails_closed_for_malformed_guard_result(guard_result):
+    # Guard 返回契约一旦畸形，参考查询必须阻断，不能依赖 Python 真值规则放行。
+    guard = FakeGuard(guard_result)
+    query = FakeQueryRunner()
+
+    result = ReferenceQueryRunner(guard=guard, query_runner=query).run("SELECT 1")
+
+    assert result["guard_passed"] is False
+    assert result["execution_success"] is False
+    assert result["error_type"] == "reference_guard_blocked"
+    assert query.calls == []
+
+
 def test_reference_runner_returns_stable_execution_failure():
     sanitized_sql = "SELECT missing FROM orders LIMIT 1000"
     guard = FakeGuard({"is_safe": True, "sanitized_sql": sanitized_sql, "reason": None})
@@ -127,18 +170,23 @@ def test_reference_runner_returns_stable_execution_failure():
     assert result["error_type"] == "reference_execution_failed"
 
 
-def test_reference_runner_captures_unexpected_guard_exception():
-    guard = FakeGuard(error=RuntimeError("guard unavailable"))
+def test_reference_runner_captures_unexpected_guard_exception_without_sensitive_text(caplog):
+    sensitive_text = "guard unavailable: api_key=secret-value"
+    guard = FakeGuard(error=RuntimeError(sensitive_text))
     query = FakeQueryRunner()
 
-    result = ReferenceQueryRunner(guard=guard, query_runner=query).run("SELECT 1")
+    with caplog.at_level(logging.ERROR, logger="data_analyst_agent"):
+        result = ReferenceQueryRunner(guard=guard, query_runner=query).run("SELECT 1")
 
     assert set(result) == RESULT_FIELDS
     assert result["guard_passed"] is False
     assert result["execution_success"] is False
     assert result["sanitized_sql"] == ""
-    assert result["error"] == "guard unavailable"
+    assert result["error"] == "参考 SQL 执行发生意外异常"
     assert result["error_type"] == "reference_unexpected_error"
+    assert sensitive_text not in str(result)
+    assert sensitive_text not in caplog.text
+    assert "RuntimeError" in caplog.text
     assert query.calls == []
 
 
@@ -153,6 +201,6 @@ def test_reference_runner_captures_unexpected_executor_exception():
     assert result["guard_passed"] is True
     assert result["execution_success"] is False
     assert result["sanitized_sql"] == sanitized_sql
-    assert result["error"] == "database unavailable"
+    assert result["error"] == "参考 SQL 执行发生意外异常"
     assert result["error_type"] == "reference_unexpected_error"
     assert query.calls == [sanitized_sql]
