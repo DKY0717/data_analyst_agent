@@ -946,3 +946,11 @@
 - 用户确认继续实施规划。
 - 已将 v0.6 拆分为四个连续里程碑和十五个 TDD 任务，覆盖稳定契约、意图解析、Grounding、图路由、主动澄清、分层评测、消融实验和严格发布门禁。
 - 实施计划：`docs/superpowers/plans/2026-06-15-v0.6-hierarchical-intent-schema-grounding-implementation.md`。
+
+### 实施进展
+
+- ✅ Task 1：建立跨层稳定数据契约
+  - 新增 AnalysisIntent、Grounding、SchemaRoute 和 ClarificationRequest 等 Pydantic 契约。
+  - 稳定候选 ID、关键文本、置信度和最多两轮澄清均有模型级边界校验。
+  - TDD RED 已确认模块缺失；GREEN 契约测试 `5 passed`，相关回归 `18 passed`。
+  - 完成规格符合性与代码质量两轮审查。
