@@ -11,7 +11,7 @@ import yaml
 from app.agents.graph import agent_graph
 from app.utils.logger import logger
 from evaluation.reference_query_runner import reference_query_runner
-from evaluation.result_comparator import ResultComparator
+from evaluation.result_comparator import result_comparator
 
 
 AgentRunner = Callable[[str], Awaitable[Dict[str, Any]]]
@@ -39,7 +39,7 @@ class ResultCorrectnessEvaluator:
     ):
         self.agent_runner = agent_runner or agent_graph.run
         self.reference_runner = reference_runner
-        self.comparator = comparator or ResultComparator()
+        self.comparator = comparator or result_comparator
         self.case_file = (
             Path(case_file)
             if case_file

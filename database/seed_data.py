@@ -3,6 +3,7 @@
 
 import random
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -248,9 +249,12 @@ def generate_refunds(orders):
 
     return refunds
 
-def seed_database():
-    """填充数据库"""
-    print("开始生成模拟数据...")
+def seed_database(connection=None, verbose=True):
+    """填充数据库；允许测试注入隔离连接，避免依赖本地业务库。"""
+    # 每次入口都重置随机种子，保证重复建库和 CI 环境生成完全相同的数据。
+    random.seed(42)
+    if verbose:
+        print("开始生成模拟数据...")
 
     # 生成数据
     regions = generate_regions()
@@ -261,18 +265,21 @@ def seed_database():
     payments = generate_payments(orders)
     refunds = generate_refunds(orders)
 
-    print(f"生成数据统计:")
-    print(f"  - 地区: {len(regions)} 条")
-    print(f"  - 类别: {len(categories)} 条")
-    print(f"  - 商品: {len(products)} 条")
-    print(f"  - 客户: {len(customers)} 条")
-    print(f"  - 订单: {len(orders)} 条")
-    print(f"  - 订单明细: {len(order_items)} 条")
-    print(f"  - 支付: {len(payments)} 条")
-    print(f"  - 退款: {len(refunds)} 条")
+    if verbose:
+        print(f"生成数据统计:")
+        print(f"  - 地区: {len(regions)} 条")
+        print(f"  - 类别: {len(categories)} 条")
+        print(f"  - 商品: {len(products)} 条")
+        print(f"  - 客户: {len(customers)} 条")
+        print(f"  - 订单: {len(orders)} 条")
+        print(f"  - 订单明细: {len(order_items)} 条")
+        print(f"  - 支付: {len(payments)} 条")
+        print(f"  - 退款: {len(refunds)} 条")
 
     # 插入数据
-    with db_connection.get_session() as conn:
+    # 生产脚本使用全局连接；测试传入临时连接，二者共享同一份生成逻辑。
+    session = nullcontext(connection) if connection is not None else db_connection.get_session()
+    with session as conn:
         # 插入地区数据
         for region in regions:
             conn.execute("INSERT INTO regions VALUES (?, ?, ?, ?)", region)
@@ -305,15 +312,21 @@ def seed_database():
         for refund in refunds:
             conn.execute("INSERT INTO refunds VALUES (?, ?, ?, ?, ?)", refund)
 
-    print("数据插入完成！")
+    if verbose:
+        print("数据插入完成！")
 
     # 验证数据
-    with db_connection.get_session() as conn:
+    verification_session = (
+        nullcontext(connection) if connection is not None else db_connection.get_session()
+    )
+    with verification_session as conn:
         tables = ['regions', 'customers', 'categories', 'products', 'orders', 'order_items', 'payments', 'refunds']
-        print("\n数据验证:")
+        if verbose:
+            print("\n数据验证:")
         for table in tables:
             result = conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()
-            print(f"  - {table}: {result[0]} 条记录")
+            if verbose:
+                print(f"  - {table}: {result[0]} 条记录")
 
 if __name__ == "__main__":
     seed_database()

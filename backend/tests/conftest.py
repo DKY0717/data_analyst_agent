@@ -2,6 +2,7 @@
 # 避免测试误用真实 data/database.duckdb，保证不同机器上一键运行结果一致。
 
 import os
+import importlib.util
 from pathlib import Path
 
 import duckdb
@@ -15,7 +16,7 @@ os.environ["PROJECT_ROOT"] = str(TEST_ROOT)
 
 
 def _prepare_test_database() -> None:
-    """创建隔离的 DuckDB 测试库，只初始化表结构，不依赖真实业务数据文件。"""
+    """创建带固定种子数据的隔离 DuckDB，供确定性集成测试复用。"""
     data_dir = TEST_ROOT / "data"
     log_dir = TEST_ROOT / "logs"
     db_path = data_dir / "database.duckdb"
@@ -30,6 +31,12 @@ def _prepare_test_database() -> None:
     conn = duckdb.connect(str(db_path))
     try:
         conn.execute(init_sql)
+        # 动态加载根目录种子脚本，避免测试依赖未跟踪的本地 DuckDB 文件。
+        seed_path = REPO_ROOT / "database" / "seed_data.py"
+        spec = importlib.util.spec_from_file_location("test_seed_data", seed_path)
+        seed_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(seed_module)
+        seed_module.seed_database(connection=conn, verbose=False)
     finally:
         conn.close()
 

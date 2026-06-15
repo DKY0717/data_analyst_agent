@@ -795,3 +795,7 @@ class ResultComparator:
         if len(value) <= MAX_SAMPLE_STRING_LENGTH:
             return value
         return value[:MAX_SAMPLE_STRING_LENGTH] + TRUNCATION_MARKER
+
+
+# 评测器默认复用无状态比较器实例，同时保留构造器供测试注入不同差异样本上限。
+result_comparator = ResultComparator()
