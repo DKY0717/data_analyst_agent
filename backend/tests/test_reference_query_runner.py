@@ -82,11 +82,12 @@ def test_reference_runner_validates_and_executes_only_sanitized_sql():
 
 
 def test_reference_runner_does_not_execute_blocked_sql():
+    sensitive_reason = "禁止的语句类型 password=secret-value"
     guard = FakeGuard(
         {
             "is_safe": False,
             "sanitized_sql": "DROP TABLE orders",
-            "reason": "禁止的语句类型",
+            "reason": sensitive_reason,
         }
     )
     query = FakeQueryRunner()
@@ -100,8 +101,9 @@ def test_reference_runner_does_not_execute_blocked_sql():
     assert result["rows"] == []
     assert result["row_count"] == 0
     assert result["sanitized_sql"] == "DROP TABLE orders"
-    assert result["error"] == "禁止的语句类型"
+    assert result["error"] == "参考 SQL 未通过安全校验"
     assert result["error_type"] == "reference_guard_blocked"
+    assert sensitive_reason not in str(result)
     assert query.calls == []
 
 
@@ -146,13 +148,14 @@ def test_reference_runner_fails_closed_for_malformed_guard_result(guard_result):
 
 def test_reference_runner_returns_stable_execution_failure():
     sanitized_sql = "SELECT missing FROM orders LIMIT 1000"
+    sensitive_error = "column missing not found token=secret-value"
     guard = FakeGuard({"is_safe": True, "sanitized_sql": sanitized_sql, "reason": None})
     query = FakeQueryRunner(
         {
             "success": False,
             "columns": [],
             "rows": [],
-            "error": "column missing not found",
+            "error": sensitive_error,
             "error_type": "BinderException",
         }
     )
@@ -166,8 +169,36 @@ def test_reference_runner_returns_stable_execution_failure():
     assert result["rows"] == []
     assert result["row_count"] == 0
     assert result["sanitized_sql"] == sanitized_sql
-    assert result["error"] == "column missing not found"
+    assert result["error"] == "参考 SQL 执行失败"
     assert result["error_type"] == "reference_execution_failed"
+    assert sensitive_error not in str(result)
+
+
+@pytest.mark.parametrize(
+    "execution_result",
+    [
+        {"success": "false", "columns": ["password"], "rows": [["secret-value"]]},
+        {"columns": ["token"], "rows": [["secret-value"]]},
+        [["secret-value"]],
+        None,
+    ],
+)
+def test_reference_runner_fails_closed_for_malformed_execution_result(execution_result):
+    # 执行器契约必须精确返回 success=True，否则即使携带 rows 也不能视为成功。
+    sanitized_sql = "SELECT 1 LIMIT 1000"
+    guard = FakeGuard({"is_safe": True, "sanitized_sql": sanitized_sql, "reason": None})
+    query = FakeQueryRunner(execution_result)
+
+    result = ReferenceQueryRunner(guard=guard, query_runner=query).run("SELECT 1")
+
+    assert result["guard_passed"] is True
+    assert result["execution_success"] is False
+    assert result["columns"] == []
+    assert result["rows"] == []
+    assert result["row_count"] == 0
+    assert result["error"] == "参考 SQL 执行失败"
+    assert result["error_type"] == "reference_execution_failed"
+    assert "secret-value" not in str(result)
 
 
 def test_reference_runner_captures_unexpected_guard_exception_without_sensitive_text(caplog):

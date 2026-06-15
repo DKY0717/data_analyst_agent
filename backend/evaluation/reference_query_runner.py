@@ -35,16 +35,17 @@ class ReferenceQueryRunner:
             if not guard_passed:
                 return self._result(
                     sanitized_sql=sanitized_sql,
-                    error=guard_payload.get("reason") or "参考 SQL 未通过安全校验",
+                    error="参考 SQL 未通过安全校验",
                     error_type="reference_guard_blocked",
                 )
 
             execution_result = self.query_runner.execute(sanitized_sql)
-            if not execution_result.get("success"):
+            # 执行器返回也必须精确满足契约，避免字符串真值或畸形结果被误判为成功。
+            if not isinstance(execution_result, dict) or execution_result.get("success") is not True:
                 return self._result(
                     guard_passed=True,
                     sanitized_sql=sanitized_sql,
-                    error=execution_result.get("error") or "参考 SQL 执行失败",
+                    error="参考 SQL 执行失败",
                     error_type="reference_execution_failed",
                 )
 
