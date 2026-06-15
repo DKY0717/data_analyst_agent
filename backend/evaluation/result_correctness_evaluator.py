@@ -10,6 +10,7 @@ import yaml
 
 from app.agents.graph import agent_graph
 from app.utils.logger import logger
+from evaluation.correctness_report_writer import CorrectnessReportWriter
 from evaluation.reference_query_runner import reference_query_runner
 from evaluation.result_comparator import result_comparator
 
@@ -205,9 +206,11 @@ def parse_args() -> argparse.Namespace:
 
 
 async def main_async(case_file: str | Path | None = None) -> Dict[str, Any]:
-    """第一版 CLI 输出汇总 JSON；报告路径在 Task 6 接入。"""
+    """运行完整基准并输出汇总和中文报告路径。"""
     report = await ResultCorrectnessEvaluator(case_file=case_file).evaluate_all()
+    paths = CorrectnessReportWriter().write(report)
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
+    print(f"Result correctness report: {paths['markdown']}")
     return report
 
 

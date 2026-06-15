@@ -887,9 +887,15 @@
   - 参考结果列与 required_columns 一致，固定业务断言全部通过。
   - 种子脚本支持注入隔离连接并在每次入口重置随机种子，pytest 不再依赖本地业务库。
   - 完整后端回归：`315 passed`。
-- ⏳ Task 6：输出中文结果正确性报告
-- ⏸️ Task 7-8：待开始
+- ✅ Task 6：输出中文结果正确性报告
+  - 新增 CorrectnessReportWriter，同时输出 UTF-8 JSON 与中文 Markdown。
+  - 报告展示八项正确性/参考查询指标，失败明细最多五条。
+  - JSON 与 Markdown 均过滤未知结果字段，不写入完整大结果集。
+  - ResultCorrectnessEvaluator CLI 已接入报告输出。
+  - 定向测试：`12 passed`。
+- ⏳ Task 7：接入手动真实 Qwen Workflow
+- ⏸️ Task 8：待开始
 
 ### 下一步
 
-- 实现中文正确性报告，接入手动真实 Qwen Workflow 并运行首轮真实基线。
+- 接入手动真实 Qwen Workflow，并运行首轮真实基线和最终验收。
