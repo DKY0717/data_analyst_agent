@@ -56,7 +56,7 @@ jobs:
         run: pip install -r backend/requirements.txt
 
       - name: Seed evaluation database
-        run: python scripts/prepare_evaluation_database.py
+        run: python -m scripts.prepare_evaluation_database
 
       - name: Run deterministic backend tests
         run: pytest backend/tests -q
