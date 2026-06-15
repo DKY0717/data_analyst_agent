@@ -3,6 +3,7 @@
 import json
 from datetime import date, datetime, time
 from decimal import Decimal
+from itertools import product
 from time import perf_counter
 
 import pytest
@@ -48,6 +49,27 @@ def compare(comparator, actual, expected, mode="unordered", **comparison):
             **comparison,
         },
     )
+
+
+def brute_force_tolerance_match(actual_rows, expected_rows, tolerance):
+    """用小规模回溯穷举全局匹配，作为容量匹配实现之外的独立正确性基准。"""
+    used_expected = [False] * len(expected_rows)
+
+    def search(actual_index):
+        if actual_index == len(actual_rows):
+            return True
+        for expected_index, expected_row in enumerate(expected_rows):
+            if used_expected[expected_index]:
+                continue
+            if abs(actual_rows[actual_index][0] - expected_row[0]) > tolerance:
+                continue
+            used_expected[expected_index] = True
+            if search(actual_index + 1):
+                return True
+            used_expected[expected_index] = False
+        return False
+
+    return len(actual_rows) == len(expected_rows) and search(0)
 
 
 def test_scalar_numbers_match_within_absolute_tolerance(comparator):
@@ -221,6 +243,42 @@ def test_unordered_tolerance_matching_preserves_global_augmenting_paths(comparat
     assert result["diff_samples"] == []
 
 
+def test_unordered_lossless_comparison_does_not_clean_hex_text(comparator):
+    result = compare(
+        comparator,
+        actual={"columns": ["payload"], "rows": [[{"code": "0x123"}]]},
+        expected={"columns": ["payload"], "rows": [[{"code": "0x456"}]]},
+    )
+
+    assert result["values_matched"] is False
+    assert result["failure_types"] == ["value_mismatch"]
+
+
+@pytest.mark.parametrize(
+    ("actual_value", "expected_value"),
+    [
+        ("a" * 500 + "actual" + "z" * 500, "a" * 500 + "expected" + "z" * 500),
+        (
+            {"payload": "a" * 500 + "actual" + "z" * 500},
+            {"payload": "a" * 500 + "expected" + "z" * 500},
+        ),
+        (b"a" * 500 + b"actual" + b"z" * 500, b"a" * 500 + b"expected" + b"z" * 500),
+    ],
+)
+def test_unordered_lossless_comparison_detects_middle_differences(
+    comparator, actual_value, expected_value
+):
+    result = compare(
+        comparator,
+        actual={"columns": ["payload"], "rows": [[actual_value]]},
+        expected={"columns": ["payload"], "rows": [[expected_value]]},
+    )
+
+    assert result["values_matched"] is False
+    assert result["failure_types"] == ["value_mismatch"]
+    assert len(json.dumps(result)) < 2000
+
+
 def test_unordered_uses_fast_path_for_complex_duplicate_multisets(comparator):
     rows = [[{"nested": [1, 2, {"ok": True}]}]] * 1000
 
@@ -235,6 +293,65 @@ def test_unordered_uses_fast_path_for_complex_duplicate_multisets(comparator):
     assert result["result_correct"] is True
     # 复杂值先安全规范化，再参与整体精确多重集合快速判断。
     assert elapsed < 1.0
+
+
+@pytest.mark.parametrize("column_count", [1, 5])
+def test_unordered_groups_limit_sized_tolerant_duplicate_rows(comparator, column_count):
+    low_row = [0.0] * column_count
+    high_row = [0.1] * column_count
+    middle_row = [0.05] * column_count
+    columns = [f"value_{index}" for index in range(column_count)]
+
+    started_at = perf_counter()
+    result = compare(
+        comparator,
+        actual={"columns": columns, "rows": [low_row] * 500 + [high_row] * 500},
+        expected={"columns": columns, "rows": [middle_row] * 1000},
+        absolute_tolerance=0.06,
+    )
+    elapsed = perf_counter() - started_at
+
+    assert result["result_correct"] is True
+    # 当前未分组实现约需 4-18 秒；宽松阈值既验证数量级改进，也减少 CI 抖动。
+    assert elapsed < 2.0
+
+
+def test_grouped_tolerance_matching_matches_exhaustive_oracle():
+    values = (0.0, 0.1, 0.2, 0.3)
+    tolerance = Decimal("0.11")
+    checked = 0
+
+    for row_count in range(1, 5):
+        row_sets = list(product(values, repeat=row_count))
+        for actual_values in row_sets:
+            actual_rows = [(value,) for value in actual_values]
+            for expected_values in row_sets:
+                expected_rows = [(value,) for value in expected_values]
+                matched, _, _ = ResultComparator._multiset_match_result(
+                    actual_rows, expected_rows, tolerance
+                )
+
+                assert matched is brute_force_tolerance_match(
+                    actual_rows, expected_rows, 0.11
+                )
+                checked += 1
+
+    assert checked == 69_904
+
+
+def test_grouped_tolerance_matching_handles_long_augmenting_path(comparator):
+    # 前 999 行先占用稀缺期望行，最后一行需要沿整条残量链重新分配。
+    actual_rows = [[float(value)] for value in range(1, 1000)] + [[0.0]]
+    expected_rows = [[value + 0.01] for value in range(1000)]
+
+    result = compare(
+        comparator,
+        actual={"columns": ["value"], "rows": actual_rows},
+        expected={"columns": ["value"], "rows": expected_rows},
+        absolute_tolerance=1.01,
+    )
+
+    assert result["result_correct"] is True
 
 
 @pytest.mark.parametrize("mode", ["ordered", "top_n"])
@@ -438,7 +555,6 @@ def test_diff_samples_summarize_complex_values_and_remain_json_bounded(comparato
         ["nested", {"payload": "l" * 1000}],
         {"nested": [1, {"payload": "y" * 1000}]},
         ("tuple", ["nested", "list"]),
-        ComplexValue(),
     ]
     columns = [f"value_{index}" for index in range(len(actual_values))]
     result = compare(
@@ -463,10 +579,27 @@ def test_diff_samples_summarize_complex_values_and_remain_json_bounded(comparato
     assert "list" in actual_sample[2]
     assert "dict" in actual_sample[3]
     assert "tuple" in actual_sample[4]
-    assert "ComplexValue" in actual_sample[5]
-    assert all(
-        "[truncated]" in actual_sample[index] for index in (0, 1, 2, 3, 5)
+    assert all("[truncated]" in actual_sample[index] for index in (0, 1, 2, 3))
+
+
+def test_diff_summary_safely_bounds_custom_object_repr():
+    summary = ResultComparator._diff_value_summary(ComplexValue())
+
+    assert isinstance(summary, str)
+    assert "ComplexValue" in summary
+    assert "[truncated]" in summary
+    assert len(summary) <= 220
+
+
+def test_custom_objects_are_rejected_stably_before_comparison(comparator):
+    result = compare(
+        comparator,
+        actual={"columns": ["value"], "rows": [[ComplexValue()]]},
+        expected={"columns": ["value"], "rows": [["different"]]},
     )
+
+    assert result["failure_types"] == ["unexpected_error"]
+    assert result["diff_samples"] == []
 
 
 def test_column_diff_samples_are_limited_and_truncated(comparator):
