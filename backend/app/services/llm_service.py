@@ -232,6 +232,7 @@ class QwenAPIClient:
         question: str,
         schema_info: str,
         conversation_context: str = "",
+        analysis_intent: str = "",
     ) -> dict:
         """根据自然语言问题和数据库 Schema 生成 SQL
 
@@ -241,6 +242,7 @@ class QwenAPIClient:
             question: 用户的自然语言问题，例如"查询销售额最高的前 5 个商品"
             schema_info: 数据库 Schema 信息，包含表结构和字段说明
             conversation_context: 多轮追问上下文摘要；为空时按单轮问题处理
+            analysis_intent: 分层意图解析结果的文本描述；为空时不注入
 
         Returns:
             dict: 包含 sql、tables、explanation 的结构化结果
@@ -275,10 +277,16 @@ class QwenAPIClient:
 {conversation_context}
 """
 
+        intent_section = ""
+        if analysis_intent:
+            intent_section = f"""
+
+{analysis_intent}
+"""
+
         user_prompt = f"""数据库 Schema 与业务语义信息：
 {schema_info}
-{context_section}
-
+{context_section}{intent_section}
 用户问题：{question}
 
 请根据以上信息生成 SQL 查询。"""

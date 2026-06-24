@@ -30,6 +30,7 @@ class AgentState(TypedDict):
         optimization_suggestions: SQL 优化建议（预留字段）
         session_id: 多轮分析会话 ID，不传则按单轮查询处理
         conversation_context: 由历史会话生成的追问上下文摘要
+        analysis_intent: 分层意图解析结果（规则 + LLM 合并），包含指标、维度、过滤、排序
         audit_events: 安全审计事件列表
         audit_report: 最终安全审计报告
         llm_calls: 当前请求内的 LLM 调用指标列表
@@ -41,6 +42,7 @@ class AgentState(TypedDict):
     intent_error: Optional[str]
     session_id: Optional[str]
     conversation_context: Optional[str]
+    analysis_intent: Optional[Dict[str, Any]]
     schema_context: Optional[Dict[str, Any]]
     generated_sql: Optional[str]
     validated_sql: Optional[str]

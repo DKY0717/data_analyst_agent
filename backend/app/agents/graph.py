@@ -12,6 +12,9 @@ from .answer_generator import answer_generator
 from .sql_optimizer import sql_optimizer
 from .session_store import session_store
 from .audit import audit_report_builder
+from ..analysis_intent.rule_parser import AnalysisIntentRuleParser
+from ..analysis_intent.llm_parser import AnalysisIntentLLMParser
+from ..analysis_intent.merger import AnalysisIntentMerger
 from ..db.schema_loader import schema_loader
 from ..security.intent_guard import intent_guard
 from ..security.sql_guard import sql_guard
@@ -26,22 +29,26 @@ class AgentGraph:
 
     def __init__(self):
         # 构建并编译工作流图
+        self.rule_parser = AnalysisIntentRuleParser()
+        self.llm_parser = AnalysisIntentLLMParser()
+        self.intent_merger = AnalysisIntentMerger()
         self.graph = self._build_graph()
 
     def _build_graph(self) -> Any:
         """构建 LangGraph 状态图
 
         节点顺序:
-        check_intent → load_schema → generate_sql → validate_sql → execute_sql → generate_answer
-             ↓                                           ↓           ↓
-          (不安全)                                    (不安全)     (执行失败)
-             ↓                                           ↓           ↓
-            end                                         end        repair_sql → validate_sql (循环)
+        check_intent → parse_intent → load_schema → generate_sql → validate_sql → execute_sql → generate_answer
+             ↓                                              ↓           ↓
+          (不安全)                                       (不安全)     (执行失败)
+             ↓                                              ↓           ↓
+            end                                            end        repair_sql → validate_sql (循环)
         """
         workflow = StateGraph(AgentState)
 
         # 注册所有节点
         workflow.add_node("check_intent", self._check_intent)
+        workflow.add_node("parse_intent", self._parse_intent)
         workflow.add_node("load_schema", self._load_schema)
         workflow.add_node("generate_sql", self._generate_sql)
         workflow.add_node("validate_sql", self._validate_sql)
@@ -54,16 +61,17 @@ class AgentGraph:
         workflow.set_entry_point("check_intent")
 
         # 固定边：线性流程
+        workflow.add_edge("parse_intent", "load_schema")
         workflow.add_edge("load_schema", "generate_sql")
         workflow.add_edge("generate_sql", "validate_sql")
         workflow.add_edge("generate_answer", END)
 
-        # Intent Guard 是唯一入口，危险请求在读取 Schema 或调用任何外部依赖前终止。
+        # Intent Guard 是唯一入口，安全时进入意图解析，危险请求在读取 Schema 或调用任何外部依赖前终止。
         workflow.add_conditional_edges(
             "check_intent",
             self._should_load_schema,
             {
-                "load_schema": "load_schema",
+                "parse_intent": "parse_intent",
                 "end": END,
             },
         )
@@ -141,6 +149,43 @@ class AgentGraph:
                 ),
             }
 
+    async def _parse_intent(self, state: AgentState) -> Dict[str, Any]:
+        """分层意图解析：规则快速提取 + LLM 补充 + 合并冲突。"""
+        logger.info("节点: parse_intent - 解析分析意图")
+        question = state["question"]
+
+        # 规则层：快速、确定性，提取年份、Top-N、显式业务别名
+        rule_intent = self.rule_parser.parse(question)
+
+        # LLM 层：补充复杂、隐式和多意图场景（独立追踪，不污染主 llm_calls）
+        llm_intent = None
+        try:
+            llm_intent = await self.llm_parser.parse(question)
+        except Exception:
+            logger.warning("LLM 意图解析失败，降级为纯规则结果")
+
+        # 合并：规则优先，LLM 补充，冲突显式保留
+        if llm_intent is not None:
+            merged = self.intent_merger.merge(rule_intent, llm_intent)
+        else:
+            merged = rule_intent
+
+        return {
+            "analysis_intent": merged.model_dump(),
+            "audit_events": self._append_audit_event(
+                state,
+                "intent",
+                "parse_intent",
+                "success",
+                "分析意图解析完成",
+                details={
+                    "metrics": [m.concept for m in merged.metrics],
+                    "dimensions": [d.concept for d in merged.dimensions],
+                    "confidence": merged.overall_confidence,
+                },
+            ),
+        }
+
     async def _load_schema(self, state: AgentState) -> Dict[str, Any]:
         """加载数据库 Schema，供后续 SQL 生成使用"""
         logger.info("节点: load_schema - 加载数据库 Schema")
@@ -164,7 +209,8 @@ class AgentGraph:
         output = await sql_generator.generate(
             state["question"],
             state["schema_context"],
-            state.get("conversation_context") or ""
+            state.get("conversation_context") or "",
+            state.get("analysis_intent"),
         )
         return {
             "generated_sql": output.sql,
@@ -323,8 +369,8 @@ class AgentGraph:
     # ---- 条件判断函数 ----
 
     def _should_load_schema(self, state: AgentState) -> str:
-        """意图安全时进入 Schema 加载，否则立即终止。"""
-        return "load_schema" if state["intent_is_safe"] else "end"
+        """意图安全时进入意图解析，否则立即终止。"""
+        return "parse_intent" if state["intent_is_safe"] else "end"
 
     def _should_execute(self, state: AgentState) -> str:
         """校验后决策：安全 SQL 执行，Guard 拒绝的 SQL 立即终止。"""
@@ -366,6 +412,7 @@ class AgentGraph:
             "intent_error": None,
             "session_id": session_id,
             "conversation_context": conversation_context,
+            "analysis_intent": None,
             "schema_context": None,
             "generated_sql": "",
             "validated_sql": "",

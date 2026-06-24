@@ -381,7 +381,7 @@ class TestAgentGraphEdgeCases:
         nodes = set(g.nodes)
 
         expected_nodes = {
-            "__start__", "check_intent", "load_schema", "generate_sql",
+            "__start__", "check_intent", "parse_intent", "load_schema", "generate_sql",
             "validate_sql", "execute_sql", "repair_sql",
             "optimize_sql", "generate_answer", "__end__"
         }
@@ -547,11 +547,10 @@ class TestAgentGraphConversationContext:
             result = await graph.run("按地区拆一下", session_id="session-1")
 
         mock_store.get_context.assert_called_once_with("session-1")
-        mock_gen.generate.assert_awaited_once_with(
-            "按地区拆一下",
-            mock_schema,
-            "上一轮分析上下文:\n- 问题: 统计销售额"
-        )
+        call_args = mock_gen.generate.call_args
+        assert call_args[0][0] == "按地区拆一下"
+        assert call_args[0][1] == mock_schema
+        assert call_args[0][2] == "上一轮分析上下文:\n- 问题: 统计销售额"
         mock_store.append_turn.assert_called_once()
         assert mock_store.append_turn.call_args.args[0] == "session-1"
         assert result["session_id"] == "session-1"

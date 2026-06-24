@@ -219,10 +219,11 @@ class TestGenerate:
 
         captured = {}
 
-        async def fake_generate_sql(question, schema_info, conversation_context=""):
+        async def fake_generate_sql(question, schema_info, conversation_context="", analysis_intent=""):
             captured["question"] = question
             captured["schema_info"] = schema_info
             captured["conversation_context"] = conversation_context
+            captured["analysis_intent"] = analysis_intent
             return {
                 "sql": "SELECT SUM(orders.total_amount) AS sales_amount FROM orders",
                 "tables": ["orders"],

@@ -21,6 +21,7 @@ class SQLGenerator:
         question: str,
         schema_context: Dict[str, Any],
         conversation_context: str = "",
+        analysis_intent: Dict[str, Any] | None = None,
     ) -> SQLGeneratorOutput:
         """
         根据自然语言问题和数据库 Schema 生成 SQL
@@ -29,6 +30,7 @@ class SQLGenerator:
             question: 用户的自然语言问题
             schema_context: 数据库 Schema 信息，来自 SchemaLoader.get_full_schema()
             conversation_context: 多轮追问上下文摘要；为空时按单轮查询处理
+            analysis_intent: 分层意图解析结果，包含指标、维度、过滤、排序等结构化信号
 
         Returns:
             SQLGeneratorOutput: 包含 sql、tables、columns、explanation 的结构化结果
@@ -39,9 +41,12 @@ class SQLGenerator:
         # 将 Schema 字典格式化为 LLM 可读的文本
         schema_str = self._format_schema(schema_context)
 
+        # 将意图解析结果格式化为 LLM 可读的文本
+        intent_str = self._format_intent(analysis_intent) if analysis_intent else ""
+
         try:
             # 调用 LLM 生成 SQL，返回结构化 JSON
-            result = await llm_client.generate_sql(question, schema_str, conversation_context)
+            result = await llm_client.generate_sql(question, schema_str, conversation_context, intent_str)
 
             # 从生成的 SQL 中提取使用的列名（LLM 返回的 tables 不含 columns）
             columns = self._extract_columns(result.get("sql", ""))
@@ -105,6 +110,36 @@ class SQLGenerator:
         except Exception:
             # SQL 解析失败不影响主流程，返回空列表
             return []
+
+    @staticmethod
+    def _format_intent(analysis_intent: Dict[str, Any]) -> str:
+        """将结构化意图解析结果格式化为 LLM 可读的文本"""
+        lines = ["分析意图（结构化解析结果，优先参考）:"]
+
+        metrics = analysis_intent.get("metrics", [])
+        if metrics:
+            concepts = ", ".join(m.get("concept", "") for m in metrics)
+            lines.append(f"- 指标: {concepts}")
+
+        dimensions = analysis_intent.get("dimensions", [])
+        if dimensions:
+            concepts = ", ".join(d.get("concept", "") for d in dimensions)
+            lines.append(f"- 维度: {concepts}")
+
+        filters = analysis_intent.get("filters", [])
+        if filters:
+            for f in filters:
+                lines.append(f"- 过滤: {f.get('concept', '')} {f.get('operator', '')} {f.get('value', '')}")
+
+        ranking = analysis_intent.get("ranking")
+        if ranking:
+            lines.append(f"- 排序: {ranking.get('direction', 'desc')} 前 {ranking.get('limit', '')} 名")
+
+        time_granularity = analysis_intent.get("time_granularity")
+        if time_granularity:
+            lines.append(f"- 时间粒度: {time_granularity}")
+
+        return "\n".join(lines)
 
 
 # 全局 SQL 生成器实例
