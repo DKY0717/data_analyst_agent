@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter, HTTPException
 from ..models.schemas import QueryRequest, QueryResponse, SuccessResponse
-from ..agents.graph import agent_graph
+from ..agents.graph import get_agent_graph
 from ..utils.logger import logger
 
 router = APIRouter()
@@ -26,7 +26,7 @@ async def query(request: QueryRequest):
         logger.info("收到查询请求")
 
         # session_id 只做透传；多轮上下文由 AgentGraph 和 SessionStore 统一管理。
-        result = await agent_graph.run(request.question, session_id=request.session_id)
+        result = await get_agent_graph().run(request.question, session_id=request.session_id)
 
         # 阻断请求没有查询结果，统一归一为空对象以保持稳定的 HTTP 200 响应。
         query_result = result.get("query_result") or {}

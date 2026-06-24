@@ -6,6 +6,7 @@ from typing import Dict, Any
 
 from ..services.llm_service import llm_client
 from ..models.schemas import SQLRepairOutput
+from ..utils.schema_formatter import format_physical_schema
 from ..utils.logger import logger
 from ..utils.exceptions import SQLRepairError
 
@@ -58,30 +59,8 @@ class SQLRepairAgent:
             raise SQLRepairError(f"SQL 修复失败: {e}")
 
     def _format_schema(self, schema_context: Dict[str, Any]) -> str:
-        """
-        将 Schema 字典格式化为 LLM 可读的文本
-
-        与 SQLGenerator._format_schema 逻辑相同，保持模块独立性。
-        """
-        tables = schema_context.get("tables", {})
-        lines = []
-
-        for table_name, table_info in tables.items():
-            lines.append(f"表名: {table_name}")
-
-            primary_keys = table_info.get("primary_keys", [])
-            if primary_keys:
-                lines.append(f"  主键: {', '.join(primary_keys)}")
-
-            columns = table_info.get("columns", [])
-            lines.append("  字段:")
-            for col in columns:
-                nullable = "NULLABLE" if col.get("nullable") else "NOT NULL"
-                lines.append(f"    - {col['name']} ({col['type']}, {nullable})")
-
-            lines.append("")
-
-        return "\n".join(lines)
+        """将 Schema 字典格式化为 LLM 可读的物理表结构文本"""
+        return format_physical_schema(schema_context)
 
 
 # 全局 SQL 修复器实例

@@ -7,7 +7,7 @@ from typing import Any, Awaitable, Callable, Dict, List
 
 import yaml
 
-from app.agents.graph import agent_graph
+from app.agents.graph import get_agent_graph
 from evaluation.report_writer import ReportWriter
 
 
@@ -18,7 +18,7 @@ class EvaluationRunner:
     """批量运行 NL2SQL case 并计算汇总指标"""
 
     def __init__(self, agent_runner: AgentRunner | None = None, case_file: str | Path | None = None):
-        self.agent_runner = agent_runner or agent_graph.run
+        self.agent_runner = agent_runner or get_agent_graph().run
         self.case_file = Path(case_file) if case_file else Path(__file__).parent / "cases" / "ecommerce_nl2sql_cases.yaml"
 
     def load_cases(self) -> List[Dict[str, Any]]:

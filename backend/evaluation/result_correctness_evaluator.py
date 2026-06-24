@@ -8,7 +8,7 @@ from typing import Any, Awaitable, Callable, Dict, List
 
 import yaml
 
-from app.agents.graph import agent_graph
+from app.agents.graph import get_agent_graph
 from app.utils.logger import logger
 from evaluation.correctness_report_writer import CorrectnessReportWriter
 from evaluation.reference_query_runner import reference_query_runner
@@ -38,7 +38,7 @@ class ResultCorrectnessEvaluator:
         comparator=None,
         case_file: str | Path | None = None,
     ):
-        self.agent_runner = agent_runner or agent_graph.run
+        self.agent_runner = agent_runner or get_agent_graph().run
         self.reference_runner = reference_runner
         self.comparator = comparator or result_comparator
         self.case_file = (

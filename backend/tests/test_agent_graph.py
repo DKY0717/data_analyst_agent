@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.agents.graph import AgentGraph
-from app.models.schemas import AgentState as AgentStateModel, SQLGeneratorOutput, SQLRepairOutput
+from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
 from app.services.llm_observability import record_call
 
 
@@ -393,7 +393,8 @@ class TestAgentGraphEdgeCases:
 
     def test_global_instance_exists(self):
         """验证全局实例可以正常创建"""
-        from app.agents.graph import agent_graph
+        from app.agents.graph import get_agent_graph
+        agent_graph = get_agent_graph()
         assert agent_graph is not None
         assert hasattr(agent_graph, "run")
         assert hasattr(agent_graph, "graph")
@@ -474,14 +475,37 @@ class TestAgentGraphIntentGuard:
         mock_loader.get_full_schema.assert_not_called()
 
     def test_pydantic_agent_state_defaults_intent_fields_and_empty_sql(self):
-        state = AgentStateModel(question="统计订单数")
+        from app.agents.state import AgentState
+        state = AgentState(
+            question="统计订单数",
+            intent_is_safe=False,
+            intent_rule_id=None,
+            intent_category=None,
+            intent_error=None,
+            session_id=None,
+            conversation_context=None,
+            schema_context=None,
+            generated_sql="",
+            validated_sql="",
+            is_sql_safe=False,
+            validation_error=None,
+            execution_success=False,
+            query_result=None,
+            execution_error=None,
+            retry_count=0,
+            answer=None,
+            optimization_suggestions=[],
+            audit_events=[],
+            audit_report=None,
+            llm_calls=[],
+        )
 
-        assert state.intent_is_safe is False
-        assert state.intent_rule_id is None
-        assert state.intent_category is None
-        assert state.intent_error is None
-        assert state.generated_sql == ""
-        assert state.validated_sql == ""
+        assert state["intent_is_safe"] is False
+        assert state["intent_rule_id"] is None
+        assert state["intent_category"] is None
+        assert state["intent_error"] is None
+        assert state["generated_sql"] == ""
+        assert state["validated_sql"] == ""
 
 
 class TestAgentGraphConversationContext:

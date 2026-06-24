@@ -8,6 +8,7 @@ from typing import Dict, Any
 from ..services.llm_service import llm_client
 from ..models.schemas import SQLGeneratorOutput
 from ..semantic.semantic_loader import semantic_loader
+from ..utils.schema_formatter import format_physical_schema
 from ..utils.logger import logger
 from ..utils.exceptions import LLMError
 
@@ -69,50 +70,12 @@ class SQLGenerator:
 
     def _format_schema(self, schema_context: Dict[str, Any]) -> str:
         """
-        将 Schema 字典格式化为 LLM 可读的文本
-
-        输入格式示例:
-        {
-            "tables": {
-                "orders": {
-                    "table_name": "orders",
-                    "columns": [{"name": "id", "type": "INTEGER", "nullable": False}, ...],
-                    "primary_keys": ["id"]
-                }
-            }
-        }
-
-        输出格式:
-        表名: orders
-          主键: id
-          字段:
-            - id (INTEGER, NOT NULL)
-            - customer_id (INTEGER, NULLABLE)
+        将 Schema 字典格式化为 LLM 可读的文本（物理 Schema + 语义层）
         """
-        tables = schema_context.get("tables", {})
-        lines = []
-
-        for table_name, table_info in tables.items():
-            lines.append(f"表名: {table_name}")
-
-            # 标注主键，帮助 LLM 理解表间关系
-            primary_keys = table_info.get("primary_keys", [])
-            if primary_keys:
-                lines.append(f"  主键: {', '.join(primary_keys)}")
-
-            # 列出所有字段及其类型和可空性
-            columns = table_info.get("columns", [])
-            lines.append("  字段:")
-            for col in columns:
-                nullable = "NULLABLE" if col.get("nullable") else "NOT NULL"
-                lines.append(f"    - {col['name']} ({col['type']}, {nullable})")
-
-            lines.append("")
-
-        physical_schema = "\n".join(lines)
+        physical_schema = format_physical_schema(schema_context)
         semantic_summary = semantic_loader.format_for_prompt()
 
-        # 物理 Schema 解决“有哪些表字段”，语义层解决“业务词应该如何计算”
+        # 物理 Schema 解决"有哪些表字段"，语义层解决"业务词应该如何计算"
         return "\n".join([
             "物理数据库 Schema:",
             physical_schema,

@@ -131,26 +131,4 @@ class SQLRepairOutput(BaseModel):
     repaired_sql: str  # 修复后的SQL语句
     repair_reason: str  # 修复原因说明
 
-class AgentState(BaseModel):
-    """Agent状态模型"""
-    question: str  # 用户原始问题
-    intent_is_safe: bool = False  # Intent Guard 是否允许进入后续工作流
-    intent_rule_id: Optional[str] = None  # Intent Guard 命中的规则 ID
-    intent_category: Optional[str] = None  # Intent Guard 命中的风险类别
-    intent_error: Optional[str] = None  # Intent Guard 阻断或异常的稳定原因
-    session_id: Optional[str] = None  # 多轮分析会话ID
-    conversation_context: Optional[str] = None  # 历史分析上下文摘要
-    schema_context: Optional[Dict[str, Any]] = None  # 数据库Schema上下文
-    generated_sql: str = ""  # 生成的SQL语句
-    validated_sql: str = ""  # 验证后的SQL语句
-    is_sql_safe: bool = False  # SQL是否安全
-    validation_error: Optional[str] = None  # 验证错误信息
-    execution_success: bool = False  # 是否执行成功
-    query_result: Optional[Dict[str, Any]] = None  # 查询结果
-    execution_error: Optional[str] = None  # 执行错误信息
-    retry_count: int = 0  # 重试次数
-    answer: Optional[str] = None  # 自然语言回答
-    optimization_suggestions: List[str] = Field(default_factory=list)  # 优化建议列表
-    audit_events: List[Dict[str, Any]] = Field(default_factory=list)  # 安全审计事件
-    audit_report: Optional[Dict[str, Any]] = None  # 最终安全审计报告
-    llm_calls: List[Dict[str, Any]] = Field(default_factory=list)  # 当前请求 LLM 调用指标
+

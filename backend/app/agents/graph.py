@@ -398,5 +398,13 @@ class AgentGraph:
         return final_state
 
 
-# 全局 Agent 工作流实例
-agent_graph = AgentGraph()
+# 延迟初始化：避免模块 import 时触发数据库连接和级联初始化
+_agent_graph_instance: AgentGraph | None = None
+
+
+def get_agent_graph() -> AgentGraph:
+    """获取全局 AgentGraph 单例（首次调用时才初始化）"""
+    global _agent_graph_instance
+    if _agent_graph_instance is None:
+        _agent_graph_instance = AgentGraph()
+    return _agent_graph_instance

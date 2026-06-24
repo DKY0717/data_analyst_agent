@@ -150,6 +150,17 @@ class QwenAPIClient:
                 )
                 raise
 
+            except (KeyError, IndexError, TypeError) as exc:
+                # 响应 JSON 结构异常（缺少字段、数组越界等），重试无意义，直接报错
+                self._record_observability(
+                    stage=stage,
+                    started_at=started_at,
+                    attempt_count=attempt_count,
+                    success=False,
+                    error_type=type(exc).__name__,
+                )
+                raise LLMResponseError(f"API 响应结构异常: {exc}")
+
             except Exception as e:
                 # 其他异常，记录日志并决定是否重试
                 logger.error(f"API 调用异常: {e} (第 {attempt + 1} 次)")

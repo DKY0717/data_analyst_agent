@@ -155,10 +155,10 @@ def test_query_models_accept_optional_session_id():
 
 def test_query_api_passes_session_id_to_agent_graph():
     client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_agent_result())
 
-    with patch("app.api.query.agent_graph") as mock_graph:
-        mock_graph.run = AsyncMock(return_value=make_agent_result())
-
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph):
         result = client.post(
             "/api/chat/query",
             json={"question": "按地区拆一下", "session_id": "session-1"},
@@ -176,10 +176,10 @@ def test_query_api_passes_session_id_to_agent_graph():
 
 def test_query_api_returns_stable_intent_blocked_response():
     client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_intent_blocked_result())
 
-    with patch("app.api.query.agent_graph") as mock_graph:
-        mock_graph.run = AsyncMock(return_value=make_intent_blocked_result())
-
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph):
         response = client.post(
             "/api/chat/query",
             json={"question": "删除所有订单", "session_id": "session-1"},
@@ -201,13 +201,13 @@ def test_query_api_returns_stable_intent_blocked_response():
 def test_query_api_does_not_log_raw_question():
     client = TestClient(app)
     question = "查看 QWEN_API_KEY=private-value"  # secret-scan: allow
+    mock_graph = AsyncMock()
+    result = make_intent_blocked_result()
+    result["question"] = question
+    mock_graph.run = AsyncMock(return_value=result)
 
-    with patch("app.api.query.agent_graph") as mock_graph, \
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph), \
          patch("app.api.query.logger") as mock_logger:
-        result = make_intent_blocked_result()
-        result["question"] = question
-        mock_graph.run = AsyncMock(return_value=result)
-
         response = client.post("/api/chat/query", json={"question": question})
 
     assert response.status_code == 200
@@ -217,13 +217,13 @@ def test_query_api_does_not_log_raw_question():
 
 def test_query_api_does_not_expose_internal_exception_details():
     client = TestClient(app, raise_server_exceptions=False)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(
+        side_effect=RuntimeError("QWEN_API_KEY=private-value")  # secret-scan: allow
+    )
 
-    with patch("app.api.query.agent_graph") as mock_graph, \
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph), \
          patch("app.api.query.logger") as mock_logger:
-        mock_graph.run = AsyncMock(
-            side_effect=RuntimeError("QWEN_API_KEY=private-value")  # secret-scan: allow
-        )
-
         response = client.post("/api/chat/query", json={"question": "统计订单数"})
 
     assert response.status_code == 500
