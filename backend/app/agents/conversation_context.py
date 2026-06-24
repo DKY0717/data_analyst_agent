@@ -23,6 +23,16 @@ class ConversationContextBuilder:
             "row_count": query_result.get("row_count", len(query_result.get("rows", []))),
             "answer_summary": self._truncate(final_state.get("answer") or ""),
             "optimization_suggestions": final_state.get("optimization_suggestions", []),
+            "success": True,
+        }
+
+    def extract_failed_turn(self, final_state: Dict[str, Any]) -> Dict[str, Any]:
+        """提取失败轮的精简上下文，只保留问题和错误信息。"""
+        return {
+            "question": final_state.get("question") or "",
+            "sql": final_state.get("validated_sql") or final_state.get("generated_sql") or "",
+            "error": self._truncate(final_state.get("execution_error") or "未知错误"),
+            "success": False,
         }
 
     def build_context(self, turns: List[Dict[str, Any]]) -> str:
@@ -37,19 +47,27 @@ class ConversationContextBuilder:
         ]
 
         for index, turn in enumerate(recent_turns, start=1):
-            columns = ", ".join(turn.get("columns", [])) or "无"
-            suggestions = "；".join(turn.get("optimization_suggestions", [])) or "无"
-            lines.extend(
-                [
+            if turn.get("success") is False:
+                lines.extend([
                     f"第 {index} 轮:",
                     f"- 问题: {turn.get('question', '')}",
                     f"- SQL: {turn.get('sql', '')}",
-                    f"- 结果列: {columns}",
-                    f"- 结果行数: {turn.get('row_count', 0)}",
-                    f"- 答案摘要: {turn.get('answer_summary', '') or '无'}",
-                    f"- 优化建议: {suggestions}",
-                ]
-            )
+                    f"- 状态: 执行失败 - {turn.get('error', '未知错误')}",
+                ])
+            else:
+                columns = ", ".join(turn.get("columns", [])) or "无"
+                suggestions = "；".join(turn.get("optimization_suggestions", [])) or "无"
+                lines.extend(
+                    [
+                        f"第 {index} 轮:",
+                        f"- 问题: {turn.get('question', '')}",
+                        f"- SQL: {turn.get('sql', '')}",
+                        f"- 结果列: {columns}",
+                        f"- 结果行数: {turn.get('row_count', 0)}",
+                        f"- 答案摘要: {turn.get('answer_summary', '') or '无'}",
+                        f"- 优化建议: {suggestions}",
+                    ]
+                )
 
         return "\n".join(lines)
 

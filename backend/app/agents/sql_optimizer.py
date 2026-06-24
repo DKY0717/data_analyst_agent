@@ -37,8 +37,10 @@ class SQLOptimizer:
         suggestions.extend(self._suggest_from_sql_shape(sql))
         suggestions.extend(self._suggest_from_result_size(query_result))
 
-        plan_text = self._load_explain_plan(sql)
-        suggestions.extend(self._suggest_from_plan(plan_text))
+        # 只有当 AST 和结果规模都没发现优化点时，才执行 EXPLAIN（额外数据库调用）。
+        if not suggestions:
+            plan_text = self._load_explain_plan(sql)
+            suggestions.extend(self._suggest_from_plan(plan_text))
 
         return self._deduplicate(suggestions)
 

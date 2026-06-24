@@ -21,7 +21,7 @@
         />
         <ExampleQuestions :questions="exampleQuestions" @select="handleSelectQuestion" />
         <HistoryPanel :history="queryStore.history" @select="handleSelectQuestion" />
-        <SchemaPanel :tables="schemaTables" />
+        <SchemaPanel :tables="queryStore.schemaTables" />
       </aside>
 
       <section class="center-column">
@@ -45,7 +45,7 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import { exampleQuestions, schemaTables } from '@/api/agent'
+import { exampleQuestions } from '@/api/agent'
 import { useQueryStore } from '@/stores/query'
 import AnswerPanel from '@/components/AnswerPanel.vue'
 import AuditPanel from '@/components/AuditPanel.vue'
@@ -65,6 +65,7 @@ function handleSelectQuestion(question) {
 }
 
 onMounted(() => {
+  queryStore.loadSchema()
   // 首屏自动跑一次 mock/真实查询，让用户进入页面时直接看到完整展示效果。
   queryStore.submitQuestion(queryStore.question)
 })

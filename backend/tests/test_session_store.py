@@ -94,11 +94,15 @@ def test_store_treats_historical_state_without_intent_field_as_safe():
     assert "统计订单数" in store.get_context("session-1")
 
 
-def test_store_does_not_save_failed_execution():
+def test_store_saves_failed_execution_as_minimal_record():
     store = SessionStore()
     state = make_state("查询不存在的表", "SELECT * FROM missing_table")
     state["execution_success"] = False
+    state["execution_error"] = "Table missing_table does not exist"
 
     store.append_turn("session-1", state)
 
-    assert store.get_context("session-1") == ""
+    context = store.get_context("session-1")
+    assert "查询不存在的表" in context
+    assert "执行失败" in context
+    assert "Table missing_table does not exist" in context

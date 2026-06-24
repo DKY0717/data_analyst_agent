@@ -14,16 +14,26 @@ export const exampleQuestions = [
   '分析 2024 年用户复购率',
 ]
 
-export const schemaTables = [
-  { name: 'regions', label: '地区表', fields: ['region_id', 'region_name', 'province', 'city'] },
-  { name: 'customers', label: '用户表', fields: ['customer_id', 'gender', 'age', 'region_id'] },
-  { name: 'categories', label: '类别表', fields: ['category_id', 'category_name'] },
-  { name: 'products', label: '商品表', fields: ['product_id', 'category_id', 'price', 'cost'] },
-  { name: 'orders', label: '订单表', fields: ['order_id', 'customer_id', 'order_date', 'total_amount'] },
-  { name: 'order_items', label: '订单明细', fields: ['order_id', 'product_id', 'quantity', 'unit_price'] },
-  { name: 'payments', label: '支付表', fields: ['order_id', 'payment_method', 'payment_status'] },
-  { name: 'refunds', label: '退款表', fields: ['order_id', 'refund_amount', 'refund_reason'] },
-]
+const TABLE_LABELS = {
+  regions: '地区表',
+  customers: '用户表',
+  categories: '类别表',
+  products: '商品表',
+  orders: '订单表',
+  order_items: '订单明细',
+  payments: '支付表',
+  refunds: '退款表',
+}
+
+export async function fetchSchema() {
+  const response = await client.get('/schema')
+  const tables = response.data.data.tables
+  return Object.entries(tables).map(([name, info]) => ({
+    name,
+    label: TABLE_LABELS[name] || name,
+    fields: info.columns.map((col) => col.name),
+  }))
+}
 
 export function createMockResult(question, sessionId) {
   // 开发环境后端不可用时，用同一份响应结构预览 UI，避免前端和 API 契约脱节。

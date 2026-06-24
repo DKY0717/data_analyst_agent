@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { queryAgent } from '@/api/agent'
+import { queryAgent, fetchSchema } from '@/api/agent'
 
 export const useQueryStore = defineStore('query', () => {
   const question = ref('统计 2024 年每个月的销售额')
@@ -12,6 +12,7 @@ export const useQueryStore = defineStore('query', () => {
   const result = ref(null)
   const error = ref(null)
   const history = ref([])
+  const schemaTables = ref([])
 
   const hasResult = computed(() => Boolean(result.value))
   const hasRows = computed(() => Array.isArray(result.value?.rows) && result.value.rows.length > 0)
@@ -67,6 +68,14 @@ export const useQueryStore = defineStore('query', () => {
     error.value = null
   }
 
+  async function loadSchema() {
+    try {
+      schemaTables.value = await fetchSchema()
+    } catch {
+      // Schema 加载失败不阻断主流程，面板显示空列表
+    }
+  }
+
   return {
     question,
     sessionId,
@@ -74,10 +83,12 @@ export const useQueryStore = defineStore('query', () => {
     result,
     error,
     history,
+    schemaTables,
     hasResult,
     hasRows,
     submitQuestion,
     setQuestion,
     clearResult,
+    loadSchema,
   }
 })

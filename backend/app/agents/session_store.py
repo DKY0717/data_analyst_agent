@@ -28,8 +28,15 @@ class SessionStore:
         if final_state.get("intent_is_safe", True) is False:
             return
 
-        # 只让已通过 Guard 且执行成功的分析进入后续上下文，避免失败 SQL 或危险意图污染下一轮 prompt。
-        if not final_state.get("is_sql_safe") or not final_state.get("execution_success"):
+        # Guard 拒绝的危险意图不进入上下文，避免污染后续 prompt。
+        if not final_state.get("is_sql_safe"):
+            return
+
+        # 执行失败的轮次保存精简摘要（问题 + 错误），让下一轮 LLM 知道发生了什么。
+        if not final_state.get("execution_success"):
+            self._sessions[session_id].append(
+                self.context_builder.extract_failed_turn(final_state)
+            )
             return
 
         # 只保存 builder 提取出的摘要，避免把完整 AgentState 或大结果集长期留在内存里。
