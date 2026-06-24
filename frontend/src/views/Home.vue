@@ -35,6 +35,7 @@
       </section>
 
       <aside class="right-column">
+        <IntentPanel :result="queryStore.result" @clarify="handleSelectQuestion" />
         <SQLPanel :result="queryStore.result" />
         <AuditPanel :result="queryStore.result" />
         <OptimizationPanel :result="queryStore.result" />
@@ -52,6 +53,7 @@ import AuditPanel from '@/components/AuditPanel.vue'
 import ChartPanel from '@/components/ChartPanel.vue'
 import ExampleQuestions from '@/components/ExampleQuestions.vue'
 import HistoryPanel from '@/components/HistoryPanel.vue'
+import IntentPanel from '@/components/IntentPanel.vue'
 import OptimizationPanel from '@/components/OptimizationPanel.vue'
 import QueryInput from '@/components/QueryInput.vue'
 import ResultTable from '@/components/ResultTable.vue'

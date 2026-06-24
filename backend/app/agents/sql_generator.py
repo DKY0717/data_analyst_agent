@@ -139,6 +139,35 @@ class SQLGenerator:
         if time_granularity:
             lines.append(f"- 时间粒度: {time_granularity}")
 
+        # Grounding 信息：指标和维度的物理表达式
+        grounding = analysis_intent.get("grounding", {})
+        metric_groundings = grounding.get("metric_groundings", [])
+        if metric_groundings:
+            lines.append("指标 Grounding:")
+            for mg in metric_groundings:
+                candidates = mg.get("candidates", [])
+                if candidates:
+                    best = candidates[0]
+                    lines.append(f"  - {mg['concept']}: {best['expression']}")
+
+        dimension_groundings = grounding.get("dimension_groundings", [])
+        if dimension_groundings:
+            lines.append("维度 Grounding:")
+            for dg in dimension_groundings:
+                candidates = dg.get("candidates", [])
+                if candidates:
+                    best = candidates[0]
+                    lines.append(f"  - {dg['concept']}: {best['expression']}")
+                    if best.get("tables"):
+                        lines.append(f"    需要表: {', '.join(best['tables'])}")
+
+        # Schema 路由：需要的表和 JOIN
+        route = grounding.get("schema_route", {})
+        if route.get("join_edges"):
+            lines.append("需要 JOIN:")
+            for edge in route["join_edges"]:
+                lines.append(f"  - {edge[0]} = {edge[1]}")
+
         return "\n".join(lines)
 
 

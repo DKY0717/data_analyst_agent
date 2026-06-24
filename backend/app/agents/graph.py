@@ -10,6 +10,8 @@ from .sql_generator import sql_generator
 from .sql_repair import sql_repair_agent
 from .answer_generator import answer_generator
 from .sql_optimizer import sql_optimizer
+from .grounding import schema_grounder
+from .clarification import clarification_engine
 from .session_store import session_store
 from .audit import audit_report_builder
 from ..analysis_intent.rule_parser import AnalysisIntentRuleParser
@@ -170,8 +172,18 @@ class AgentGraph:
         else:
             merged = rule_intent
 
+        # Grounding：将业务概念映射到物理 Schema
+        grounding_result = schema_grounder.ground(merged)
+
+        # 澄清检查：低置信度或缺失槽位时生成澄清请求
+        clarification = clarification_engine.check(merged)
+
         return {
-            "analysis_intent": merged.model_dump(),
+            "analysis_intent": {
+                **merged.model_dump(),
+                "grounding": grounding_result,
+                "clarification": clarification.model_dump() if clarification else None,
+            },
             "audit_events": self._append_audit_event(
                 state,
                 "intent",

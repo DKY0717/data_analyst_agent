@@ -97,6 +97,7 @@ class QueryResponse(BaseModel):
     execution_time_ms: int  # 执行耗时（毫秒）
     retry_count: int  # 重试次数
     optimization_suggestions: List[str] = Field(default_factory=list)  # 优化建议列表
+    analysis_intent: Optional[Dict[str, Any]] = None  # 分层意图解析结果
     audit_report: Optional[AuditReport] = None  # 安全审计报告
 
 class SchemaResponse(BaseModel):

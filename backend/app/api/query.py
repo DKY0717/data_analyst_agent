@@ -46,6 +46,7 @@ async def query(request: QueryRequest):
             execution_time_ms=query_result.get("execution_time_ms", 0),
             retry_count=result.get("retry_count", 0),
             optimization_suggestions=result.get("optimization_suggestions", []),
+            analysis_intent=result.get("analysis_intent"),
             audit_report=result.get("audit_report"),
         )
 
