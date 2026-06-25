@@ -55,10 +55,10 @@ class Settings:
     PG_PASSWORD: str = os.getenv("PG_PASSWORD", "postgres")
     PG_DATABASE: str = os.getenv("PG_DATABASE", "data_analyst_agent")
 
-    # Qwen API Configuration
+    # LLM API Configuration (OpenAI 兼容协议，支持 MiMo、Qwen 等)
     QWEN_API_KEY: str = os.getenv("QWEN_API_KEY", "")
-    QWEN_API_URL: str = os.getenv("QWEN_API_URL", "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation")
-    QWEN_MODEL: str = os.getenv("QWEN_MODEL", "qwen-turbo")
+    QWEN_API_URL: str = os.getenv("QWEN_API_URL", "https://token-plan-cn.xiaomimimo.com/v1/chat/completions")
+    QWEN_MODEL: str = os.getenv("QWEN_MODEL", "mimo-v2.5-pro")
     QWEN_INPUT_PRICE_PER_MILLION_TOKENS: float | None = _get_optional_non_negative_float(
         "QWEN_INPUT_PRICE_PER_MILLION_TOKENS"
     )

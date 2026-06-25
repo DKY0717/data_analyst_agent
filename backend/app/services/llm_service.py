@@ -18,8 +18,8 @@ from ..utils.exceptions import LLMError, LLMTimeoutError, LLMResponseError
 
 logger = logging.getLogger(__name__)
 
-# 默认超时时间（秒），防止 API 请求无限等待
-DEFAULT_TIMEOUT = 30
+# 默认超时时间（秒），推理模型需要更长时间
+DEFAULT_TIMEOUT = 120
 
 # SQL 生成和修复使用低温度，保证结果稳定可预测
 SQL_TEMPERATURE = 0.1
@@ -29,19 +29,15 @@ ANSWER_TEMPERATURE = 0.3
 
 
 class QwenAPIClient:
-    """Qwen API 客户端，负责与 DashScope 文本生成服务通信"""
+    """LLM API 客户端，支持 OpenAI 兼容协议（MiMo、Qwen 等）"""
 
     def __init__(self):
-        # 从配置中读取 API 密钥和端点，避免硬编码
         self.api_key = settings.QWEN_API_KEY
         self.api_url = settings.QWEN_API_URL
         self.model = settings.QWEN_MODEL
-
-        # 最大重试次数，从配置读取，默认 3 次
         self.max_retries = settings.SQL_MAX_RETRIES
 
     def _build_headers(self) -> dict:
-        """构建请求头，包含 API 认证信息"""
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -53,23 +49,12 @@ class QwenAPIClient:
         temperature: float,
         max_tokens: int = 2000
     ) -> dict:
-        """构建请求体
-
-        Args:
-            messages: 对话消息列表，包含 system 和 user 角色
-            temperature: 温度参数，越低结果越确定性
-            max_tokens: 最大生成 token 数
-        """
+        """构建 OpenAI 兼容的请求体"""
         return {
             "model": self.model,
-            "input": {
-                "messages": messages
-            },
-            "parameters": {
-                "result_format": "message",
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens
         }
 
     async def _call_api(
@@ -116,9 +101,8 @@ class QwenAPIClient:
 
                     result = response.json()
 
-                    # 从响应中提取生成的文本内容
-                    # Qwen API 响应结构: output.choices[0].message.content
-                    content = result["output"]["choices"][0]["message"]["content"]
+                    # OpenAI 兼容响应格式: choices[0].message.content
+                    content = result["choices"][0]["message"]["content"]
                     self._record_observability(
                         stage=stage,
                         started_at=started_at,
@@ -191,11 +175,16 @@ class QwenAPIClient:
         success: bool = False,
         error_type: Optional[str] = None,
     ) -> None:
-        """记录一次逻辑 LLM 调用；观测失败不得影响业务主流程。"""
+        """记录一次逻辑 LLM 调用；兼容 DashScope 和 OpenAI 两种 usage 格式。"""
         try:
             usage = usage or {}
-            input_tokens = self._safe_token_count(usage.get("input_tokens"))
-            output_tokens = self._safe_token_count(usage.get("output_tokens"))
+            # 兼容两种格式: OpenAI (prompt_tokens/completion_tokens) 和 DashScope (input_tokens/output_tokens)
+            input_tokens = self._safe_token_count(
+                usage.get("prompt_tokens") or usage.get("input_tokens")
+            )
+            output_tokens = self._safe_token_count(
+                usage.get("completion_tokens") or usage.get("output_tokens")
+            )
             total_tokens = self._safe_token_count(usage.get("total_tokens"))
             if not total_tokens:
                 total_tokens = input_tokens + output_tokens

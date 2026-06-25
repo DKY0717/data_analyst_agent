@@ -74,15 +74,14 @@ class TestBuildPayload:
     """测试请求体构建"""
 
     def test_build_payload_structure(self, client):
-        """测试请求体结构正确"""
+        """测试请求体结构正确（OpenAI 兼容格式）"""
         messages = [{"role": "user", "content": "测试"}]
         payload = client._build_payload(messages, 0.1, 1000)
 
         assert payload["model"] == client.model
-        assert payload["input"]["messages"] == messages
-        assert payload["parameters"]["temperature"] == 0.1
-        assert payload["parameters"]["max_tokens"] == 1000
-        assert payload["parameters"]["result_format"] == "message"
+        assert payload["messages"] == messages
+        assert payload["temperature"] == 0.1
+        assert payload["max_tokens"] == 1000
 
 
 class TestBuildHeaders:
@@ -229,10 +228,10 @@ class TestCallAPIObservability:
         outcomes = [
             FakeHTTPResponse(
                 {
-                    "output": {"choices": [{"message": {"content": "ok"}}]},
+                    "choices": [{"message": {"content": "ok"}}],
                     "usage": {
-                        "input_tokens": 120,
-                        "output_tokens": 30,
+                        "prompt_tokens": 120,
+                        "completion_tokens": 30,
                         "total_tokens": 150,
                     },
                 }
@@ -263,7 +262,7 @@ class TestCallAPIObservability:
     async def test_missing_usage_records_zero_tokens(self, client, monkeypatch):
         start_trace()
         outcomes = [
-            FakeHTTPResponse({"output": {"choices": [{"message": {"content": "ok"}}]}})
+            FakeHTTPResponse({"choices": [{"message": {"content": "ok"}}]})
         ]
         monkeypatch.setattr(
             "app.services.llm_service.httpx.AsyncClient",
@@ -281,8 +280,8 @@ class TestCallAPIObservability:
             RuntimeError("temporary network error"),
             FakeHTTPResponse(
                 {
-                    "output": {"choices": [{"message": {"content": "ok"}}]},
-                    "usage": {"input_tokens": 10, "output_tokens": 5},
+                    "choices": [{"message": {"content": "ok"}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5},
                 }
             ),
         ]
