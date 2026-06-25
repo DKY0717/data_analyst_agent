@@ -79,10 +79,10 @@ class TestRepair:
                 mock_schema
             )
 
-            # 验证返回结果
+            # 验证返回结果（repair_reason 现在来自错误分类器，不是 LLM 响应）
             assert isinstance(result, SQLRepairOutput)
             assert result.repaired_sql == "SELECT order_id, total_amount FROM orders"
-            assert "total_amount" in result.repair_reason
+            assert "column_not_found" in result.repair_reason
 
             # 验证 LLM 被正确调用
             mock_llm.repair_sql.assert_called_once()

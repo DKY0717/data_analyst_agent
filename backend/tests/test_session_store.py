@@ -1,7 +1,9 @@
-# 内存会话存储测试
-# SessionStore 是多轮分析的入口，测试重点是隔离 session、限制历史长度和生成上下文。
+# 会话存储测试
+# SQLiteSessionStore 是多轮分析的入口，测试重点是隔离 session、限制历史长度和生成上下文。
 
-from app.agents.session_store import SessionStore
+import tempfile
+import os
+from app.agents.session_store import SQLiteSessionStore
 
 
 def make_state(question: str, sql: str = "SELECT 1"):
@@ -20,20 +22,25 @@ def make_state(question: str, sql: str = "SELECT 1"):
     }
 
 
+def make_store(max_turns=3):
+    """创建临时数据库的存储实例，测试后自动清理"""
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    store = SQLiteSessionStore(max_turns=max_turns, db_path=path)
+    return store
+
+
 def test_append_turn_and_get_context():
-    store = SessionStore(max_turns=3)
-
+    store = make_store()
     store.append_turn("session-1", make_state("统计销售额", "SELECT SUM(total_amount) FROM orders"))
-
     context = store.get_context("session-1")
-
     assert "统计销售额" in context
     assert "SELECT SUM(total_amount) FROM orders" in context
     assert "结果列: value" in context
 
 
 def test_store_keeps_sessions_isolated():
-    store = SessionStore(max_turns=3)
+    store = make_store(max_turns=3)
 
     store.append_turn("session-a", make_state("A 问题"))
     store.append_turn("session-b", make_state("B 问题"))
@@ -43,7 +50,7 @@ def test_store_keeps_sessions_isolated():
 
 
 def test_store_keeps_only_recent_turns():
-    store = SessionStore(max_turns=2)
+    store = make_store(max_turns=2)
 
     store.append_turn("session-1", make_state("第一轮"))
     store.append_turn("session-1", make_state("第二轮"))
@@ -57,7 +64,7 @@ def test_store_keeps_only_recent_turns():
 
 
 def test_empty_or_missing_session_returns_empty_context():
-    store = SessionStore()
+    store = make_store()
 
     assert store.get_context(None) == ""
     assert store.get_context("") == ""
@@ -65,7 +72,7 @@ def test_empty_or_missing_session_returns_empty_context():
 
 
 def test_store_does_not_save_unsafe_turn():
-    store = SessionStore()
+    store = make_store()
     state = make_state("读取本地文件", "SELECT * FROM read_csv_auto('/etc/passwd')")
     state["is_sql_safe"] = False
     state["execution_success"] = False
@@ -76,7 +83,7 @@ def test_store_does_not_save_unsafe_turn():
 
 
 def test_store_does_not_save_intent_blocked_turn():
-    store = SessionStore()
+    store = make_store()
     state = make_state("删除所有订单")
     state["intent_is_safe"] = False
 
@@ -86,7 +93,7 @@ def test_store_does_not_save_intent_blocked_turn():
 
 
 def test_store_treats_historical_state_without_intent_field_as_safe():
-    store = SessionStore()
+    store = make_store()
     state = make_state("统计订单数")
 
     store.append_turn("session-1", state)
@@ -95,7 +102,7 @@ def test_store_treats_historical_state_without_intent_field_as_safe():
 
 
 def test_store_saves_failed_execution_as_minimal_record():
-    store = SessionStore()
+    store = make_store()
     state = make_state("查询不存在的表", "SELECT * FROM missing_table")
     state["execution_success"] = False
     state["execution_error"] = "Table missing_table does not exist"
@@ -109,7 +116,7 @@ def test_store_saves_failed_execution_as_minimal_record():
 
 
 def test_pending_clarification_roundtrip_uses_stable_candidate_id():
-    store = SessionStore()
+    store = make_store()
     clarification = {
         "clarification_id": "clarify_metric_001",
         "question": "您想分析什么指标？",
@@ -141,7 +148,7 @@ def test_pending_clarification_roundtrip_uses_stable_candidate_id():
 
 
 def test_pending_clarification_rejects_mismatched_candidate():
-    store = SessionStore()
+    store = make_store()
     store.save_pending_clarification(
         "session-1",
         "帮我分析一下",
