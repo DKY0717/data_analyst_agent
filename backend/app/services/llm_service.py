@@ -27,6 +27,9 @@ SQL_TEMPERATURE = 0.1
 # 答案生成使用稍高温度，让回答更自然流畅
 ANSWER_TEMPERATURE = 0.3
 
+# 推理模型需要更多 tokens（reasoning + content）
+DEFAULT_MAX_TOKENS = 8192
+
 
 class QwenAPIClient:
     """LLM API 客户端，支持 OpenAI 兼容协议（MiMo、Qwen 等）"""
@@ -47,7 +50,7 @@ class QwenAPIClient:
         self,
         messages: list[dict],
         temperature: float,
-        max_tokens: int = 2000
+        max_tokens: int = DEFAULT_MAX_TOKENS
     ) -> dict:
         """构建 OpenAI 兼容的请求体"""
         return {
@@ -61,7 +64,7 @@ class QwenAPIClient:
         self,
         messages: list[dict],
         temperature: float,
-        max_tokens: int = 2000,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         stage: str = "unknown",
     ) -> str:
         """调用 Qwen API 并返回响应内容
@@ -103,6 +106,16 @@ class QwenAPIClient:
 
                     # OpenAI 兼容响应格式: choices[0].message.content
                     content = result["choices"][0]["message"]["content"]
+
+                    # 推理模型可能消耗所有 tokens 在 reasoning 上，导致 content 为空
+                    if not content or not content.strip():
+                        reasoning = result["choices"][0]["message"].get("reasoning_content", "")
+                        if reasoning:
+                            logger.warning(f"推理模型返回空 content，reasoning 长度: {len(reasoning)}")
+                            # 重试，让模型有更多 tokens 生成内容
+                            continue
+                        raise LLMResponseError("API 返回空内容")
+
                     self._record_observability(
                         stage=stage,
                         started_at=started_at,
