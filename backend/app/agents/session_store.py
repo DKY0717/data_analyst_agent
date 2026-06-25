@@ -1,54 +1,116 @@
-# 内存版多轮会话存储
-# v0.3 先用轻量内存实现证明多轮分析能力，后续可替换为 Redis 或数据库持久化。
+# SQLite 持久化会话存储
+# 替代内存版 SessionStore，重启后会话不丢失
 
-from collections import defaultdict, deque
+import json
+import sqlite3
+import threading
+from collections import deque
+from pathlib import Path
 from typing import Any, Deque, Dict, Optional
 
+from ..config import settings
+from ..utils.logger import logger
 from .conversation_context import conversation_context_builder, ConversationContextBuilder
 
 
-class SessionStore:
-    """按 session_id 保存最近几轮 Agent 分析摘要。"""
+class SQLiteSessionStore:
+    """基于 SQLite 的会话持久化存储
+
+    与内存版 SessionStore 接口完全兼容，可无缝替换。
+    会话数据存储在 data/sessions.db 中，重启后自动恢复。
+    """
 
     def __init__(
         self,
         max_turns: int = 3,
         context_builder: ConversationContextBuilder = conversation_context_builder,
+        db_path: Optional[str] = None,
     ):
         self.max_turns = max_turns
         self.context_builder = context_builder
-        self._sessions: Dict[str, Deque[Dict[str, Any]]] = defaultdict(lambda: deque(maxlen=max_turns))
-        self._pending_clarifications: Dict[str, Dict[str, Any]] = {}
+        self._db_path = db_path or str(settings.DATA_DIR / "sessions.db")
+        self._local = threading.local()
+        self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        """每个线程独立连接，避免并发写入冲突"""
+        if not hasattr(self._local, "conn") or self._local.conn is None:
+            self._local.conn = sqlite3.connect(self._db_path, timeout=10)
+            self._local.conn.execute("PRAGMA journal_mode=WAL")
+        return self._local.conn
+
+    def _init_db(self):
+        """初始化数据库表结构"""
+        conn = self._get_conn()
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS session_turns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                turn_data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_session_turns_session_id
+                ON session_turns(session_id);
+
+            CREATE TABLE IF NOT EXISTS pending_clarifications (
+                session_id TEXT PRIMARY KEY,
+                question TEXT NOT NULL,
+                clarification_data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
 
     def append_turn(self, session_id: Optional[str], final_state: Dict[str, Any]) -> None:
-        """保存一轮结果；没有 session_id 时保持单轮行为，不写历史。"""
+        """保存一轮结果到 SQLite"""
         if not session_id:
             return
 
-        # 历史状态可能没有 intent 字段，只有显式阻断时才拒绝保存，保持旧会话兼容。
         if final_state.get("intent_is_safe", True) is False:
             return
 
-        # Guard 拒绝的危险意图不进入上下文，避免污染后续 prompt。
         if not final_state.get("is_sql_safe"):
             return
 
-        # 执行失败的轮次保存精简摘要（问题 + 错误），让下一轮 LLM 知道发生了什么。
         if not final_state.get("execution_success"):
-            self._sessions[session_id].append(
-                self.context_builder.extract_failed_turn(final_state)
-            )
-            return
+            turn_data = self.context_builder.extract_failed_turn(final_state)
+        else:
+            turn_data = self.context_builder.extract_turn(final_state)
 
-        # 只保存 builder 提取出的摘要，避免把完整 AgentState 或大结果集长期留在内存里。
-        self._sessions[session_id].append(self.context_builder.extract_turn(final_state))
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO session_turns (session_id, turn_data) VALUES (?, ?)",
+            (session_id, json.dumps(turn_data, ensure_ascii=False)),
+        )
+
+        # 只保留最近 max_turns 轮
+        conn.execute(
+            """
+            DELETE FROM session_turns WHERE session_id = ? AND id NOT IN (
+                SELECT id FROM session_turns WHERE session_id = ?
+                ORDER BY id DESC LIMIT ?
+            )
+            """,
+            (session_id, session_id, self.max_turns),
+        )
+        conn.commit()
 
     def get_context(self, session_id: Optional[str]) -> str:
-        """返回该 session 最近几轮的 prompt 上下文。"""
+        """返回该 session 最近几轮的 prompt 上下文"""
         if not session_id:
             return ""
 
-        turns = list(self._sessions.get(session_id, []))
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT turn_data FROM session_turns WHERE session_id = ? ORDER BY id DESC LIMIT ?",
+            (session_id, self.max_turns),
+        ).fetchall()
+
+        if not rows:
+            return ""
+
+        turns = [json.loads(row[0]) for row in reversed(rows)]
         return self.context_builder.build_context(turns)
 
     def save_pending_clarification(
@@ -57,15 +119,19 @@ class SessionStore:
         question: str,
         clarification: Dict[str, Any],
     ) -> None:
-        """保存等待用户选择的澄清请求；没有 session_id 时无法安全恢复任务。"""
+        """保存等待用户选择的澄清请求"""
         if not session_id:
             return
 
-        # pending 澄清不进入历史上下文，只作为下一次 candidate_id 恢复的冻结状态。
-        self._pending_clarifications[session_id] = {
-            "question": question,
-            "clarification": clarification,
-        }
+        conn = self._get_conn()
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO pending_clarifications (session_id, question, clarification_data)
+            VALUES (?, ?, ?)
+            """,
+            (session_id, question, json.dumps(clarification, ensure_ascii=False)),
+        )
+        conn.commit()
 
     def resolve_pending_clarification(
         self,
@@ -75,15 +141,22 @@ class SessionStore:
         candidate_id: Optional[str] = None,
         text: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """按稳定候选 ID 或自由文本恢复原问题，恢复成功后消费 pending 请求。"""
+        """按稳定候选 ID 或自由文本恢复原问题"""
         if not session_id:
             return None
 
-        pending = self._pending_clarifications.get(session_id)
-        if not pending:
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT question, clarification_data FROM pending_clarifications WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+
+        if not row:
             return None
 
-        clarification = pending.get("clarification", {})
+        original_question = row[0]
+        clarification = json.loads(row[1])
+
         if clarification.get("clarification_id") != clarification_id:
             return None
 
@@ -95,8 +168,13 @@ class SessionStore:
         if option is None:
             return None
 
-        self._pending_clarifications.pop(session_id, None)
-        original_question = pending["question"]
+        # 消费 pending 请求
+        conn.execute(
+            "DELETE FROM pending_clarifications WHERE session_id = ?",
+            (session_id,),
+        )
+        conn.commit()
+
         selected_label = option["label"]
         selected_id = option["candidate_id"]
         return {
@@ -112,7 +190,7 @@ class SessionStore:
         candidate_id: Optional[str],
         text: Optional[str],
     ) -> Optional[Dict[str, Any]]:
-        """自由文本也必须归一化到已有候选，防止恢复时引入新歧义。"""
+        """自由文本也必须归一化到已有候选"""
         normalized_text = (text or "").strip().casefold()
         for option in options:
             if candidate_id and option.get("candidate_id") == candidate_id:
@@ -130,13 +208,16 @@ class SessionStore:
         return None
 
     def clear(self, session_id: Optional[str] = None) -> None:
-        """测试或调试时清理历史；生产接口暂不暴露该能力。"""
+        """清理历史"""
+        conn = self._get_conn()
         if session_id:
-            self._sessions.pop(session_id, None)
-            self._pending_clarifications.pop(session_id, None)
-            return
-        self._sessions.clear()
-        self._pending_clarifications.clear()
+            conn.execute("DELETE FROM session_turns WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
+        else:
+            conn.execute("DELETE FROM session_turns")
+            conn.execute("DELETE FROM pending_clarifications")
+        conn.commit()
 
 
-session_store = SessionStore()
+# 全局实例（替换内存版 session_store）
+session_store = SQLiteSessionStore()

@@ -353,22 +353,20 @@ class QwenAPIClient:
         self,
         original_sql: str,
         error_message: str,
-        schema_info: str
+        schema_info: str,
+        system_suffix: str = "",
+        temperature: float | None = None,
     ) -> dict:
-        """修复执行失败的 SQL
-
-        当 SQL 执行出错时，将原始 SQL、错误信息和 Schema 一起发给 LLM，
-        让它分析错误原因并生成修复后的 SQL。
+        """修复执行失败的 SQL（支持差异化策略）
 
         Args:
             original_sql: 原始的有问题的 SQL
             error_message: 数据库返回的错误信息
             schema_info: 数据库 Schema 信息
-
-        Returns:
-            dict: 包含 repaired_sql 和 repair_reason 的结构化结果
+            system_suffix: 针对特定错误类型的修复策略提示
+            temperature: 覆盖默认温度（列名修正用低温度，语法修复用稍高温度）
         """
-        system_prompt = """你是一个 SQL 修复专家。根据原始 SQL、错误信息和数据库 Schema，分析错误原因并生成修复后的 SQL。
+        base_prompt = """你是一个 SQL 修复专家。根据原始 SQL、错误信息和数据库 Schema，分析错误原因并生成修复后的 SQL。
 
 要求：
 1. 只修复 SQL 语法和逻辑错误，不要改变查询意图
@@ -383,6 +381,8 @@ class QwenAPIClient:
     "repaired_sql": "修复后的 SQL 查询语句",
     "repair_reason": "错误原因和修复说明"
 }"""
+
+        system_prompt = base_prompt + (system_suffix or "")
 
         user_prompt = f"""原始 SQL：
 {original_sql}
@@ -400,7 +400,8 @@ class QwenAPIClient:
             {"role": "user", "content": user_prompt}
         ]
 
-        content = await self._call_api(messages, SQL_TEMPERATURE, stage="repair_sql")
+        call_temperature = temperature if temperature is not None else SQL_TEMPERATURE
+        content = await self._call_api(messages, call_temperature, stage="repair_sql")
         return self._parse_json_response(content, "SQL 修复")
 
     async def generate_answer(

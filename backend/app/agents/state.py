@@ -57,6 +57,7 @@ class AgentState(TypedDict):
     execution_success: bool
     query_result: Optional[Dict[str, Any]]
     execution_error: Optional[str]
+    execution_error_type: Optional[str]
     retry_count: int
     answer: Optional[str]
     optimization_suggestions: List[str]

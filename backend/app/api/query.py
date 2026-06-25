@@ -5,6 +5,7 @@
 from fastapi import APIRouter, HTTPException
 from ..models.schemas import QueryRequest, QueryResponse, SuccessResponse
 from ..agents.graph import get_agent_graph
+from ..services.query_cache import query_cache
 from ..utils.logger import logger
 
 router = APIRouter()
@@ -15,15 +16,24 @@ async def query(request: QueryRequest):
     """处理自然语言查询，返回 SQL、查询结果和自然语言解释
 
     完整流程:
+    0. 检查缓存（命中则直接返回）
     1. AgentGraph 加载 Schema
     2. LLM 生成 SQL
     3. SQL Guard 安全校验
     4. 执行 SQL 查询
     5. 如失败则 LLM 修复并重试（最多 3 次）
     6. LLM 生成自然语言答案
+    7. 写入缓存
     """
     try:
         logger.info("收到查询请求")
+
+        # 跳过缓存的场景：有澄清响应、有 session_id（多轮追问上下文不同）
+        if not request.clarification_id and not request.session_id:
+            cached = query_cache.get(request.question)
+            if cached:
+                logger.info("缓存命中，直接返回")
+                return SuccessResponse(code=200, message="success (cached)", data=cached)
 
         clarification_response = None
         if request.clarification_id:
@@ -63,6 +73,10 @@ async def query(request: QueryRequest):
             clarification=result.get("clarification_request"),
             audit_report=result.get("audit_report"),
         )
+
+        # 成功且无 session_id 时写入缓存
+        if not request.session_id and result.get("execution_success"):
+            query_cache.put(request.question, response.model_dump())
 
         return SuccessResponse(
             code=200,

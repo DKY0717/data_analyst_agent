@@ -3,6 +3,7 @@
 
 from fastapi import APIRouter
 from ..models.schemas import SuccessResponse
+from ..services.query_cache import query_cache
 
 router = APIRouter()
 
@@ -14,4 +15,15 @@ async def health_check():
         code=200,
         message="success",
         data={"status": "healthy"}
+    )
+
+
+@router.get("/health/cache", response_model=SuccessResponse)
+async def cache_stats():
+    """缓存统计端点"""
+    stats = query_cache.stats()
+    return SuccessResponse(
+        code=200,
+        message="success",
+        data=stats
     )

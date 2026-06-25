@@ -357,6 +357,7 @@ class AgentGraph:
             "execution_success": result["success"],
             "query_result": result,
             "execution_error": result.get("error"),
+            "execution_error_type": result.get("error_type"),
             "audit_events": self._append_audit_event(
                 state,
                 "execution",
@@ -377,12 +378,14 @@ class AgentGraph:
 
         # 修复代理只处理已通过 Guard 但执行失败的 SQL，禁止改写 Guard 拒绝的危险意图。
         error_message = state.get("execution_error") or ""
+        error_type = state.get("execution_error_type") or ""
 
         start_trace(state.get("llm_calls") or [])
         output = await sql_repair_agent.repair(
             state["generated_sql"],
             error_message,
-            state["schema_context"]
+            state["schema_context"],
+            error_type=error_type,
         )
 
         return {
@@ -581,6 +584,7 @@ class AgentGraph:
             "execution_success": False,
             "query_result": None,
             "execution_error": None,
+            "execution_error_type": None,
             "retry_count": 0,
             "answer": None,
             "optimization_suggestions": [],
@@ -645,6 +649,7 @@ class AgentGraph:
             "execution_success": False,
             "query_result": None,
             "execution_error": None,
+            "execution_error_type": None,
             "retry_count": 0,
             "answer": "澄清请求已过期或候选无效，请重新提问。",
             "optimization_suggestions": [],
