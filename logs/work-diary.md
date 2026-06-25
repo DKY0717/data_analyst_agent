@@ -1075,3 +1075,18 @@
 
 - ✅ v0.6 Grounding 不只是离线报告，已经进入 CI 与发布质量门禁。
 - ⏳ 后续可继续扩充 Grounding case，或增加主动澄清消融实验来量化澄清价值。
+
+### 第五轮打磨补充
+
+- 新增主动澄清消融实验：
+  - Runner：`backend/evaluation/ablation_runner.py`。
+  - 测试：`backend/tests/test_ablation_runner.py`。
+  - CLI：`python -m evaluation.ablation_runner`。
+- 四种模式固定为 `full`、`without_rule_parser`、`without_graph_router`、`without_clarification`。
+- 当前 7 条 Grounding case 上，完整链路分层预期满足率为 `100%`；禁用主动澄清后为 `85.7%`，主动澄清带来 `14.3` 个百分点提升。
+- 验证结果：`pytest tests/test_ablation_runner.py tests/test_intent_grounding_evaluator.py -q` 为 `10 passed`；`pytest -q` 为 `378 passed, 1 warning`；`npm run build` 通过；Secret Scan 扫描 214 个 tracked files 通过。
+
+### 当前进度
+
+- ✅ 主动澄清已有可量化消融证据，能回答“为什么不是让模型直接猜 SQL”。
+- ⏳ 后续建议扩充更多歧义 case，并考虑把消融摘要写入独立 Markdown 报告。

@@ -17,7 +17,7 @@
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
 - **LLM 调用可观测性**：记录每次 Qwen 调用的节点、Token、耗时、尝试次数和可选估算成本，并接入审计与离线评测报告。
-- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `374 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
+- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `378 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
 
 ## 核心功能
 
@@ -203,7 +203,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`374 passed`。
+当前验证结果：`378 passed`。
 
 ## 运行评测
 
@@ -214,9 +214,10 @@ python -m evaluation.repair_evaluator
 python -m evaluation.intent_evaluator
 python -m evaluation.result_correctness_evaluator
 python -m evaluation.intent_grounding_evaluator
+python -m evaluation.ablation_runner
 ```
 
-危险意图评测包含 37 条固定 case；NL2SQL 评测包含 32 条固定 case；SQL Repair 评测包含 6 条确定性故障注入 case；结果正确性评测包含 10 条人工审核黄金 case；v0.6 分层意图/Grounding 评测包含 7 条确定性 case，当前槽位匹配、Grounding 候选命中、路由表召回和澄清决策准确率均为 `100%`。当前真实 Qwen Plus 基线为正常分析 `24/24`、危险请求阻断 `8/8`、Repair `6/6`。结果正确性首轮为 `5/10`，修复稳定输出别名和类别销售额粒度后，相同 case 复测为 `10/10`。
+危险意图评测包含 37 条固定 case；NL2SQL 评测包含 32 条固定 case；SQL Repair 评测包含 6 条确定性故障注入 case；结果正确性评测包含 10 条人工审核黄金 case；v0.6 分层意图/Grounding 评测包含 7 条确定性 case，当前槽位匹配、Grounding 候选命中、路由表召回和澄清决策准确率均为 `100%`。v0.6 消融实验显示完整链路分层预期满足率为 `100%`，禁用主动澄清后下降到 `85.7%`。当前真实 Qwen Plus 基线为正常分析 `24/24`、危险请求阻断 `8/8`、Repair `6/6`。结果正确性首轮为 `5/10`，修复稳定输出别名和类别销售额粒度后，相同 case 复测为 `10/10`。
 
 ## CI 与质量门禁
 
