@@ -84,6 +84,11 @@ jobs:
           QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: python -m evaluation.result_correctness_evaluator
 
+      - name: Run deterministic intent grounding evaluation
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+        run: python -m evaluation.intent_grounding_evaluator
+
       - name: Evaluate quality gate
         shell: bash
         env:
@@ -92,6 +97,8 @@ jobs:
           set -euo pipefail
           NL2SQL_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'nl2sql-evaluation-*.json' | sort | tail -n 1)"
           REPAIR_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'sql-repair-evaluation-*.json' | sort | tail -n 1)"
+          CORRECTNESS_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'result-correctness-evaluation-*.json' | sort | tail -n 1)"
+          INTENT_GROUNDING_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'intent-grounding-evaluation-*.json' | sort | tail -n 1)"
           ENFORCE_ARGS=()
           if [[ "${{ inputs.enforce_thresholds }}" == "true" ]]; then
             ENFORCE_ARGS+=(--enforce)
@@ -99,6 +106,8 @@ jobs:
           python -m evaluation.quality_gate \
             --nl2sql-report "$NL2SQL_REPORT" \
             --repair-report "$REPAIR_REPORT" \
+            --correctness-report "$CORRECTNESS_REPORT" \
+            --intent-grounding-report "$INTENT_GROUNDING_REPORT" \
             --json-output "$EVALUATION_REPORT_DIR/quality-gate.json" \
             --markdown-output "$EVALUATION_REPORT_DIR/quality-gate.md" \
             "${ENFORCE_ARGS[@]}"

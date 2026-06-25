@@ -119,11 +119,12 @@ v0.6 主链路已经将意图、Grounding 和澄清决策拆成独立节点：
 
 ## 当前验证
 
-- 后端全量测试：`367 passed`。
+- 后端全量测试：`374 passed`。
 - 前端生产构建：通过，保留 Element Plus 和 ECharts 大 chunk 警告。
 - Secret Scan：扫描 212 个 tracked files，通过。
 - Intent Evaluation：37 条 case 全部通过。
 - v0.6 分层意图/Grounding Evaluation：7 条 case 全部通过，槽位整体匹配率、Grounding 候选命中率、路由表召回率、澄清决策准确率和澄清候选命中率均为 `100%`。
+- CI 与质量门禁：普通 CI 已运行确定性 Grounding Evaluation；手动 Real Qwen Evaluation 已将结果正确性和 v0.6 Grounding 指标纳入质量门禁。
 
 ## 面试讲法
 
@@ -131,7 +132,7 @@ v0.6 可以重点讲三点：
 
 1. **从黑盒生成到分层可解释**：SQL 生成前先展示结构化意图和 Grounding 证据。
 2. **从猜测执行到主动澄清**：缺关键指标时暂停，不让 LLM 硬猜 SQL。
-3. **从能跑到可证明**：用 350+ 测试、固定评测集和黄金正确性基准证明安全、修复和业务口径。
+3. **从能跑到可证明**：用 374 个测试、固定评测集、黄金正确性基准和 CI 门禁证明安全、修复、业务口径与 Grounding 质量。
 
 ## 后续方向
 

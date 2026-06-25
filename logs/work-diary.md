@@ -1058,3 +1058,19 @@
 
 - ✅ v0.6 分层链路已有独立、离线、可展示评测。
 - ⏳ 后续可扩充更多口语化、多意图和候选冲突 case。
+
+### 第四轮打磨补充
+
+- 将 v0.6 分层意图/Grounding 评测接入普通 CI：
+  - PR 和 main push 除后端测试、前端构建、Secret Scan、Intent Evaluation 外，还运行 `python -m evaluation.intent_grounding_evaluator`。
+- 扩展手动 `Real Qwen Evaluation`：
+  - 真实 NL2SQL、Repair、结果正确性之后运行 Grounding 评测。
+  - `quality_gate` 新增 `--correctness-report` 和 `--intent-grounding-report`。
+  - 质量门禁同时要求结果正确率和 v0.6 Grounding 六项核心指标达到 `100%`。
+- 新增/更新 workflow 与质量门禁契约测试，使用 TDD 先确认缺口失败，再补实现。
+- 验证结果：`pytest tests/test_quality_gate.py tests/test_workflow_files.py -q` 为 `25 passed`；`pytest -q` 为 `374 passed, 1 warning`；`npm run build` 通过。
+
+### 当前进度
+
+- ✅ v0.6 Grounding 不只是离线报告，已经进入 CI 与发布质量门禁。
+- ⏳ 后续可继续扩充 Grounding case，或增加主动澄清消融实验来量化澄清价值。

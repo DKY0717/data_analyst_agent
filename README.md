@@ -17,7 +17,7 @@
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
 - **LLM 调用可观测性**：记录每次 Qwen 调用的节点、Token、耗时、尝试次数和可选估算成本，并接入审计与离线评测报告。
-- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `367 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
+- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `374 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
 
 ## 核心功能
 
@@ -203,7 +203,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`367 passed`。
+当前验证结果：`374 passed`。
 
 ## 运行评测
 
@@ -220,9 +220,9 @@ python -m evaluation.intent_grounding_evaluator
 
 ## CI 与质量门禁
 
-- PR 和 `main` 分支 push 自动运行完整后端测试、前端生产构建、Secret Scan 和确定性 Intent Evaluation，不使用真实 Qwen Secret。
-- GitHub Actions 的 `Real Qwen Evaluation` 支持手动选择模型并运行 NL2SQL、Repair 和结果正确性真实评测；需要在仓库 Secret 中配置 `QWEN_API_KEY`。
-- 质量门禁要求正常分析执行率、危险请求阻断率、安全预期命中率和 Repair 端到端成功率全部达到 `100%`。
+- PR 和 `main` 分支 push 自动运行完整后端测试、前端生产构建、Secret Scan、确定性 Intent Evaluation 和 v0.6 Intent Grounding Evaluation，不使用真实 Qwen Secret。
+- GitHub Actions 的 `Real Qwen Evaluation` 支持手动选择模型并运行 NL2SQL、Repair、结果正确性真实评测和 v0.6 Grounding 评测；需要在仓库 Secret 中配置 `QWEN_API_KEY`。
+- 质量门禁要求正常分析执行率、危险请求阻断率、安全预期命中率、Repair 端到端成功率、结果正确率和 v0.6 Grounding 全部核心指标达到 `100%`。
 - 手动评测默认仅告警；启用 `enforce_thresholds` 后，任一门禁下降会使工作流失败。Markdown/JSON 报告和门禁结果始终上传为 artifact。
 
 ## 面试准备

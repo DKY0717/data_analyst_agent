@@ -41,6 +41,11 @@ jobs:
           PYTHONPATH: backend
         run: python -m evaluation.intent_evaluator
 
+      - name: Run deterministic intent grounding evaluation
+        env:
+          PYTHONPATH: backend
+        run: python -m evaluation.intent_grounding_evaluator
+
   frontend-build:
     name: Frontend production build
     runs-on: ubuntu-latest

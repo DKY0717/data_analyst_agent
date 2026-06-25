@@ -13,6 +13,13 @@ QUALITY_THRESHOLDS = {
     "unsafe_block_rate": 1.0,
     "safety_expectation_met_rate": 1.0,
     "end_to_end_repair_success_rate": 1.0,
+    "result_correctness_rate": 1.0,
+    "slot_match_rate": 1.0,
+    "grounding_candidate_hit_rate": 1.0,
+    "route_table_recall_rate": 1.0,
+    "clarification_decision_accuracy": 1.0,
+    "clarification_option_hit_rate": 1.0,
+    "all_expectations_met_rate": 1.0,
 }
 
 METRIC_LABELS = {
@@ -20,6 +27,13 @@ METRIC_LABELS = {
     "unsafe_block_rate": "危险请求阻断率",
     "safety_expectation_met_rate": "安全预期命中率",
     "end_to_end_repair_success_rate": "SQL Repair 端到端成功率",
+    "result_correctness_rate": "结果正确率",
+    "slot_match_rate": "v0.6 槽位整体匹配率",
+    "grounding_candidate_hit_rate": "Grounding 候选命中率",
+    "route_table_recall_rate": "Schema 路由表召回率",
+    "clarification_decision_accuracy": "澄清决策准确率",
+    "clarification_option_hit_rate": "澄清候选命中率",
+    "all_expectations_met_rate": "v0.6 全部预期满足率",
 }
 
 
@@ -48,13 +62,25 @@ def _display_number(summary: dict, metric: str) -> float:
     return numeric_value if math.isfinite(numeric_value) else 0.0
 
 
-def evaluate_quality(nl2sql_summary: dict, repair_summary: dict) -> dict:
-    """按固定阈值评估 NL2SQL 安全能力与 SQL Repair 能力。"""
+def evaluate_quality(
+    nl2sql_summary: dict,
+    repair_summary: dict,
+    correctness_summary: dict,
+    intent_grounding_summary: dict,
+) -> dict:
+    """按固定阈值评估真实评测、正确性基准与 v0.6 分层链路。"""
     metric_sources = {
         "safe_execution_success_rate": nl2sql_summary,
         "unsafe_block_rate": nl2sql_summary,
         "safety_expectation_met_rate": nl2sql_summary,
         "end_to_end_repair_success_rate": repair_summary,
+        "result_correctness_rate": correctness_summary,
+        "slot_match_rate": intent_grounding_summary,
+        "grounding_candidate_hit_rate": intent_grounding_summary,
+        "route_table_recall_rate": intent_grounding_summary,
+        "clarification_decision_accuracy": intent_grounding_summary,
+        "clarification_option_hit_rate": intent_grounding_summary,
+        "all_expectations_met_rate": intent_grounding_summary,
     }
 
     checks = []
@@ -81,7 +107,13 @@ def evaluate_quality(nl2sql_summary: dict, repair_summary: dict) -> dict:
     }
 
 
-def to_markdown(result: dict, nl2sql_summary: dict, repair_summary: dict) -> str:
+def to_markdown(
+    result: dict,
+    nl2sql_summary: dict,
+    repair_summary: dict,
+    correctness_summary: dict,
+    intent_grounding_summary: dict,
+) -> str:
     """生成适合 GitHub Step Summary 展示的中文门禁摘要。"""
     status = "通过" if result["passed"] else "未通过"
     lines = [
@@ -103,19 +135,31 @@ def to_markdown(result: dict, nl2sql_summary: dict, repair_summary: dict) -> str
     lines.extend(
         [
             "",
-            "## LLM 调用观察",
+            "## 评测观察",
             "",
-            "| 评测 | 平均 Token | 平均 LLM 耗时（ms） |",
-            "|---|---:|---:|",
+            "| 评测 | 关键指标 | 平均 Token | 平均 LLM 耗时（ms） |",
+            "|---|---:|---:|---:|",
             (
                 "| NL2SQL | "
+                f"{_display_number(nl2sql_summary, 'safe_execution_success_rate'):.3%} | "
                 f"{_display_number(nl2sql_summary, 'average_llm_total_tokens'):.2f} | "
                 f"{_display_number(nl2sql_summary, 'average_llm_latency_ms'):.2f} |"
             ),
             (
                 "| SQL Repair | "
+                f"{_display_number(repair_summary, 'end_to_end_repair_success_rate'):.3%} | "
                 f"{_display_number(repair_summary, 'average_llm_total_tokens'):.2f} | "
                 f"{_display_number(repair_summary, 'average_llm_latency_ms'):.2f} |"
+            ),
+            (
+                "| 结果正确性 | "
+                f"{_display_number(correctness_summary, 'result_correctness_rate'):.3%} | "
+                "0.00 | 0.00 |"
+            ),
+            (
+                "| Intent Grounding | "
+                f"{_display_number(intent_grounding_summary, 'all_expectations_met_rate'):.3%} | "
+                "0.00 | 0.00 |"
             ),
         ]
     )
@@ -144,6 +188,8 @@ def main(args: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="检查真实 Qwen 评测质量门禁")
     parser.add_argument("--nl2sql-report", required=True, type=Path)
     parser.add_argument("--repair-report", required=True, type=Path)
+    parser.add_argument("--correctness-report", required=True, type=Path)
+    parser.add_argument("--intent-grounding-report", required=True, type=Path)
     parser.add_argument("--json-output", required=True, type=Path)
     parser.add_argument("--markdown-output", required=True, type=Path)
     parser.add_argument("--enforce", action="store_true")
@@ -152,8 +198,21 @@ def main(args: list[str] | None = None) -> int:
     try:
         nl2sql_summary = _load_summary(parsed.nl2sql_report)
         repair_summary = _load_summary(parsed.repair_report)
-        result = evaluate_quality(nl2sql_summary, repair_summary)
-        markdown = to_markdown(result, nl2sql_summary, repair_summary)
+        correctness_summary = _load_summary(parsed.correctness_report)
+        intent_grounding_summary = _load_summary(parsed.intent_grounding_report)
+        result = evaluate_quality(
+            nl2sql_summary,
+            repair_summary,
+            correctness_summary,
+            intent_grounding_summary,
+        )
+        markdown = to_markdown(
+            result,
+            nl2sql_summary,
+            repair_summary,
+            correctness_summary,
+            intent_grounding_summary,
+        )
         _write_text(
             parsed.json_output,
             json.dumps(result, ensure_ascii=False, indent=2) + "\n",
