@@ -1069,6 +1069,7 @@
   - 质量门禁同时要求结果正确率和 v0.6 Grounding 六项核心指标达到 `100%`。
 - 新增/更新 workflow 与质量门禁契约测试，使用 TDD 先确认缺口失败，再补实现。
 - 验证结果：`pytest tests/test_quality_gate.py tests/test_workflow_files.py -q` 为 `25 passed`；`pytest -q` 为 `374 passed, 1 warning`；`npm run build` 通过。
+- Commit：`f5af759`。
 
 ### 当前进度
 
