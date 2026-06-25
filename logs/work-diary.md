@@ -1041,3 +1041,19 @@
 
 - ✅ LangGraph v0.6 节点拆分完成。
 - ⏳ 后续建议建设分层意图/Grounding 专项评测集，量化槽位 F1 与 Grounding Top-K 命中率。
+
+### 第三轮打磨补充
+
+- 新增 v0.6 分层意图/Grounding 确定性专项评测：
+  - Case 文件：`backend/evaluation/cases/intent_grounding_cases.yaml`。
+  - Runner：`backend/evaluation/intent_grounding_evaluator.py`。
+  - 报告器：`backend/evaluation/intent_grounding_report_writer.py`。
+  - 测试：`backend/tests/test_intent_grounding_evaluator.py`。
+- 评测指标覆盖槽位整体匹配率、Grounding 候选命中率、路由表召回率、澄清决策准确率、澄清候选命中率和全部预期满足率。
+- CLI 验证：`python -m evaluation.intent_grounding_evaluator` 输出 7 条 case 全部通过，六项指标均为 `100%`。
+- 全量验证：`pytest -q` 为 `367 passed, 1 warning`；`npm run build` 通过；Secret Scan 扫描 212 个 tracked files 通过。
+
+### 当前进度
+
+- ✅ v0.6 分层链路已有独立、离线、可展示评测。
+- ⏳ 后续可扩充更多口语化、多意图和候选冲突 case。

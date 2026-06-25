@@ -10,14 +10,14 @@
 - **LLM SQL 安全治理**：SQLGlot AST 校验只允许安全查询，拦截多语句、系统表、危险 DuckDB 文件读取函数，并自动注入 LIMIT。
 - **SQL 自动修复闭环**：SQL 执行失败后将错误信息反馈给修复 Agent，最多重试 3 次，每次修复后重新经过 SQL Guard。
 - **规则化 SQL 优化建议**：基于 SQL AST、查询结果规模和 DuckDB EXPLAIN 执行计划生成可解释优化建议。
-- **四类评测体系**：内置 37 条危险意图 case、32 条 NL2SQL case、6 条确定性 SQL Repair 故障注入 case，以及 10 条结果正确性黄金 case。
+- **五类评测体系**：内置 37 条危险意图 case、32 条 NL2SQL case、6 条确定性 SQL Repair 故障注入 case、10 条结果正确性黄金 case，以及 7 条 v0.6 分层意图/Grounding case。
 - **结果正确性黄金基准**：使用人工审核参考 SQL、固定业务断言和四种比较模式，区分“SQL 能执行”和“分析结果算正确”。
 - **分层意图与 Schema Grounding**：先解析结构化分析意图，再把指标/维度映射到稳定候选和 Schema 路由，减少直接让 LLM 猜表猜字段。
 - **主动澄清闭环**：明显模糊且缺失关键槽位时在 SQL 生成前暂停，返回稳定 `candidate_id` 候选；用户选择后恢复原问题继续执行。
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
 - **LLM 调用可观测性**：记录每次 Qwen 调用的节点、Token、耗时、尝试次数和可选估算成本，并接入审计与离线评测报告。
-- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `361 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
+- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `367 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
 
 ## 核心功能
 
@@ -203,7 +203,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`361 passed`。
+当前验证结果：`367 passed`。
 
 ## 运行评测
 
@@ -213,9 +213,10 @@ python -m evaluation.evaluator
 python -m evaluation.repair_evaluator
 python -m evaluation.intent_evaluator
 python -m evaluation.result_correctness_evaluator
+python -m evaluation.intent_grounding_evaluator
 ```
 
-危险意图评测包含 37 条固定 case；NL2SQL 评测包含 32 条固定 case；SQL Repair 评测包含 6 条确定性故障注入 case；结果正确性评测包含 10 条人工审核黄金 case。当前真实 Qwen Plus 基线为正常分析 `24/24`、危险请求阻断 `8/8`、Repair `6/6`。结果正确性首轮为 `5/10`，修复稳定输出别名和类别销售额粒度后，相同 case 复测为 `10/10`。
+危险意图评测包含 37 条固定 case；NL2SQL 评测包含 32 条固定 case；SQL Repair 评测包含 6 条确定性故障注入 case；结果正确性评测包含 10 条人工审核黄金 case；v0.6 分层意图/Grounding 评测包含 7 条确定性 case，当前槽位匹配、Grounding 候选命中、路由表召回和澄清决策准确率均为 `100%`。当前真实 Qwen Plus 基线为正常分析 `24/24`、危险请求阻断 `8/8`、Repair `6/6`。结果正确性首轮为 `5/10`，修复稳定输出别名和类别销售额粒度后，相同 case 复测为 `10/10`。
 
 ## CI 与质量门禁
 

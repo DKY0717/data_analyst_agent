@@ -1,0 +1,71 @@
+cases:
+  - id: sales_by_region_2024
+    question: 按地区统计 2024 年销售额
+    category: metric_dimension_filter
+    expected_metrics: [sales_amount]
+    expected_dimensions: [region]
+    expected_filters:
+      - concept: order_date
+        operator: year_equals
+        value: 2024
+    expected_candidate_ids: [sales_by_order_total, region_name]
+    expected_route_tables: [orders, customers, regions]
+    expected_clarification_required: false
+
+  - id: category_sales_uses_item_amount_candidate
+    question: 统计各商品类别的销售额
+    category: metric_dimension_grounding
+    expected_metrics: [sales_amount]
+    expected_dimensions: [category]
+    expected_candidate_ids: [sales_by_item_amount, category_name]
+    expected_route_tables: [orders, order_items, products, categories]
+    expected_clarification_required: false
+
+  - id: refund_rate_by_category
+    question: 分析各商品类别的退款率
+    category: metric_dimension_grounding
+    expected_metrics: [refund_rate]
+    expected_dimensions: [category]
+    expected_candidate_ids: [refund_rate_by_order, category_name]
+    expected_route_tables: [orders, refunds, order_items, products, categories]
+    expected_clarification_required: false
+
+  - id: monthly_order_count
+    question: 统计每个月订单数
+    category: time_dimension
+    expected_metrics: [order_count]
+    expected_dimensions: [month]
+    expected_candidate_ids: [order_count, order_month]
+    expected_route_tables: [orders]
+    expected_clarification_required: false
+
+  - id: top_region_customer_count
+    question: 客户数最多的前 3 个地区
+    category: ranking
+    expected_metrics: [customer_count]
+    expected_dimensions: [region]
+    expected_ranking:
+      direction: desc
+      limit: 3
+    expected_candidate_ids: [customer_count, region_name]
+    expected_route_tables: [customers, regions]
+    expected_clarification_required: false
+
+  - id: quarter_sales
+    question: 按季度统计销售额
+    category: time_dimension
+    expected_metrics: [sales_amount]
+    expected_dimensions: [quarter]
+    expected_candidate_ids: [sales_by_order_total, order_quarter]
+    expected_route_tables: [orders]
+    expected_clarification_required: false
+
+  - id: vague_analysis_requires_metric_clarification
+    question: 帮我分析一下
+    category: clarification
+    expected_metrics: []
+    expected_dimensions: []
+    expected_candidate_ids: []
+    expected_route_tables: []
+    expected_clarification_required: true
+    expected_clarification_option_ids: [metric_sales_amount, metric_order_count, metric_customer_count]

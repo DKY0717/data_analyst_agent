@@ -119,10 +119,11 @@ v0.6 主链路已经将意图、Grounding 和澄清决策拆成独立节点：
 
 ## 当前验证
 
-- 后端全量测试：`361 passed`。
+- 后端全量测试：`367 passed`。
 - 前端生产构建：通过，保留 Element Plus 和 ECharts 大 chunk 警告。
-- Secret Scan：扫描 207 个 tracked files，通过。
+- Secret Scan：扫描 212 个 tracked files，通过。
 - Intent Evaluation：37 条 case 全部通过。
+- v0.6 分层意图/Grounding Evaluation：7 条 case 全部通过，槽位整体匹配率、Grounding 候选命中率、路由表召回率、澄清决策准确率和澄清候选命中率均为 `100%`。
 
 ## 面试讲法
 
@@ -134,6 +135,6 @@ v0.6 可以重点讲三点：
 
 ## 后续方向
 
-- 建设分层意图/Grounding 专用评测集，量化槽位 F1、Grounding Top-K 命中率和澄清恢复准确率。
+- 扩充分层意图/Grounding 专用评测集，加入更多口语化、多意图和冲突候选 case。
 - 接入 Spider、BIRD 等公开数据集，验证跨领域泛化能力。
 - 将 LLM 调用指标持久化到时序存储，做长期质量和成本监控。
