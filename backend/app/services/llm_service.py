@@ -12,6 +12,7 @@ from typing import Optional
 
 from ..config import settings
 from .llm_observability import calculate_estimated_cost, record_call
+from .prompt_registry import prompt_registry
 from ..utils.exceptions import LLMError, LLMTimeoutError, LLMResponseError
 
 logger = logging.getLogger(__name__)
@@ -291,6 +292,9 @@ class QwenAPIClient:
 
 请根据以上信息生成 SQL 查询。"""
 
+        # 注册 prompt 版本（内容不变时不创建新版本）
+        prompt_registry.register("generate_sql", system_prompt, "动态模板")
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -395,6 +399,8 @@ class QwenAPIClient:
 
 请分析错误原因并生成修复后的 SQL。"""
 
+        prompt_registry.register("repair_sql", base_prompt, "动态模板")
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -442,6 +448,8 @@ class QwenAPIClient:
 {result_text}
 
 请根据以上信息生成自然语言解释。"""
+
+        prompt_registry.register("generate_answer", system_prompt, "动态模板")
 
         messages = [
             {"role": "system", "content": system_prompt},

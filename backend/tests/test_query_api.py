@@ -320,7 +320,9 @@ def test_query_api_does_not_log_raw_question():
     mock_graph.run = AsyncMock(return_value=result)
 
     with patch("app.api.query.get_agent_graph", return_value=mock_graph), \
-         patch("app.api.query.logger") as mock_logger:
+         patch("app.api.query.logger") as mock_logger, \
+         patch("app.api.query.query_cache") as mock_cache:
+        mock_cache.get.return_value = None
         response = client.post("/api/chat/query", json={"question": question})
 
     assert response.status_code == 200

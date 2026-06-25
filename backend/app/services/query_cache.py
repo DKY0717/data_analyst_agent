@@ -1,30 +1,53 @@
 # 查询缓存模块
-# 基于问题文本的精确匹配缓存，避免相同问题重复调用 LLM
+# 支持精确匹配和语义相似匹配，避免相同/相似问题重复调用 LLM
 
 import hashlib
 import json
+import re
 import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from ..config import settings
 from ..utils.logger import logger
 
 
+def _tokenize(text: str) -> Set[str]:
+    """中文分词 + 英文分词（简易版，不依赖外部库）"""
+    text = text.strip().casefold()
+    # 中文：按字分
+    chinese_chars = set(re.findall(r'[\u4e00-\u9fff]', text))
+    # 英文/数字：按词分
+    words = set(re.findall(r'[a-z0-9]+', text))
+    return chinese_chars | words
+
+
+def _jaccard_similarity(set_a: Set[str], set_b: Set[str]) -> float:
+    """Jaccard 相似度"""
+    if not set_a or not set_b:
+        return 0.0
+    intersection = len(set_a & set_b)
+    union = len(set_a | set_b)
+    return intersection / union if union > 0 else 0.0
+
+
 class QueryCache:
     """查询结果缓存
 
-    对相同问题返回缓存结果，避免重复调用 LLM 和数据库。
-    缓存存储在 SQLite 中，支持 TTL 过期和容量限制。
+    支持两种匹配模式：
+    1. 精确匹配：问题文本完全相同（SHA256 哈希）
+    2. 语义相似匹配：基于 Jaccard 相似度，阈值 0.85
     """
+
+    SIMILARITY_THRESHOLD = 0.85
 
     def __init__(
         self,
         db_path: Optional[str] = None,
-        ttl_seconds: int = 3600,       # 缓存 1 小时过期
-        max_entries: int = 1000,        # 最多缓存 1000 条
+        ttl_seconds: int = 3600,
+        max_entries: int = 1000,
     ):
         self._db_path = db_path or str(settings.DATA_DIR / "query_cache.db")
         self._ttl = ttl_seconds
@@ -33,7 +56,6 @@ class QueryCache:
         self._initialized = False
 
     def _ensure_initialized(self):
-        """延迟初始化：首次使用时才创建数据库"""
         if self._initialized:
             return
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -54,6 +76,7 @@ class QueryCache:
                 CREATE TABLE IF NOT EXISTS query_cache (
                     cache_key TEXT PRIMARY KEY,
                     question TEXT NOT NULL,
+                    question_tokens TEXT NOT NULL,
                     result_json TEXT NOT NULL,
                     created_at REAL NOT NULL,
                     hit_count INTEGER DEFAULT 0
@@ -63,56 +86,85 @@ class QueryCache:
         finally:
             conn.close()
 
-    def _make_key(self, question: str, session_id: Optional[str] = None) -> str:
-        """生成缓存键：问题文本的 SHA256 哈希（不含 session_id，相同问题跨会话命中）"""
+    def _make_key(self, question: str) -> str:
         normalized = question.strip().casefold()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:32]
 
     def get(self, question: str, session_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """查询缓存，返回命中结果或 None"""
-        key = self._make_key(question, session_id)
+        """查询缓存，支持精确匹配和语义相似匹配"""
+        key = self._make_key(question)
         conn = self._get_conn()
 
+        # 1. 精确匹配
         row = conn.execute(
             "SELECT result_json, created_at, hit_count FROM query_cache WHERE cache_key = ?",
             (key,),
         ).fetchone()
 
-        if not row:
+        if row:
+            result_json, created_at, hit_count = row
+            if time.time() - created_at <= self._ttl:
+                conn.execute(
+                    "UPDATE query_cache SET hit_count = ? WHERE cache_key = ?",
+                    (hit_count + 1, key),
+                )
+                conn.commit()
+                logger.info(f"缓存精确命中: {question[:50]}...")
+                return json.loads(result_json)
+            else:
+                conn.execute("DELETE FROM query_cache WHERE cache_key = ?", (key,))
+                conn.commit()
+
+        # 2. 语义相似匹配
+        query_tokens = _tokenize(question)
+        if not query_tokens:
             return None
 
-        result_json, created_at, hit_count = row
+        rows = conn.execute(
+            "SELECT cache_key, question_tokens, result_json, created_at, hit_count FROM query_cache"
+        ).fetchall()
 
-        # 检查是否过期
-        if time.time() - created_at > self._ttl:
-            conn.execute("DELETE FROM query_cache WHERE cache_key = ?", (key,))
+        best_match = None
+        best_similarity = 0.0
+
+        for row_key, tokens_json, result_json, created_at, hit_count in rows:
+            # 跳过过期
+            if time.time() - created_at > self._ttl:
+                continue
+
+            cached_tokens = set(json.loads(tokens_json))
+            similarity = _jaccard_similarity(query_tokens, cached_tokens)
+
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_match = (row_key, result_json, hit_count)
+
+        if best_match and best_similarity >= self.SIMILARITY_THRESHOLD:
+            row_key, result_json, hit_count = best_match
+            conn.execute(
+                "UPDATE query_cache SET hit_count = ? WHERE cache_key = ?",
+                (hit_count + 1, row_key),
+            )
             conn.commit()
-            return None
+            logger.info(f"缓存语义命中 (相似度 {best_similarity:.2f}): {question[:50]}...")
+            return json.loads(result_json)
 
-        # 更新命中计数
-        conn.execute(
-            "UPDATE query_cache SET hit_count = ? WHERE cache_key = ?",
-            (hit_count + 1, key),
-        )
-        conn.commit()
-
-        logger.info(f"缓存命中: {question[:50]}... (命中 {hit_count + 1} 次)")
-        return json.loads(result_json)
+        return None
 
     def put(self, question: str, result: Dict[str, Any], session_id: Optional[str] = None) -> None:
         """将结果写入缓存"""
-        key = self._make_key(question, session_id)
+        key = self._make_key(question)
+        tokens = list(_tokenize(question))
         conn = self._get_conn()
 
         conn.execute(
             """
-            INSERT OR REPLACE INTO query_cache (cache_key, question, result_json, created_at, hit_count)
-            VALUES (?, ?, ?, ?, 0)
+            INSERT OR REPLACE INTO query_cache (cache_key, question, question_tokens, result_json, created_at, hit_count)
+            VALUES (?, ?, ?, ?, ?, 0)
             """,
-            (key, question.strip(), json.dumps(result, ensure_ascii=False), time.time()),
+            (key, question.strip(), json.dumps(tokens, ensure_ascii=False), json.dumps(result, ensure_ascii=False), time.time()),
         )
 
-        # 淘汰最旧的条目
         conn.execute(
             """
             DELETE FROM query_cache WHERE cache_key NOT IN (
@@ -124,20 +176,17 @@ class QueryCache:
         conn.commit()
 
     def invalidate(self, question: str) -> None:
-        """手动失效某条缓存"""
         key = self._make_key(question)
         conn = self._get_conn()
         conn.execute("DELETE FROM query_cache WHERE cache_key = ?", (key,))
         conn.commit()
 
     def clear(self) -> None:
-        """清空所有缓存"""
         conn = self._get_conn()
         conn.execute("DELETE FROM query_cache")
         conn.commit()
 
     def stats(self) -> Dict[str, Any]:
-        """返回缓存统计"""
         conn = self._get_conn()
         row = conn.execute(
             "SELECT COUNT(*), SUM(hit_count) FROM query_cache"
@@ -148,5 +197,4 @@ class QueryCache:
         }
 
 
-# 全局缓存实例
 query_cache = QueryCache()
