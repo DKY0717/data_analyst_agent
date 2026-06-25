@@ -47,6 +47,42 @@ class TestParseIntentNode:
         assert result["analysis_intent"] is not None
         assert len(result["analysis_intent"]["metrics"]) == 1
         assert result["analysis_intent"]["metrics"][0]["concept"] == "sales_amount"
+        assert "grounding" not in result["analysis_intent"]
+        assert "clarification" not in result["analysis_intent"]
+
+    def test_graph_grounding_node_adds_schema_evidence(self):
+        graph = AgentGraph()
+        intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="sales_amount", confidence=0.95, evidence="销售额")],
+            dimensions=[IntentSlot(concept="region", confidence=0.95, evidence="地区")],
+            overall_confidence=0.95,
+        )
+
+        result = graph._ground_schema({"analysis_intent": intent.model_dump(), "audit_events": []})
+
+        assert "grounding_result" in result
+        assert result["analysis_intent"]["grounding"] == result["grounding_result"]
+        assert "orders" in result["grounding_result"]["schema_route"]["selected_tables"]
+
+    def test_graph_clarification_node_pauses_only_after_grounding(self):
+        graph = AgentGraph()
+        intent = AnalysisIntent(missing_slots=["metric"], overall_confidence=0.0)
+        grounding = {"schema_route": {"selected_tables": []}}
+
+        result = graph._assess_clarification(
+            {
+                "question": "帮我分析一下",
+                "session_id": "session-1",
+                "conversation_context": "",
+                "analysis_intent": intent.model_dump(),
+                "grounding_result": grounding,
+                "audit_events": [],
+            }
+        )
+
+        assert result["status"] == "clarification_required"
+        assert result["analysis_intent"]["grounding"] == grounding
+        assert result["analysis_intent"]["clarification"]["clarification_id"].startswith("clarify_")
 
 
 class TestSchemaGrounder:

@@ -14,6 +14,7 @@ from .grounding import schema_grounder
 from .clarification import clarification_engine
 from .session_store import session_store
 from .audit import audit_report_builder
+from ..analysis_intent.models import AnalysisIntent
 from ..analysis_intent.rule_parser import AnalysisIntentRuleParser
 from ..analysis_intent.llm_parser import AnalysisIntentLLMParser
 from ..analysis_intent.merger import AnalysisIntentMerger
@@ -40,17 +41,24 @@ class AgentGraph:
         """构建 LangGraph 状态图
 
         节点顺序:
-        check_intent → parse_intent → load_schema → generate_sql → validate_sql → execute_sql → generate_answer
-             ↓                                              ↓           ↓
-          (不安全)                                       (不安全)     (执行失败)
-             ↓                                              ↓           ↓
-            end                                            end        repair_sql → validate_sql (循环)
+        check_intent → parse_intent → ground_schema → assess_clarification
+             ↓                                                ↓
+          (不安全)                                      (需要澄清)
+             ↓                                                ↓
+            end                                             end
+        assess_clarification → load_schema → generate_sql → validate_sql → execute_sql
+                                                                         ↓           ↓
+                                                                      (不安全)     (执行失败)
+                                                                         ↓           ↓
+                                                                        end        repair_sql → validate_sql
         """
         workflow = StateGraph(AgentState)
 
         # 注册所有节点
         workflow.add_node("check_intent", self._check_intent)
         workflow.add_node("parse_intent", self._parse_intent)
+        workflow.add_node("ground_schema", self._ground_schema)
+        workflow.add_node("assess_clarification", self._assess_clarification)
         workflow.add_node("load_schema", self._load_schema)
         workflow.add_node("generate_sql", self._generate_sql)
         workflow.add_node("validate_sql", self._validate_sql)
@@ -63,6 +71,8 @@ class AgentGraph:
         workflow.set_entry_point("check_intent")
 
         # 固定边：线性流程
+        workflow.add_edge("parse_intent", "ground_schema")
+        workflow.add_edge("ground_schema", "assess_clarification")
         workflow.add_edge("load_schema", "generate_sql")
         workflow.add_edge("generate_sql", "validate_sql")
         workflow.add_edge("generate_answer", END)
@@ -79,7 +89,7 @@ class AgentGraph:
 
         # 主动澄清是 SQL 生成前的暂停态，避免低置信问题继续消耗 Qwen 或访问数据库。
         workflow.add_conditional_edges(
-            "parse_intent",
+            "assess_clarification",
             self._should_continue_after_intent,
             {
                 "load_schema": "load_schema",
@@ -183,20 +193,66 @@ class AgentGraph:
         else:
             merged = rule_intent
 
-        # Grounding：将业务概念映射到物理 Schema
-        grounding_result = schema_grounder.ground(merged)
+        return {
+            "status": "completed",
+            "analysis_intent": merged.model_dump(),
+            "audit_events": self._append_audit_event(
+                state,
+                "intent",
+                "parse_intent",
+                "success",
+                "分析意图解析完成",
+                details={
+                    "metrics": [m.concept for m in merged.metrics],
+                    "dimensions": [d.concept for d in merged.dimensions],
+                    "confidence": merged.overall_confidence,
+                },
+            ),
+        }
 
-        # 澄清检查：低置信度或缺失槽位时生成澄清请求
-        clarification = clarification_engine.check(merged)
-        if clarification and not self._should_request_clarification(state, merged):
+    def _ground_schema(self, state: AgentState) -> Dict[str, Any]:
+        """将结构化业务意图映射到 Schema 候选和路由证据。"""
+        logger.info("节点: ground_schema - 生成 Schema Grounding")
+        intent = self._analysis_intent_from_state(state)
+        grounding_result = schema_grounder.ground(intent)
+
+        # SQL Generator 仍读取 analysis_intent；这里把 Grounding 证据嵌回去，保持下游兼容。
+        analysis_intent = {
+            **intent.model_dump(),
+            "grounding": grounding_result,
+        }
+        return {
+            "grounding_result": grounding_result,
+            "analysis_intent": analysis_intent,
+            "audit_events": self._append_audit_event(
+                state,
+                "grounding",
+                "ground_schema",
+                "success",
+                "Schema Grounding 完成",
+                details={
+                    "selected_tables": grounding_result.get("schema_route", {}).get(
+                        "selected_tables", []
+                    )
+                },
+            ),
+        }
+
+    def _assess_clarification(self, state: AgentState) -> Dict[str, Any]:
+        """根据意图缺口、冲突和会话恢复能力决定是否主动澄清。"""
+        logger.info("节点: assess_clarification - 判断是否需要澄清")
+        intent = self._analysis_intent_from_state(state)
+        grounding_result = state.get("grounding_result") or {}
+        clarification = clarification_engine.check(intent)
+        if clarification and not self._should_request_clarification(state, intent):
             clarification = None
         clarification_payload = clarification.model_dump() if clarification else None
 
         analysis_intent = {
-                **merged.model_dump(),
-                "grounding": grounding_result,
-                "clarification": clarification_payload,
-            }
+            **intent.model_dump(),
+            "grounding": grounding_result,
+            "clarification": clarification_payload,
+        }
         if clarification_payload:
             return {
                 "status": "clarification_required",
@@ -219,17 +275,13 @@ class AgentGraph:
         return {
             "status": "completed",
             "analysis_intent": analysis_intent,
+            "clarification_request": None,
             "audit_events": self._append_audit_event(
                 state,
                 "intent",
-                "parse_intent",
+                "assess_clarification",
                 "success",
-                "分析意图解析完成",
-                details={
-                    "metrics": [m.concept for m in merged.metrics],
-                    "dimensions": [d.concept for d in merged.dimensions],
-                    "confidence": merged.overall_confidence,
-                },
+                "无需主动澄清，继续 SQL 生成流程",
             ),
         }
 
@@ -414,6 +466,11 @@ class AgentGraph:
         """合并已有审计事件和节点新事件。"""
         return list(state.get("audit_events") or []) + new_events
 
+    @staticmethod
+    def _analysis_intent_from_state(state: AgentState) -> AnalysisIntent:
+        """节点间用 dict 传递状态，进入业务逻辑前恢复 Pydantic 校验边界。"""
+        return AnalysisIntent.model_validate(state.get("analysis_intent") or {})
+
     # ---- 条件判断函数 ----
 
     def _should_load_schema(self, state: AgentState) -> str:
@@ -514,6 +571,7 @@ class AgentGraph:
             "conversation_context": conversation_context,
             "status": "completed",
             "analysis_intent": None,
+            "grounding_result": None,
             "clarification_request": None,
             "schema_context": None,
             "generated_sql": "",
@@ -577,6 +635,7 @@ class AgentGraph:
             "conversation_context": "",
             "status": "clarification_expired",
             "analysis_intent": None,
+            "grounding_result": None,
             "clarification_request": None,
             "schema_context": None,
             "generated_sql": "",

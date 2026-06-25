@@ -382,7 +382,8 @@ class TestAgentGraphEdgeCases:
         nodes = set(g.nodes)
 
         expected_nodes = {
-            "__start__", "check_intent", "parse_intent", "load_schema", "generate_sql",
+            "__start__", "check_intent", "parse_intent", "ground_schema",
+            "assess_clarification", "load_schema", "generate_sql",
             "validate_sql", "execute_sql", "repair_sql",
             "optimize_sql", "generate_answer", "__end__"
         }
@@ -488,6 +489,7 @@ class TestAgentGraphIntentGuard:
             status="completed",
             schema_context=None,
             analysis_intent=None,
+            grounding_result=None,
             clarification_request=None,
             generated_sql="",
             validated_sql="",
@@ -514,6 +516,67 @@ class TestAgentGraphIntentGuard:
 
 class TestAgentGraphClarification:
     """测试主动澄清会暂停执行，并由会话存储保存可恢复候选。"""
+
+    @pytest.mark.asyncio
+    async def test_parse_intent_only_outputs_structured_intent(self):
+        graph = AgentGraph()
+        rule_intent = AnalysisIntent(
+            missing_slots=["metric"],
+            overall_confidence=0.0,
+        )
+
+        with patch.object(graph, "rule_parser") as mock_rule, \
+             patch.object(graph, "llm_parser") as mock_llm:
+            mock_rule.parse.return_value = rule_intent
+            mock_llm.parse = AsyncMock(side_effect=Exception("LLM unavailable"))
+
+            result = await graph._parse_intent(
+                {"question": "帮我分析一下", "audit_events": []}
+            )
+
+        assert result["analysis_intent"]["missing_slots"] == ["metric"]
+        assert "grounding" not in result["analysis_intent"]
+        assert "clarification" not in result["analysis_intent"]
+        assert result["status"] == "completed"
+
+    def test_ground_schema_adds_grounding_without_deciding_clarification(self):
+        graph = AgentGraph()
+        state = {
+            "analysis_intent": AnalysisIntent(
+                metrics=[],
+                dimensions=[],
+                missing_slots=["metric"],
+                overall_confidence=0.0,
+            ).model_dump(),
+            "audit_events": [],
+        }
+
+        result = graph._ground_schema(state)
+
+        assert result["grounding_result"]["schema_route"]["selected_tables"] == []
+        assert result["analysis_intent"]["grounding"] == result["grounding_result"]
+        assert "clarification" not in result["analysis_intent"]
+
+    def test_assess_clarification_decides_pause_after_grounding(self):
+        graph = AgentGraph()
+        state = {
+            "question": "帮我分析一下",
+            "session_id": "session-clarify",
+            "conversation_context": "",
+            "analysis_intent": AnalysisIntent(
+                missing_slots=["metric"],
+                overall_confidence=0.0,
+            ).model_dump(),
+            "grounding_result": {"schema_route": {"selected_tables": []}},
+            "audit_events": [],
+        }
+
+        result = graph._assess_clarification(state)
+
+        assert result["status"] == "clarification_required"
+        assert result["clarification_request"]["options"][0]["candidate_id"].startswith("metric_")
+        assert result["analysis_intent"]["grounding"] == state["grounding_result"]
+        assert result["analysis_intent"]["clarification"] == result["clarification_request"]
 
     @pytest.mark.asyncio
     async def test_clarification_required_stops_before_schema_and_sql_generation(self):

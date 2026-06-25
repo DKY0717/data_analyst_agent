@@ -1025,3 +1025,19 @@
 - ✅ 面试稳态打磨第一轮完成。
 - ✅ 主动澄清从展示态升级为可暂停、可恢复的最小闭环。
 - ⏳ 后续可继续拆分 LangGraph v0.6 节点，并建设分层意图/Grounding 专项评测集。
+
+### 第二轮打磨补充
+
+- 将 v0.6 主链路拆成更清晰的 LangGraph 节点：
+  - `parse_intent`：只负责规则/LLM 意图解析与候选合并。
+  - `ground_schema`：只负责 Schema Grounding 与路由证据。
+  - `assess_clarification`：只负责主动澄清决策。
+- 新增节点级测试，确保 parse 不再隐式承担 Grounding/澄清职责。
+- 同步 README、v0.6 开发文档和面试稿中的链路说明。
+- 验证结果：
+  - `pytest -q`：`361 passed, 1 warning`。
+
+### 当前进度
+
+- ✅ LangGraph v0.6 节点拆分完成。
+- ⏳ 后续建议建设分层意图/Grounding 专项评测集，量化槽位 F1 与 Grounding Top-K 命中率。

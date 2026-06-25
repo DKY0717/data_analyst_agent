@@ -17,7 +17,7 @@
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
 - **LLM 调用可观测性**：记录每次 Qwen 调用的节点、Token、耗时、尝试次数和可选估算成本，并接入审计与离线评测报告。
-- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `356 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
+- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `361 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
 
 ## 核心功能
 
@@ -42,9 +42,10 @@ flowchart LR
     Intent -->|安全| AI[Analysis Intent Parser]
     Intent -->|危险| End[提前阻断]
     Q --> Ctx[SessionStore / 多轮上下文]
-    AI --> Ground[Schema Grounding / 主动澄清]
-    Ground -->|需澄清| End
-    Ground -->|意图完整| S[Schema Loader]
+    AI --> Ground[Schema Grounding]
+    Ground --> Clarify[Clarification Decision]
+    Clarify -->|需澄清| End
+    Clarify -->|意图完整| S[Schema Loader]
     S --> Sem[Semantic Layer / 指标与维度]
     Ctx --> G[SQL Generator / Qwen]
     Sem --> G
@@ -202,7 +203,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`356 passed`。
+当前验证结果：`361 passed`。
 
 ## 运行评测
 

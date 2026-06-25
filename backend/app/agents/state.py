@@ -32,6 +32,7 @@ class AgentState(TypedDict):
         conversation_context: 由历史会话生成的追问上下文摘要
         status: 当前请求状态，用于区分完成、阻断和等待澄清
         analysis_intent: 分层意图解析结果（规则 + LLM 合并），包含指标、维度、过滤、排序
+        grounding_result: Schema Grounding 结果，包含候选、表达式和路由证据
         clarification_request: 主动澄清请求，存在时工作流暂停在 SQL 生成前
         audit_events: 安全审计事件列表
         audit_report: 最终安全审计报告
@@ -46,6 +47,7 @@ class AgentState(TypedDict):
     conversation_context: Optional[str]
     status: str
     analysis_intent: Optional[Dict[str, Any]]
+    grounding_result: Optional[Dict[str, Any]]
     clarification_request: Optional[Dict[str, Any]]
     schema_context: Optional[Dict[str, Any]]
     generated_sql: Optional[str]
