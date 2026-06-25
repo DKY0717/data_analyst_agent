@@ -30,26 +30,38 @@ class QueryCache:
         self._ttl = ttl_seconds
         self._max_entries = max_entries
         self._local = threading.local()
+        self._initialized = False
+
+    def _ensure_initialized(self):
+        """延迟初始化：首次使用时才创建数据库"""
+        if self._initialized:
+            return
+        Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        self._initialized = True
 
     def _get_conn(self) -> sqlite3.Connection:
+        self._ensure_initialized()
         if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = sqlite3.connect(self._db_path, timeout=10)
             self._local.conn.execute("PRAGMA journal_mode=WAL")
         return self._local.conn
 
     def _init_db(self):
-        conn = self._get_conn()
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS query_cache (
-                cache_key TEXT PRIMARY KEY,
-                question TEXT NOT NULL,
-                result_json TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                hit_count INTEGER DEFAULT 0
-            );
-        """)
-        conn.commit()
+        conn = sqlite3.connect(self._db_path, timeout=10)
+        try:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS query_cache (
+                    cache_key TEXT PRIMARY KEY,
+                    question TEXT NOT NULL,
+                    result_json TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    hit_count INTEGER DEFAULT 0
+                );
+            """)
+            conn.commit()
+        finally:
+            conn.close()
 
     def _make_key(self, question: str, session_id: Optional[str] = None) -> str:
         """生成缓存键：问题文本的 SHA256 哈希（不含 session_id，相同问题跨会话命中）"""

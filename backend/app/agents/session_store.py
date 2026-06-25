@@ -30,10 +30,19 @@ class SQLiteSessionStore:
         self.context_builder = context_builder
         self._db_path = db_path or str(settings.DATA_DIR / "sessions.db")
         self._local = threading.local()
+        self._initialized = False
+
+    def _ensure_initialized(self):
+        """延迟初始化：首次使用时才创建数据库"""
+        if self._initialized:
+            return
+        Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        self._initialized = True
 
     def _get_conn(self) -> sqlite3.Connection:
         """每个线程独立连接，避免并发写入冲突"""
+        self._ensure_initialized()
         if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = sqlite3.connect(self._db_path, timeout=10)
             self._local.conn.execute("PRAGMA journal_mode=WAL")
@@ -41,26 +50,29 @@ class SQLiteSessionStore:
 
     def _init_db(self):
         """初始化数据库表结构"""
-        conn = self._get_conn()
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS session_turns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                turn_data TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
+        conn = sqlite3.connect(self._db_path, timeout=10)
+        try:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS session_turns (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    turn_data TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
 
-            CREATE INDEX IF NOT EXISTS idx_session_turns_session_id
-                ON session_turns(session_id);
+                CREATE INDEX IF NOT EXISTS idx_session_turns_session_id
+                    ON session_turns(session_id);
 
-            CREATE TABLE IF NOT EXISTS pending_clarifications (
-                session_id TEXT PRIMARY KEY,
-                question TEXT NOT NULL,
-                clarification_data TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        conn.commit()
+                CREATE TABLE IF NOT EXISTS pending_clarifications (
+                    session_id TEXT PRIMARY KEY,
+                    question TEXT NOT NULL,
+                    clarification_data TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            conn.commit()
+        finally:
+            conn.close()
 
     def append_turn(self, session_id: Optional[str], final_state: Dict[str, Any]) -> None:
         """保存一轮结果到 SQLite"""
