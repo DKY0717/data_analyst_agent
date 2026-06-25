@@ -1052,6 +1052,7 @@
 - 评测指标覆盖槽位整体匹配率、Grounding 候选命中率、路由表召回率、澄清决策准确率、澄清候选命中率和全部预期满足率。
 - CLI 验证：`python -m evaluation.intent_grounding_evaluator` 输出 7 条 case 全部通过，六项指标均为 `100%`。
 - 全量验证：`pytest -q` 为 `367 passed, 1 warning`；`npm run build` 通过；Secret Scan 扫描 212 个 tracked files 通过。
+- Commit：`e036a28`。
 
 ### 当前进度
 
