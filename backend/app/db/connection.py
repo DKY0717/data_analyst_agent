@@ -1,8 +1,8 @@
 # 数据库连接管理模块
-# 提供DuckDB数据库连接的创建、管理和会话控制
-# 每次 get_session() 创建独立连接，避免并发请求共享同一连接导致数据竞争
+# 支持 DuckDB（嵌入式）和 PostgreSQL（生产级）双后端
+# 通过 DATABASE_URL 或 DATABASE_BACKEND 环境变量自动选择
 
-import duckdb
+import re
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -10,63 +10,72 @@ from ..config import settings
 from ..utils.logger import logger
 from ..utils.exceptions import DatabaseError
 
+
+def detect_backend() -> str:
+    """根据 DATABASE_URL 自动检测数据库后端"""
+    url = settings.DATABASE_URL
+    if url.startswith("postgresql://") or url.startswith("postgres://"):
+        return "postgresql"
+    return "duckdb"
+
+
 class DatabaseConnection:
-    """数据库连接管理器（连接工厂模式，每次会话创建独立连接）"""
+    """数据库连接管理器（支持 DuckDB 和 PostgreSQL）"""
 
-    def __init__(self, db_path: str = None):
-        """
-        初始化数据库连接管理器
+    def __init__(self):
+        self.backend = settings.DATABASE_BACKEND or detect_backend()
+        logger.info(f"数据库后端: {self.backend}")
 
-        Args:
-            db_path: 数据库文件路径，默认使用配置中的数据目录
-        """
-        self.db_path = db_path or str(settings.DATA_DIR / "database.duckdb")
-
-    def get_connection(self) -> duckdb.DuckDBPyConnection:
-        """
-        创建新的数据库连接（每次调用返回独立连接）
-
-        Returns:
-            DuckDB数据库连接对象
-
-        Raises:
-            DatabaseError: 连接失败时抛出异常
-        """
+    def get_connection(self):
+        """创建新的数据库连接"""
         try:
-            conn = duckdb.connect(self.db_path)
-            return conn
+            if self.backend == "postgresql":
+                return self._get_pg_connection()
+            else:
+                return self._get_duckdb_connection()
         except Exception as e:
             logger.error(f"连接数据库失败: {e}")
             raise DatabaseError(f"连接数据库失败: {e}")
 
+    def _get_duckdb_connection(self):
+        """DuckDB 连接"""
+        import duckdb
+        db_path = str(settings.DATA_DIR / "database.duckdb")
+        return duckdb.connect(db_path)
+
+    def _get_pg_connection(self):
+        """PostgreSQL 连接"""
+        import psycopg2
+        conn = psycopg2.connect(
+            host=settings.PG_HOST,
+            port=settings.PG_PORT,
+            user=settings.PG_USER,
+            password=settings.PG_PASSWORD,
+            dbname=settings.PG_DATABASE,
+        )
+        conn.autocommit = False
+        return conn
+
     @contextmanager
     def get_session(self):
-        """
-        获取数据库会话（上下文管理器，自动创建和关闭连接）
-
-        Yields:
-            数据库连接对象
-
-        Raises:
-            DatabaseError: 会话操作出错时抛出异常
-        """
+        """获取数据库会话（自动创建和关闭连接）"""
         conn = self.get_connection()
         try:
             yield conn
+            if self.backend == "postgresql":
+                conn.commit()
         except Exception as e:
+            if self.backend == "postgresql":
+                conn.rollback()
             logger.error(f"数据库会话错误: {e}")
             raise DatabaseError(f"数据库会话错误: {e}")
         finally:
             conn.close()
 
-# 全局数据库连接实例
+
+# 全局连接实例
 db_connection = DatabaseConnection()
 
-def get_db():
-    """
-    FastAPI依赖注入函数
 
-    Returns:
-        数据库会话上下文管理器
-    """
+def get_db():
     return db_connection.get_session()

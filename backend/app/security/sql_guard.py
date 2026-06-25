@@ -9,9 +9,11 @@ from ..utils.logger import logger
 from ..utils.exceptions import SQLGuardError
 from ..config import settings
 from ..agents.audit import audit_report_builder
+from ..db.connection import db_connection
+
 
 class SQLGuard:
-    """SQL安全校验器"""
+    """SQL安全校验器（支持 DuckDB 和 PostgreSQL 方言）"""
 
     # 允许的语句类型
     ALLOWED_STATEMENTS = {"SELECT", "WITH", "EXPLAIN"}
@@ -44,6 +46,7 @@ class SQLGuard:
             max_rows: 最大返回行数，默认使用配置中的SQL_MAX_ROWS
         """
         self.max_rows = max_rows or settings.SQL_MAX_ROWS
+        self._dialect = "postgres" if db_connection.backend == "postgresql" else "duckdb"
 
     def validate(self, sql: str) -> Dict[str, Any]:
         """
@@ -69,7 +72,7 @@ class SQLGuard:
                 )
 
             # 先解析全部语句，避免 parse_one 只取第一条导致多语句绕过
-            statements = sqlglot.parse(sql, dialect="duckdb")
+            statements = sqlglot.parse(sql, dialect=self._dialect)
             if len(statements) != 1:
                 return self._result(
                     False,
@@ -202,7 +205,7 @@ class SQLGuard:
         expression = parsed.args.get("expression")
         if not expression:
             raise SQLGuardError("EXPLAIN 缺少内部查询")
-        return sqlglot.parse_one(str(expression.this), dialect="duckdb")
+        return sqlglot.parse_one(str(expression.this), dialect=self._dialect)
 
     def _validate_ast_safety(self, parsed) -> Tuple[Optional[str], Optional[str]]:
         """遍历 SQL AST，拦截 SELECT 形式的数据外泄路径"""
@@ -211,10 +214,10 @@ class SQLGuard:
             schema_name = (table.db or "").lower()
 
             if schema_name in self.BLOCKED_SYSTEM_SCHEMAS:
-                return f"禁止访问系统表: {table.sql(dialect='duckdb')}", "block_system_schema"
+                return f"禁止访问系统表: {table.sql(dialect=self._dialect)}", "block_system_schema"
 
             if table_name.startswith(self.BLOCKED_TABLE_PREFIXES):
-                return f"禁止访问系统表: {table.sql(dialect='duckdb')}", "block_system_table"
+                return f"禁止访问系统表: {table.sql(dialect=self._dialect)}", "block_system_table"
 
         for func in parsed.find_all(exp.Func):
             function_name = (getattr(func, "name", "") or "").lower()
@@ -235,7 +238,7 @@ class SQLGuard:
             清理后的SQL语句
         """
         if statement_type == "EXPLAIN":
-            return parsed.sql(dialect="duckdb"), False
+            return parsed.sql(dialect=self._dialect), False
 
         # 使用 AST 判断顶层 LIMIT，避免字符串字面量或字段名里的 LIMIT 误导安全逻辑
         limit_injected = False
@@ -243,7 +246,7 @@ class SQLGuard:
             parsed = parsed.limit(self.max_rows)
             limit_injected = True
 
-        return parsed.sql(dialect="duckdb"), limit_injected
+        return parsed.sql(dialect=self._dialect), limit_injected
 
 # 全局SQL Guard实例
 sql_guard = SQLGuard()

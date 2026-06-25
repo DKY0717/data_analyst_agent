@@ -34,7 +34,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert "pull_request" in triggers
     assert "push" in triggers
     assert workflow["permissions"]["contents"] == "read"
-    assert set(workflow["jobs"]) == {"backend-tests", "frontend-build", "secret-scan"}
+    assert set(workflow["jobs"]) == {"backend-tests", "backend-tests-pg", "frontend-build", "secret-scan"}
     assert "pytest backend/tests -q" in commands
     assert "python -m evaluation.intent_evaluator" in commands
     assert "python -m evaluation.intent_grounding_evaluator" in commands

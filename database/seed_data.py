@@ -250,13 +250,11 @@ def generate_refunds(orders):
     return refunds
 
 def seed_database(connection=None, verbose=True):
-    """填充数据库；允许测试注入隔离连接，避免依赖本地业务库。"""
-    # 每次入口都重置随机种子，保证重复建库和 CI 环境生成完全相同的数据。
+    """填充数据库；支持 DuckDB 和 PostgreSQL 双后端。"""
     random.seed(42)
     if verbose:
         print("开始生成模拟数据...")
 
-    # 生成数据
     regions = generate_regions()
     categories = generate_categories()
     products = generate_products()
@@ -276,46 +274,44 @@ def seed_database(connection=None, verbose=True):
         print(f"  - 支付: {len(payments)} 条")
         print(f"  - 退款: {len(refunds)} 条")
 
-    # 插入数据
-    # 生产脚本使用全局连接；测试传入临时连接，二者共享同一份生成逻辑。
     session = nullcontext(connection) if connection is not None else db_connection.get_session()
     with session as conn:
-        # 插入地区数据
-        for region in regions:
-            conn.execute("INSERT INTO regions VALUES (?, ?, ?, ?)", region)
+        # 检测后端类型：传入连接时从连接类型判断，否则用全局配置
+        is_pg = connection is not None and hasattr(conn, 'cursor') and not hasattr(conn, 'execute')
+        if connection is None:
+            is_pg = db_connection.backend == "postgresql"
+        ph = "%s" if is_pg else "?"
 
-        # 插入类别数据
-        for category in categories:
-            conn.execute("INSERT INTO categories VALUES (?, ?)", category)
+        def execute(sql, params=None):
+            if is_pg:
+                cur = conn.cursor()
+                cur.execute(sql, params)
+            else:
+                conn.execute(sql, params)
 
-        # 插入商品数据
-        for product in products:
-            conn.execute("INSERT INTO products VALUES (?, ?, ?, ?, ?, ?)", product)
-
-        # 插入客户数据
-        for customer in customers:
-            conn.execute("INSERT INTO customers VALUES (?, ?, ?, ?, ?, ?)", customer)
-
-        # 插入订单数据
-        for order in orders:
-            conn.execute("INSERT INTO orders VALUES (?, ?, ?, ?, ?)", order)
-
-        # 插入订单明细数据
+        for r in regions:
+            execute(f"INSERT INTO regions VALUES ({ph}, {ph}, {ph}, {ph})", r)
+        for c in categories:
+            execute(f"INSERT INTO categories VALUES ({ph}, {ph})", c)
+        for p in products:
+            execute(f"INSERT INTO products VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})", p)
+        for c in customers:
+            execute(f"INSERT INTO customers VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})", c)
+        for o in orders:
+            execute(f"INSERT INTO orders VALUES ({ph}, {ph}, {ph}, {ph}, {ph})", o)
         for item in order_items:
-            conn.execute("INSERT INTO order_items VALUES (?, ?, ?, ?, ?)", item)
+            execute(f"INSERT INTO order_items VALUES ({ph}, {ph}, {ph}, {ph}, {ph})", item)
+        for pay in payments:
+            execute(f"INSERT INTO payments VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})", pay)
+        for ref in refunds:
+            execute(f"INSERT INTO refunds VALUES ({ph}, {ph}, {ph}, {ph}, {ph})", ref)
 
-        # 插入支付数据
-        for payment in payments:
-            conn.execute("INSERT INTO payments VALUES (?, ?, ?, ?, ?, ?)", payment)
-
-        # 插入退款数据
-        for refund in refunds:
-            conn.execute("INSERT INTO refunds VALUES (?, ?, ?, ?, ?)", refund)
+        if is_pg:
+            conn.commit()
 
     if verbose:
         print("数据插入完成！")
 
-    # 验证数据
     verification_session = (
         nullcontext(connection) if connection is not None else db_connection.get_session()
     )
@@ -324,9 +320,14 @@ def seed_database(connection=None, verbose=True):
         if verbose:
             print("\n数据验证:")
         for table in tables:
-            result = conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()
+            if is_pg:
+                cur = conn.cursor()
+                cur.execute(f'SELECT COUNT(*) FROM {table}')
+                count = cur.fetchone()[0]
+            else:
+                count = conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0]
             if verbose:
-                print(f"  - {table}: {result[0]} 条记录")
+                print(f"  - {table}: {count} 条记录")
 
 if __name__ == "__main__":
     seed_database()

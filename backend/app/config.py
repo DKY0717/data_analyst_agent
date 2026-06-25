@@ -44,7 +44,16 @@ class Settings:
     DEBUG: bool = _get_bool("DEBUG", False)
 
     # Database Configuration
+    # 支持两种后端: duckdb (嵌入式) 或 postgresql (生产级)
     DATABASE_URL: str = os.getenv("DATABASE_URL", "duckdb:///./data/database.duckdb")
+    DATABASE_BACKEND: str = os.getenv("DATABASE_BACKEND", "")  # "duckdb" 或 "postgresql"，留空自动检测
+
+    # PostgreSQL 专用配置（仅 DATABASE_BACKEND=postgresql 时生效）
+    PG_HOST: str = os.getenv("PG_HOST", "localhost")
+    PG_PORT: int = _get_int("PG_PORT", 5432)
+    PG_USER: str = os.getenv("PG_USER", "postgres")
+    PG_PASSWORD: str = os.getenv("PG_PASSWORD", "postgres")
+    PG_DATABASE: str = os.getenv("PG_DATABASE", "data_analyst_agent")
 
     # Qwen API Configuration
     QWEN_API_KEY: str = os.getenv("QWEN_API_KEY", "")

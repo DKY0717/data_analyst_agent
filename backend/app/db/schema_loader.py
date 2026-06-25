@@ -1,5 +1,5 @@
 # Schema加载器模块
-# 从数据库中读取表结构信息，供SQL生成器使用
+# 支持 DuckDB 和 PostgreSQL 双后端，自动适配方言差异
 
 import re
 from typing import Dict, List, Any
@@ -8,70 +8,63 @@ from ..db.connection import db_connection
 from ..utils.logger import logger
 from ..utils.exceptions import SchemaLoadError
 
+
 class SchemaLoader:
-    """数据库Schema加载器"""
+    """数据库Schema加载器（双后端支持）"""
 
     def __init__(self):
-        """初始化Schema加载器"""
         self.db = db_connection
 
+    @property
+    def _is_pg(self) -> bool:
+        return self.db.backend == "postgresql"
+
+    @property
+    def _schema_name(self) -> str:
+        return "public" if self._is_pg else "main"
+
+    @property
+    def _placeholder(self) -> str:
+        return "%s" if self._is_pg else "?"
+
     def get_tables(self) -> List[str]:
-        """
-        获取数据库中所有表名
-
-        Returns:
-            表名列表
-
-        Raises:
-            SchemaLoadError: 获取表列表失败时抛出异常
-        """
+        """获取数据库中所有表名"""
         try:
             with self.db.get_session() as conn:
-                # 查询information_schema获取所有表
-                result = conn.execute("""
-                    SELECT table_name
-                    FROM information_schema.tables
-                    WHERE table_schema = 'main'
-                    ORDER BY table_name
-                """).fetchall()
-                return [row[0] for row in result]
+                cur = conn.cursor()
+                cur.execute(
+                    f"SELECT table_name FROM information_schema.tables "
+                    f"WHERE table_schema = '{self._schema_name}' "
+                    f"ORDER BY table_name"
+                )
+                return [row[0] for row in cur.fetchall()]
         except Exception as e:
             logger.error(f"获取表列表失败: {e}")
             raise SchemaLoadError(f"获取表列表失败: {e}")
 
     def get_table_schema(self, table_name: str) -> Dict[str, Any]:
-        """
-        获取指定表的结构信息
-
-        Args:
-            table_name: 表名
-
-        Returns:
-            包含表结构信息的字典，包括列信息和主键信息
-
-        Raises:
-            SchemaLoadError: 获取表结构失败时抛出异常
-        """
+        """获取指定表的结构信息"""
         try:
             with self.db.get_session() as conn:
-                # 获取列信息
-                columns = conn.execute("""
-                    SELECT column_name, data_type, is_nullable
-                    FROM information_schema.columns
-                    WHERE table_schema = 'main'
-                    AND table_name = ?
-                    ORDER BY ordinal_position
-                """, [table_name]).fetchall()
+                cur = conn.cursor()
+                ph = self._placeholder
 
-                # DuckDB 0.9 尚未暴露标准 table_constraints，统一从约束目录读取主外键。
-                constraints = conn.execute("""
-                    SELECT constraint_type, constraint_text, constraint_column_names
-                    FROM duckdb_constraints()
-                    WHERE schema_name = 'main'
-                    AND table_name = ?
-                    ORDER BY constraint_index
-                """, [table_name]).fetchall()
-                primary_keys, foreign_keys = self._parse_constraints(constraints)
+                # 获取列信息
+                cur.execute(
+                    f"SELECT column_name, data_type, is_nullable "
+                    f"FROM information_schema.columns "
+                    f"WHERE table_schema = '{self._schema_name}' "
+                    f"AND table_name = {ph} "
+                    f"ORDER BY ordinal_position",
+                    [table_name],
+                )
+                columns = cur.fetchall()
+
+                # 获取主键和外键
+                if self._is_pg:
+                    primary_keys, foreign_keys = self._get_pg_constraints(conn, table_name)
+                else:
+                    primary_keys, foreign_keys = self._get_duckdb_constraints(conn, table_name)
 
                 return {
                     "table_name": table_name,
@@ -79,7 +72,7 @@ class SchemaLoader:
                         {
                             "name": col[0],
                             "type": col[1],
-                            "nullable": col[2] == "YES"
+                            "nullable": col[2] == "YES",
                         }
                         for col in columns
                     ],
@@ -90,31 +83,76 @@ class SchemaLoader:
             logger.error(f"获取表 {table_name} 结构失败: {e}")
             raise SchemaLoadError(f"获取表 {table_name} 结构失败: {e}")
 
+    def _get_pg_constraints(self, conn, table_name: str) -> tuple:
+        """PostgreSQL 约束查询"""
+        cur = conn.cursor()
+
+        # 主键
+        cur.execute(
+            "SELECT kcu.column_name "
+            "FROM information_schema.table_constraints tc "
+            "JOIN information_schema.key_column_usage kcu "
+            "  ON tc.constraint_name = kcu.constraint_name "
+            "WHERE tc.table_schema = 'public' "
+            "AND tc.table_name = %s "
+            "AND tc.constraint_type = 'PRIMARY KEY'",
+            [table_name],
+        )
+        primary_keys = [row[0] for row in cur.fetchall()]
+
+        # 外键
+        cur.execute(
+            "SELECT kcu.column_name, ccu.table_name, ccu.column_name "
+            "FROM information_schema.table_constraints tc "
+            "JOIN information_schema.key_column_usage kcu "
+            "  ON tc.constraint_name = kcu.constraint_name "
+            "JOIN information_schema.constraint_column_usage ccu "
+            "  ON tc.constraint_name = ccu.constraint_name "
+            "WHERE tc.table_schema = 'public' "
+            "AND tc.table_name = %s "
+            "AND tc.constraint_type = 'FOREIGN KEY'",
+            [table_name],
+        )
+        foreign_keys = [
+            {
+                "column": row[0],
+                "referenced_table": row[1],
+                "referenced_column": row[2],
+            }
+            for row in cur.fetchall()
+        ]
+
+        return primary_keys, foreign_keys
+
+    def _get_duckdb_constraints(self, conn, table_name: str) -> tuple:
+        """DuckDB 约束查询"""
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT constraint_type, constraint_text, constraint_column_names "
+            "FROM duckdb_constraints() "
+            "WHERE schema_name = 'main' "
+            "AND table_name = ? "
+            "ORDER BY constraint_index",
+            [table_name],
+        )
+        constraints = cur.fetchall()
+        return self._parse_constraints(constraints)
+
     def get_full_schema(self) -> Dict[str, Any]:
-        """
-        获取完整的数据库Schema
-
-        Returns:
-            包含所有表结构的字典
-
-        Raises:
-            SchemaLoadError: 获取完整Schema失败时抛出异常
-        """
+        """获取完整的数据库Schema"""
         try:
             tables = self.get_tables()
             schema = {}
-
             for table in tables:
                 schema[table] = self.get_table_schema(table)
-
             return {"tables": schema}
         except Exception as e:
             logger.error(f"获取完整Schema失败: {e}")
             raise SchemaLoadError(f"获取完整Schema失败: {e}")
 
     @staticmethod
-    def _parse_constraints(constraints: List[tuple]) -> tuple[List[str], List[Dict[str, str]]]:
-        """将 DuckDB 约束目录转换为下游路由可直接使用的稳定结构。"""
+    def _parse_constraints(constraints: List[tuple]) -> tuple:
+        """DuckDB 约束解析"""
         primary_keys: List[str] = []
         foreign_keys: List[Dict[str, str]] = []
 
@@ -126,7 +164,6 @@ class SchemaLoader:
             if constraint_type != "FOREIGN KEY":
                 continue
 
-            # DuckDB 0.9 只结构化返回本地列，引用表与列需从固定约束文本中提取。
             match = re.search(
                 r"REFERENCES\s+(?:[\w\"]+\.)?([\w\"]+)\s*\(([^)]+)\)",
                 constraint_text or "",
@@ -151,5 +188,5 @@ class SchemaLoader:
 
         return primary_keys, foreign_keys
 
-# 全局Schema加载器实例
+
 schema_loader = SchemaLoader()
