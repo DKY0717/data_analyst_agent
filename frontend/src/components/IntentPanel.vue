@@ -53,7 +53,7 @@
           :key="opt.candidate_id"
           class="clickable-tag"
           effect="plain"
-          @click="$emit('clarify', opt.label)"
+          @click="$emit('clarify', opt)"
         >
           {{ opt.label }}
         </el-tag>

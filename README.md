@@ -12,10 +12,12 @@
 - **规则化 SQL 优化建议**：基于 SQL AST、查询结果规模和 DuckDB EXPLAIN 执行计划生成可解释优化建议。
 - **四类评测体系**：内置 37 条危险意图 case、32 条 NL2SQL case、6 条确定性 SQL Repair 故障注入 case，以及 10 条结果正确性黄金 case。
 - **结果正确性黄金基准**：使用人工审核参考 SQL、固定业务断言和四种比较模式，区分“SQL 能执行”和“分析结果算正确”。
+- **分层意图与 Schema Grounding**：先解析结构化分析意图，再把指标/维度映射到稳定候选和 Schema 路由，减少直接让 LLM 猜表猜字段。
+- **主动澄清闭环**：明显模糊且缺失关键槽位时在 SQL 生成前暂停，返回稳定 `candidate_id` 候选；用户选择后恢复原问题继续执行。
 - **多轮分析追问**：通过 `session_id` 保存最近几轮问题、SQL 和结果摘要，支持“按地区拆一下”这类省略式追问。
 - **安全审计报告**：API 返回结构化 `audit_report`，前端工作台展示 SQL 生成、Guard 校验、LIMIT 注入、修复和执行证据。
 - **LLM 调用可观测性**：记录每次 Qwen 调用的节点、Token、耗时、尝试次数和可选估算成本，并接入审计与离线评测报告。
-- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `319 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
+- **可验证工程质量**：后端测试使用固定种子隔离 DuckDB；当前 `356 passed`，并接入 GitHub Actions、安全质量门禁和真实 Qwen 正确性基线。
 
 ## 核心功能
 
@@ -37,9 +39,12 @@
 ```mermaid
 flowchart LR
     Q[用户自然语言问题] --> Intent[Intent Guard]
-    Intent -->|安全| S[Schema Loader]
+    Intent -->|安全| AI[Analysis Intent Parser]
     Intent -->|危险| End[提前阻断]
     Q --> Ctx[SessionStore / 多轮上下文]
+    AI --> Ground[Schema Grounding / 主动澄清]
+    Ground -->|需澄清| End
+    Ground -->|意图完整| S[Schema Loader]
     S --> Sem[Semantic Layer / 指标与维度]
     Ctx --> G[SQL Generator / Qwen]
     Sem --> G
@@ -197,7 +202,7 @@ cd backend
 pytest -q
 ```
 
-当前验证结果：`319 passed`。
+当前验证结果：`356 passed`。
 
 ## 运行评测
 
@@ -225,6 +230,7 @@ python -m evaluation.result_correctness_evaluator
 - [开发文档 v0.3：企业级 NL2SQL Agent 升级版](docs/data_analyst_agent_开发文档_v_0_3.md)
 - [开发文档 v0.4：Intent Guard 与危险意图评测](docs/data_analyst_agent_开发文档_v_0_4.md)
 - [开发文档 v0.5：结果正确性黄金基准](docs/data_analyst_agent_开发文档_v_0_5.md)
+- [开发文档 v0.6：分层意图、Schema Grounding 与主动澄清](docs/data_analyst_agent_开发文档_v_0_6.md)
 - [项目面试讲述稿](docs/interview_guide.md)
 - [数据库设计](docs/database_design_md.md)
 - [前端工作台开发说明](docs/frontend_workbench_development_notes.md)

@@ -17,7 +17,7 @@ export const useQueryStore = defineStore('query', () => {
   const hasResult = computed(() => Boolean(result.value))
   const hasRows = computed(() => Array.isArray(result.value?.rows) && result.value.rows.length > 0)
 
-  async function submitQuestion(nextQuestion = question.value) {
+  async function submitQuestion(nextQuestion = question.value, clarification = null) {
     const normalizedQuestion = nextQuestion.trim()
     if (!normalizedQuestion || loading.value) return
 
@@ -26,7 +26,7 @@ export const useQueryStore = defineStore('query', () => {
     error.value = null
 
     try {
-      const data = await queryAgent(normalizedQuestion, sessionId.value)
+      const data = await queryAgent(normalizedQuestion, sessionId.value, clarification)
       result.value = data
       // 只保留最近 8 条，避免第一版内存历史过长影响侧栏可读性。
       history.value = [
@@ -63,6 +63,17 @@ export const useQueryStore = defineStore('query', () => {
     question.value = nextQuestion
   }
 
+  async function submitClarification(option) {
+    const clarification = result.value?.clarification
+    if (!clarification || !option?.candidate_id) return
+
+    // 前端只提交稳定 candidate_id；原问题和冻结候选由后端 SessionStore 恢复。
+    await submitQuestion(option.label, {
+      clarificationId: clarification.clarification_id,
+      candidateId: option.candidate_id,
+    })
+  }
+
   function clearResult() {
     result.value = null
     error.value = null
@@ -87,6 +98,7 @@ export const useQueryStore = defineStore('query', () => {
     hasResult,
     hasRows,
     submitQuestion,
+    submitClarification,
     setQuestion,
     clearResult,
     loadSchema,

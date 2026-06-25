@@ -63,7 +63,6 @@ class AgentGraph:
         workflow.set_entry_point("check_intent")
 
         # 固定边：线性流程
-        workflow.add_edge("parse_intent", "load_schema")
         workflow.add_edge("load_schema", "generate_sql")
         workflow.add_edge("generate_sql", "validate_sql")
         workflow.add_edge("generate_answer", END)
@@ -74,6 +73,16 @@ class AgentGraph:
             self._should_load_schema,
             {
                 "parse_intent": "parse_intent",
+                "end": END,
+            },
+        )
+
+        # 主动澄清是 SQL 生成前的暂停态，避免低置信问题继续消耗 Qwen 或访问数据库。
+        workflow.add_conditional_edges(
+            "parse_intent",
+            self._should_continue_after_intent,
+            {
+                "load_schema": "load_schema",
                 "end": END,
             },
         )
@@ -116,6 +125,7 @@ class AgentGraph:
             reason = result.get("reason")
             answer = None if is_safe else f"请求已被安全策略阻断：{reason}"
             return {
+                "status": "completed" if is_safe else "blocked",
                 "intent_is_safe": is_safe,
                 "intent_rule_id": result.get("rule_id"),
                 "intent_category": result.get("category"),
@@ -136,6 +146,7 @@ class AgentGraph:
             logger.warning("Intent Guard 安全检查异常，已阻断请求")
             reason = "安全检查暂时不可用，请稍后重试"
             return {
+                "status": "blocked",
                 "intent_is_safe": False,
                 "intent_rule_id": "block_intent_guard_error",
                 "intent_category": "guard_error",
@@ -177,13 +188,37 @@ class AgentGraph:
 
         # 澄清检查：低置信度或缺失槽位时生成澄清请求
         clarification = clarification_engine.check(merged)
+        if clarification and not self._should_request_clarification(state, merged):
+            clarification = None
+        clarification_payload = clarification.model_dump() if clarification else None
 
-        return {
-            "analysis_intent": {
+        analysis_intent = {
                 **merged.model_dump(),
                 "grounding": grounding_result,
-                "clarification": clarification.model_dump() if clarification else None,
-            },
+                "clarification": clarification_payload,
+            }
+        if clarification_payload:
+            return {
+                "status": "clarification_required",
+                "analysis_intent": analysis_intent,
+                "clarification_request": clarification_payload,
+                "answer": clarification_payload["question"],
+                "audit_events": self._append_audit_event(
+                    state,
+                    "intent",
+                    "clarify",
+                    "blocked",
+                    "分析意图不完整，已暂停并请求用户澄清",
+                    details={
+                        "clarification_id": clarification_payload["clarification_id"],
+                        "reason": clarification_payload["reason"],
+                    },
+                ),
+            }
+
+        return {
+            "status": "completed",
+            "analysis_intent": analysis_intent,
             "audit_events": self._append_audit_event(
                 state,
                 "intent",
@@ -254,6 +289,7 @@ class AgentGraph:
                 )
             ]
         return {
+            "status": "completed" if result["is_safe"] else "blocked",
             "validated_sql": result["sanitized_sql"],
             "is_sql_safe": result["is_safe"],
             "validation_error": result["reason"],
@@ -384,6 +420,42 @@ class AgentGraph:
         """意图安全时进入意图解析，否则立即终止。"""
         return "parse_intent" if state["intent_is_safe"] else "end"
 
+    def _should_continue_after_intent(self, state: AgentState) -> str:
+        """意图完整时继续加载 Schema；需要澄清时暂停在 SQL 生成前。"""
+        return "end" if state.get("status") == "clarification_required" else "load_schema"
+
+    def _should_request_clarification(
+        self,
+        state: AgentState,
+        intent: Any,
+    ) -> bool:
+        """只拦截真正模糊的分析请求，避免普通查询和多轮追问被过度澄清。"""
+        if not state.get("session_id"):
+            return False
+
+        if intent.conflicts:
+            return True
+
+        question = state.get("question", "")
+        vague_markers = (
+            "分析一下",
+            "分析下",
+            "帮我分析",
+            "看一下数据",
+            "看看数据",
+            "数据情况",
+            "整体情况",
+        )
+        has_metric_gap = "metric" in intent.missing_slots and not intent.metrics
+        if has_metric_gap and any(marker in question for marker in vague_markers):
+            return True
+
+        # 多轮追问常常省略指标，例如“按地区拆一下”；有历史上下文时交给 SQL Generator 继承意图。
+        if state.get("conversation_context"):
+            return False
+
+        return False
+
     def _should_execute(self, state: AgentState) -> str:
         """校验后决策：安全 SQL 执行，Guard 拒绝的 SQL 立即终止。"""
         if state["is_sql_safe"]:
@@ -401,7 +473,12 @@ class AgentGraph:
         logger.warning(f"SQL 执行失败且重试耗尽: {state.get('execution_error')}")
         return "end"
 
-    async def run(self, question: str, session_id: str | None = None) -> AgentState:
+    async def run(
+        self,
+        question: str,
+        session_id: str | None = None,
+        clarification_response: dict[str, Any] | None = None,
+    ) -> AgentState:
         """运行完整的 Agent 工作流
 
         Args:
@@ -411,6 +488,17 @@ class AgentGraph:
         Returns:
             最终的 AgentState，包含 answer 或错误信息
         """
+        if clarification_response:
+            resolved = session_store.resolve_pending_clarification(
+                session_id,
+                clarification_response["clarification_id"],
+                candidate_id=clarification_response.get("candidate_id"),
+                text=clarification_response.get("text"),
+            )
+            if resolved is None:
+                return self._build_expired_clarification_state(question, session_id)
+            question = resolved["resolved_question"]
+
         # 在图执行前读取历史摘要，作为显式 state 传入后续节点，避免节点直接访问外部会话存储。
         conversation_context = session_store.get_context(session_id)
         start_trace()
@@ -424,7 +512,9 @@ class AgentGraph:
             "intent_error": None,
             "session_id": session_id,
             "conversation_context": conversation_context,
+            "status": "completed",
             "analysis_intent": None,
+            "clarification_request": None,
             "schema_context": None,
             "generated_sql": "",
             "validated_sql": "",
@@ -451,10 +541,60 @@ class AgentGraph:
             final_state.get("audit_events", []),
         )
 
+        if final_state.get("status") == "clarification_required":
+            session_store.save_pending_clarification(
+                session_id,
+                final_state["question"],
+                final_state.get("clarification_request") or {},
+            )
+            return final_state
+
         # 图完成后再写回本轮摘要；失败轮也保留问题和 SQL，方便下一轮提示用户换问法或继续修复。
         session_store.append_turn(session_id, final_state)
 
         return final_state
+
+    def _build_expired_clarification_state(
+        self,
+        question: str,
+        session_id: str | None,
+    ) -> AgentState:
+        """澄清恢复失败时返回稳定状态，不继续调用下游依赖。"""
+        event = audit_report_builder.make_event(
+            "intent",
+            "resolve_clarification",
+            "blocked",
+            "澄清请求已过期或候选无效，请重新提问",
+            rule_id="clarification_not_found",
+        )
+        state: AgentState = {
+            "question": question,
+            "intent_is_safe": True,
+            "intent_rule_id": None,
+            "intent_category": None,
+            "intent_error": None,
+            "session_id": session_id,
+            "conversation_context": "",
+            "status": "clarification_expired",
+            "analysis_intent": None,
+            "clarification_request": None,
+            "schema_context": None,
+            "generated_sql": "",
+            "validated_sql": "",
+            "is_sql_safe": False,
+            "validation_error": "澄清请求已过期或候选无效",
+            "execution_success": False,
+            "query_result": None,
+            "execution_error": None,
+            "retry_count": 0,
+            "answer": "澄清请求已过期或候选无效，请重新提问。",
+            "optimization_suggestions": [],
+            "audit_events": [event],
+            "audit_report": None,
+            "llm_calls": [],
+        }
+        state["audit_report"] = audit_report_builder.build_report(state, [event])
+        return state
 
 
 # 延迟初始化：避免模块 import 时触发数据库连接和级联初始化

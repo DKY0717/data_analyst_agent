@@ -24,6 +24,8 @@ def make_agent_result():
         "answer": "已按地区拆分销售额",
         "retry_count": 0,
         "optimization_suggestions": [],
+        "status": "completed",
+        "clarification_request": None,
         "audit_report": {
             "question": "按地区拆一下",
             "final_sql": "SELECT region_name, SUM(total_amount) AS sales FROM orders GROUP BY region_name LIMIT 1000",
@@ -86,6 +88,8 @@ def make_intent_blocked_result():
         "retry_count": 0,
         "answer": "请求已被安全策略阻断：请求包含明确的数据修改或删除意图",
         "optimization_suggestions": [],
+        "status": "blocked",
+        "clarification_request": None,
         "audit_report": {
             "question": "删除所有订单",
             "final_sql": "",
@@ -171,7 +175,11 @@ def test_query_api_passes_session_id_to_agent_graph():
     assert payload["data"]["audit_report"]["limit_injected"] is True
     assert payload["data"]["audit_report"]["events"][0]["stage"] == "guard"
     assert payload["data"]["audit_report"]["llm_observability"]["total_tokens"] == 120
-    mock_graph.run.assert_awaited_once_with("按地区拆一下", session_id="session-1")
+    mock_graph.run.assert_awaited_once_with(
+        "按地区拆一下",
+        session_id="session-1",
+        clarification_response=None,
+    )
 
 
 def test_query_api_returns_stable_intent_blocked_response():
@@ -196,6 +204,111 @@ def test_query_api_returns_stable_intent_blocked_response():
     assert payload["intent_category"] == "data_mutation"
     assert "安全策略阻断" in payload["answer"]
     assert payload["audit_report"]["blocked_rules"] == ["block_destructive_intent"]
+
+
+def make_clarification_required_result():
+    return {
+        "question": "帮我分析一下",
+        "session_id": "session-clarify",
+        "intent_is_safe": True,
+        "generated_sql": "",
+        "validated_sql": "",
+        "is_sql_safe": False,
+        "execution_success": False,
+        "query_result": None,
+        "retry_count": 0,
+        "answer": "您想分析什么指标？例如：销售额、订单数、退款率等。",
+        "optimization_suggestions": [],
+        "analysis_intent": {
+            "missing_slots": ["metric"],
+            "overall_confidence": 0.0,
+            "clarification": {
+                "clarification_id": "clarify_metric_001",
+                "reason": "未识别到明确的分析指标",
+                "question": "您想分析什么指标？例如：销售额、订单数、退款率等。",
+                "options": [
+                    {
+                        "candidate_id": "metric_sales_amount",
+                        "label": "销售额",
+                        "description": "分析销售额相关的数据",
+                    }
+                ],
+                "max_rounds": 2,
+            },
+        },
+        "status": "clarification_required",
+        "clarification_request": {
+            "clarification_id": "clarify_metric_001",
+            "reason": "未识别到明确的分析指标",
+            "question": "您想分析什么指标？例如：销售额、订单数、退款率等。",
+            "options": [
+                {
+                    "candidate_id": "metric_sales_amount",
+                    "label": "销售额",
+                    "description": "分析销售额相关的数据",
+                }
+            ],
+            "max_rounds": 2,
+        },
+        "audit_report": {
+            "question": "帮我分析一下",
+            "final_sql": "",
+            "is_sql_safe": False,
+            "execution_success": False,
+            "retry_count": 0,
+            "limit_injected": False,
+            "blocked_rules": [],
+            "llm_observability": {"call_count": 0, "calls": []},
+            "events": [],
+        },
+    }
+
+
+def test_query_api_returns_clarification_required_response():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_clarification_required_result())
+
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph):
+        response = client.post(
+            "/api/chat/query",
+            json={"question": "帮我分析一下", "session_id": "session-clarify"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["status"] == "clarification_required"
+    assert payload["sql"] == ""
+    assert payload["clarification"]["clarification_id"] == "clarify_metric_001"
+    assert payload["clarification"]["options"][0]["candidate_id"] == "metric_sales_amount"
+
+
+def test_query_api_passes_clarification_response_to_agent_graph():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_agent_result())
+
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph):
+        response = client.post(
+            "/api/chat/query",
+            json={
+                "question": "销售额",
+                "session_id": "session-clarify",
+                "clarification_id": "clarify_metric_001",
+                "clarification_candidate_id": "metric_sales_amount",
+            },
+        )
+
+    assert response.status_code == 200
+    mock_graph.run.assert_awaited_once_with(
+        "销售额",
+        session_id="session-clarify",
+        clarification_response={
+            "clarification_id": "clarify_metric_001",
+            "candidate_id": "metric_sales_amount",
+            "text": None,
+        },
+    )
 
 
 def test_query_api_does_not_log_raw_question():

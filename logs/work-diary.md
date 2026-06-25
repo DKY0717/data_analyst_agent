@@ -971,3 +971,57 @@
   - Merger 合并规则与 LLM 候选，规则高确定性槽位优先，冲突显式保留并降低置信度。
   - TDD RED 已确认模块缺失；定向测试 `20 passed`，完整后端回归 `339 passed`。
   - 完成规格符合性与代码质量两轮审查。
+
+---
+
+## 2026-06-24 — 项目体检与面试打磨规划
+
+### 完成的工作
+
+- 读取项目工作日记、README、面试稿、v0.6 设计/实施计划、近期 Git 提交和关键代码。
+- 确认当前代码已推进到 v0.6 后续提交：`0b42f84 feat: complete v0.6 system - grounding, clarification, lifespan, chunking`。
+- 运行当前基础验证：
+  - 后端全量测试：`349 passed, 1 warning`。
+  - 前端 production build：通过，保留 Element Plus/ECharts 大 chunk 警告。
+  - Secret Scan 正确命令：`git ls-files -z | python scripts/check_secrets.py`，扫描 207 个 tracked files，通过。
+  - Intent Evaluation：37 条 case 全部通过。
+- 发现当前主要风险：
+  - README 和面试稿仍停留在 v0.5/`319 passed`，未同步 v0.6 分层意图和 Schema Grounding。
+  - v0.6 主动澄清目前仅展示 `clarification`，主流程没有暂停执行、冻结意图或按 `candidate_id` 恢复。
+  - `parse_intent` 节点聚合了意图解析、Grounding 和澄清检查，不如设计文档中分层节点清晰。
+  - 前端首屏自动提交查询，真实 Qwen 配置存在时会产生一次非用户主动触发的模型调用。
+
+### 当前进度
+
+- ✅ 完成项目现状体检。
+- ✅ 完成第一轮问题定位。
+- ⏳ 等待用户确认打磨路线后进入实施。
+
+### 下一步
+
+- 推荐优先做“面试稳态打磨”：补齐 README/面试稿/v0.6 开发文档，修复前端自动调用和澄清交互的最小闭环，再考虑更大规模拆分 LangGraph 节点与分层评测。
+- 实施前需要按流程确认方案，然后编写/更新计划，逐项 TDD 实现、测试、审查并提交。
+
+### 实施补充
+
+- 完成主动澄清最小闭环：
+  - AgentGraph 在明确模糊且可恢复的低置信请求上，于 SQL 生成前暂停。
+  - SessionStore 保存 pending 澄清请求，并用稳定 `candidate_id` 恢复原问题。
+  - API 新增 `status`、`clarification` 和澄清回答字段。
+  - 前端点击澄清候选时提交结构化 `clarification_id` + `candidate_id`。
+- 修复前端首屏自动真实查询问题：
+  - 首页只加载 Schema，不再打开页面就触发 Qwen 调用。
+- 同步面试资料：
+  - README 测试数更新为 `356 passed`。
+  - 新增 `docs/data_analyst_agent_开发文档_v_0_6.md`。
+  - 更新 `docs/interview_guide.md`，补充分层意图、Schema Grounding 和主动澄清讲法。
+- 验证结果：
+  - `pytest -q`：`356 passed, 1 warning`。
+  - `npm run build`：通过，保留既有 Element Plus/ECharts 大 chunk 警告。
+  - `git ls-files -z | python scripts/check_secrets.py`：207 个 tracked files 通过。
+
+### 当前进度
+
+- ✅ 面试稳态打磨第一轮完成。
+- ✅ 主动澄清从展示态升级为可暂停、可恢复的最小闭环。
+- ⏳ 后续可继续拆分 LangGraph v0.6 节点，并建设分层意图/Grounding 专项评测集。

@@ -60,6 +60,7 @@ LIMIT 1000;`,
       ['2024-06', 19780.4],
     ],
     answer: '查询结果显示，2024 年上半年销售额整体呈上升趋势，其中 6 月销售额最高，达到 19780.4 元。',
+    status: 'completed',
     execution_time_ms: 42,
     retry_count: 0,
     optimization_suggestions: ['当前查询已按月份聚合，建议关注 DuckDB 对订单日期过滤和聚合的执行计划。'],
@@ -102,9 +103,15 @@ LIMIT 1000;`,
   }
 }
 
-export async function queryAgent(question, sessionId) {
+export async function queryAgent(question, sessionId, clarification = null) {
   try {
-    const response = await client.post('/chat/query', { question, session_id: sessionId })
+    const payload = { question, session_id: sessionId }
+    if (clarification) {
+      payload.clarification_id = clarification.clarificationId
+      payload.clarification_candidate_id = clarification.candidateId
+      payload.clarification_text = clarification.text || null
+    }
+    const response = await client.post('/chat/query', payload)
     // 后端返回 { code, message, data: { question, sql, rows, ... } }
     // 提取嵌套的 data 字段，与前端组件期望的结构对齐
     return { ...response.data.data, used_mock: false }

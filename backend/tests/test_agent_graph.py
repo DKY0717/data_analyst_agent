@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.agents.graph import AgentGraph
+from app.analysis_intent.models import AnalysisIntent
 from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
 from app.services.llm_observability import record_call
 
@@ -484,7 +485,10 @@ class TestAgentGraphIntentGuard:
             intent_error=None,
             session_id=None,
             conversation_context=None,
+            status="completed",
             schema_context=None,
+            analysis_intent=None,
+            clarification_request=None,
             generated_sql="",
             validated_sql="",
             is_sql_safe=False,
@@ -506,6 +510,107 @@ class TestAgentGraphIntentGuard:
         assert state["intent_error"] is None
         assert state["generated_sql"] == ""
         assert state["validated_sql"] == ""
+
+
+class TestAgentGraphClarification:
+    """测试主动澄清会暂停执行，并由会话存储保存可恢复候选。"""
+
+    @pytest.mark.asyncio
+    async def test_clarification_required_stops_before_schema_and_sql_generation(self):
+        graph = AgentGraph()
+        rule_intent = AnalysisIntent(missing_slots=["metric"], overall_confidence=0.0)
+
+        with patch.object(graph, "rule_parser") as mock_rule, \
+             patch.object(graph, "llm_parser") as mock_llm, \
+             patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.sql_generator") as mock_gen, \
+             patch("app.agents.graph.session_store") as mock_store:
+            mock_rule.parse.return_value = rule_intent
+            mock_llm.parse = AsyncMock(side_effect=Exception("LLM unavailable"))
+            mock_store.get_context.return_value = ""
+            mock_store.save_pending_clarification = MagicMock()
+            mock_gen.generate = AsyncMock()
+
+            result = await graph.run("帮我分析一下", session_id="session-clarify")
+
+        assert result["status"] == "clarification_required"
+        assert result["answer"] == "您想分析什么指标？例如：销售额、订单数、退款率等。"
+        assert result["clarification_request"]["clarification_id"].startswith("clarify_")
+        assert result["generated_sql"] == ""
+        assert result["validated_sql"] == ""
+        mock_loader.get_full_schema.assert_not_called()
+        mock_gen.generate.assert_not_called()
+        mock_store.save_pending_clarification.assert_called_once()
+        assert mock_store.append_turn.call_count == 0
+
+    @pytest.mark.asyncio
+    async def test_clarification_response_reuses_resolved_question(self):
+        graph = AgentGraph()
+        mock_schema = make_schema_context()
+        mock_sql_output = SQLGeneratorOutput(
+            sql="SELECT SUM(total_amount) AS sales FROM orders",
+            tables=["orders"],
+            columns=["total_amount"],
+            explanation="按用户澄清后的销售额指标统计",
+        )
+
+        with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.sql_generator") as mock_gen, \
+             patch("app.agents.graph.sql_guard") as mock_guard, \
+             patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
+             patch("app.agents.graph.answer_generator") as mock_answer, \
+             patch("app.agents.graph.session_store") as mock_store, \
+             patch.object(graph, "rule_parser") as mock_rule, \
+             patch.object(graph, "llm_parser") as mock_llm:
+            mock_store.resolve_pending_clarification.return_value = {
+                "resolved_question": "帮我分析一下。用户澄清：销售额（metric_sales_amount）",
+            }
+            mock_store.get_context.return_value = ""
+            mock_rule.parse.return_value = AnalysisIntent(
+                metrics=[],
+                missing_slots=[],
+                overall_confidence=0.95,
+            )
+            mock_llm.parse = AsyncMock(side_effect=Exception("LLM unavailable"))
+            mock_loader.get_full_schema.return_value = mock_schema
+            mock_gen.generate = AsyncMock(return_value=mock_sql_output)
+            mock_guard.validate.return_value = {
+                "is_safe": True,
+                "sanitized_sql": mock_sql_output.sql + " LIMIT 1000",
+                "reason": None,
+            }
+            mock_runner.execute.return_value = make_query_result_success()
+            mock_optimizer.optimize.return_value = []
+            mock_answer.generate = AsyncMock(return_value="销售额已统计")
+
+            result = await graph.run(
+                "销售额",
+                session_id="session-clarify",
+                clarification_response={
+                    "clarification_id": "clarify_metric_001",
+                    "candidate_id": "metric_sales_amount",
+                },
+            )
+
+        mock_store.resolve_pending_clarification.assert_called_once_with(
+            "session-clarify",
+            "clarify_metric_001",
+            candidate_id="metric_sales_amount",
+            text=None,
+        )
+        assert mock_gen.generate.call_args.args[0] == "帮我分析一下。用户澄清：销售额（metric_sales_amount）"
+        assert result["question"] == "帮我分析一下。用户澄清：销售额（metric_sales_amount）"
+        assert result["status"] == "completed"
+
+    def test_clarification_requires_session_id_for_recovery(self):
+        graph = AgentGraph()
+        intent = AnalysisIntent(missing_slots=["metric"], overall_confidence=0.0)
+
+        assert graph._should_request_clarification(
+            {"question": "帮我分析一下", "session_id": None},
+            intent,
+        ) is False
 
 
 class TestAgentGraphConversationContext:

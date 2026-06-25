@@ -35,7 +35,7 @@
       </section>
 
       <aside class="right-column">
-        <IntentPanel :result="queryStore.result" @clarify="handleSelectQuestion" />
+        <IntentPanel :result="queryStore.result" @clarify="queryStore.submitClarification" />
         <SQLPanel :result="queryStore.result" />
         <AuditPanel :result="queryStore.result" />
         <OptimizationPanel :result="queryStore.result" />
@@ -68,7 +68,5 @@ function handleSelectQuestion(question) {
 
 onMounted(() => {
   queryStore.loadSchema()
-  // 首屏自动跑一次 mock/真实查询，让用户进入页面时直接看到完整展示效果。
-  queryStore.submitQuestion(queryStore.question)
 })
 </script>

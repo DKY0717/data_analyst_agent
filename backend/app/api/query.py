@@ -25,8 +25,20 @@ async def query(request: QueryRequest):
     try:
         logger.info("收到查询请求")
 
-        # session_id 只做透传；多轮上下文由 AgentGraph 和 SessionStore 统一管理。
-        result = await get_agent_graph().run(request.question, session_id=request.session_id)
+        clarification_response = None
+        if request.clarification_id:
+            clarification_response = {
+                "clarification_id": request.clarification_id,
+                "candidate_id": request.clarification_candidate_id,
+                "text": request.clarification_text,
+            }
+
+        # session_id 和澄清回答只做透传；上下文恢复由 AgentGraph 和 SessionStore 统一管理。
+        result = await get_agent_graph().run(
+            request.question,
+            session_id=request.session_id,
+            clarification_response=clarification_response,
+        )
 
         # 阻断请求没有查询结果，统一归一为空对象以保持稳定的 HTTP 200 响应。
         query_result = result.get("query_result") or {}
@@ -35,6 +47,7 @@ async def query(request: QueryRequest):
         response = QueryResponse(
             question=result["question"],
             session_id=result.get("session_id") or request.session_id,
+            status=result.get("status", "completed"),
             intent_is_safe=result.get("intent_is_safe", True),
             intent_rule_id=result.get("intent_rule_id"),
             intent_category=result.get("intent_category"),
@@ -47,6 +60,7 @@ async def query(request: QueryRequest):
             retry_count=result.get("retry_count", 0),
             optimization_suggestions=result.get("optimization_suggestions", []),
             analysis_intent=result.get("analysis_intent"),
+            clarification=result.get("clarification_request"),
             audit_report=result.get("audit_report"),
         )
 

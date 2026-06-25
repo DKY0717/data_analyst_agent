@@ -9,6 +9,9 @@ class QueryRequest(BaseModel):
     """查询请求模型"""
     question: str = Field(..., min_length=1, max_length=1000, description="自然语言问题")
     session_id: Optional[str] = Field(None, max_length=128, description="多轮分析会话ID")
+    clarification_id: Optional[str] = Field(None, max_length=128, description="主动澄清请求ID")
+    clarification_candidate_id: Optional[str] = Field(None, max_length=128, description="用户选择的澄清候选ID")
+    clarification_text: Optional[str] = Field(None, max_length=300, description="用户自由文本澄清回答")
 
 class SQLValidateRequest(BaseModel):
     """SQL验证请求模型"""
@@ -86,6 +89,7 @@ class QueryResponse(BaseModel):
     """查询响应模型"""
     question: str  # 用户问题
     session_id: Optional[str] = None  # 多轮分析会话ID
+    status: str = "completed"  # completed / blocked / clarification_required / clarification_expired
     intent_is_safe: bool = True  # Intent Guard 是否允许进入后续工作流
     intent_rule_id: Optional[str] = None  # Intent Guard 命中的规则 ID
     intent_category: Optional[str] = None  # Intent Guard 命中的风险类别
@@ -98,6 +102,7 @@ class QueryResponse(BaseModel):
     retry_count: int  # 重试次数
     optimization_suggestions: List[str] = Field(default_factory=list)  # 优化建议列表
     analysis_intent: Optional[Dict[str, Any]] = None  # 分层意图解析结果
+    clarification: Optional[Dict[str, Any]] = None  # 主动澄清请求，前端按 candidate_id 恢复任务
     audit_report: Optional[AuditReport] = None  # 安全审计报告
 
 class SchemaResponse(BaseModel):

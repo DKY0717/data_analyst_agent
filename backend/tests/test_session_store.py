@@ -106,3 +106,60 @@ def test_store_saves_failed_execution_as_minimal_record():
     assert "查询不存在的表" in context
     assert "执行失败" in context
     assert "Table missing_table does not exist" in context
+
+
+def test_pending_clarification_roundtrip_uses_stable_candidate_id():
+    store = SessionStore()
+    clarification = {
+        "clarification_id": "clarify_metric_001",
+        "question": "您想分析什么指标？",
+        "options": [
+            {
+                "candidate_id": "metric_sales_amount",
+                "label": "销售额",
+                "description": "分析销售额相关的数据",
+            }
+        ],
+    }
+
+    store.save_pending_clarification("session-1", "帮我分析一下", clarification)
+    resolved = store.resolve_pending_clarification(
+        "session-1",
+        "clarify_metric_001",
+        candidate_id="metric_sales_amount",
+    )
+
+    assert resolved is not None
+    assert resolved["original_question"] == "帮我分析一下"
+    assert resolved["candidate_id"] == "metric_sales_amount"
+    assert resolved["resolved_question"] == "帮我分析一下。用户澄清：销售额（metric_sales_amount）"
+    assert store.resolve_pending_clarification(
+        "session-1",
+        "clarify_metric_001",
+        candidate_id="metric_sales_amount",
+    ) is None
+
+
+def test_pending_clarification_rejects_mismatched_candidate():
+    store = SessionStore()
+    store.save_pending_clarification(
+        "session-1",
+        "帮我分析一下",
+        {
+            "clarification_id": "clarify_metric_001",
+            "question": "您想分析什么指标？",
+            "options": [
+                {
+                    "candidate_id": "metric_sales_amount",
+                    "label": "销售额",
+                    "description": "分析销售额相关的数据",
+                }
+            ],
+        },
+    )
+
+    assert store.resolve_pending_clarification(
+        "session-1",
+        "clarify_metric_001",
+        candidate_id="metric_order_count",
+    ) is None
