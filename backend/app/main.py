@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings, ensure_directories
 from .api import health, schema, query
+from .services.tracing import init_tracing
 from .utils.logger import logger
 
 
@@ -15,6 +16,7 @@ from .utils.logger import logger
 async def lifespan(app: FastAPI):
     """应用生命周期管理：启动时初始化，关闭时清理"""
     ensure_directories()
+    init_tracing()
     logger.info("Data Analyst Agent API 启动")
     logger.info(f"数据库路径: {settings.DATA_DIR}")
     yield

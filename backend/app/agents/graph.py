@@ -24,6 +24,7 @@ from ..security.sql_guard import sql_guard
 from ..db.query_runner import query_runner
 from ..config import settings
 from ..services.llm_observability import get_calls, start_trace
+from ..services.tracing import trace_node, add_span_attributes, record_span_event
 from ..utils.logger import logger
 
 
@@ -126,6 +127,7 @@ class AgentGraph:
 
     # ---- 节点实现 ----
 
+    @trace_node("check_intent")
     async def _check_intent(self, state: AgentState) -> Dict[str, Any]:
         """在进入数据分析工作流前执行确定性意图安全检查。"""
         logger.info("节点: check_intent - 校验用户意图")
@@ -172,6 +174,7 @@ class AgentGraph:
                 ),
             }
 
+    @trace_node("parse_intent")
     async def _parse_intent(self, state: AgentState) -> Dict[str, Any]:
         """分层意图解析：规则快速提取 + LLM 补充 + 合并冲突。"""
         logger.info("节点: parse_intent - 解析分析意图")
@@ -210,6 +213,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("ground_schema")
     def _ground_schema(self, state: AgentState) -> Dict[str, Any]:
         """将结构化业务意图映射到 Schema 候选和路由证据。"""
         logger.info("节点: ground_schema - 生成 Schema Grounding")
@@ -238,6 +242,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("assess_clarification")
     def _assess_clarification(self, state: AgentState) -> Dict[str, Any]:
         """根据意图缺口、冲突和会话恢复能力决定是否主动澄清。"""
         logger.info("节点: assess_clarification - 判断是否需要澄清")
@@ -285,6 +290,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("load_schema")
     async def _load_schema(self, state: AgentState) -> Dict[str, Any]:
         """加载数据库 Schema，供后续 SQL 生成使用"""
         logger.info("节点: load_schema - 加载数据库 Schema")
@@ -301,6 +307,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("generate_sql")
     async def _generate_sql(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 将自然语言问题转换为 SQL"""
         logger.info("节点: generate_sql - 生成 SQL")
@@ -324,6 +331,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("validate_sql")
     async def _validate_sql(self, state: AgentState) -> Dict[str, Any]:
         """使用 SQL Guard 校验 SQL 安全性，自动注入 LIMIT"""
         logger.info("节点: validate_sql - 校验 SQL 安全性")
@@ -348,6 +356,7 @@ class AgentGraph:
             "audit_events": audit_events,
         }
 
+    @trace_node("execute_sql")
     async def _execute_sql(self, state: AgentState) -> Dict[str, Any]:
         """执行已通过校验的 SQL 查询"""
         logger.info("节点: execute_sql - 执行 SQL 查询")
@@ -372,6 +381,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("repair_sql")
     async def _repair_sql(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 修复失败的 SQL，递增重试计数"""
         logger.info(f"节点: repair_sql - 修复 SQL (第 {state['retry_count'] + 1} 次)")
@@ -405,6 +415,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("optimize_sql")
     async def _optimize_sql(self, state: AgentState) -> Dict[str, Any]:
         """基于执行结果和 EXPLAIN 生成 SQL 优化建议"""
         logger.info("节点: optimize_sql - 生成 SQL 优化建议")
@@ -424,6 +435,7 @@ class AgentGraph:
             ),
         }
 
+    @trace_node("generate_answer")
     async def _generate_answer(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 将查询结果转换为自然语言解释"""
         logger.info("节点: generate_answer - 生成答案")
