@@ -1,0 +1,43 @@
+# 通用语义层模板
+# 复制此文件并修改为你的业务场景，然后设置环境变量：
+#   SEMANTIC_CONFIG_PATH=path/to/your_metrics.yaml
+#
+# 格式说明：
+# - metrics: 业务指标（可计算的数值）
+# - dimensions: 业务维度（分组依据）
+# - defaults: 默认规则
+
+metrics:
+  # 示例：销售额
+  # sales_amount:
+  #   name: 销售额
+  #   aliases: [销售额, GMV, 营收]
+  #   expression: SUM(orders.total_amount)
+  #   default_table: orders
+  #   description: 已完成订单的总金额
+
+  # 示例：订单数
+  # order_count:
+  #   name: 订单数
+  #   aliases: [订单量, 下单数]
+  #   expression: COUNT(DISTINCT orders.order_id)
+  #   default_table: orders
+
+dimensions:
+  # 示例：时间维度
+  # time:
+  #   name: 时间
+  #   fields: [orders.order_date]
+  #   description: 按时间分组
+
+  # 示例：地区维度
+  # region:
+  #   name: 地区
+  #   fields: [regions.region_name]
+  #   required_joins: [customers → regions]
+  #   description: 按地区分组
+
+defaults:
+  time_field: null    # 默认时间字段，如 orders.order_date
+  limit: 1000         # 默认返回行数上限
+  dialect: duckdb     # SQL 方言：duckdb 或 postgresql

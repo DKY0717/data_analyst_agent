@@ -1,6 +1,8 @@
 # 业务语义层加载器
-# 将 YAML 中的电商指标和维度转换为 SQL Generator 可使用的上下文。
+# 将 YAML 中的业务指标和维度转换为 SQL Generator 可使用的上下文
+# 通过 SEMANTIC_CONFIG_PATH 环境变量可切换不同领域的语义配置
 
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -8,10 +10,17 @@ import yaml
 
 
 class SemanticLoader:
-    """加载并查询电商业务语义配置"""
+    """加载并查询业务语义配置（领域无关，通过 YAML 配置驱动）"""
 
     def __init__(self, config_path: str | Path | None = None):
-        self.config_path = Path(config_path) if config_path else Path(__file__).parent / "ecommerce_metrics.yaml"
+        # 优先使用环境变量，其次使用参数，最后使用默认电商配置
+        env_path = os.getenv("SEMANTIC_CONFIG_PATH", "")
+        if env_path:
+            self.config_path = Path(env_path)
+        elif config_path:
+            self.config_path = Path(config_path)
+        else:
+            self.config_path = Path(__file__).parent / "ecommerce_metrics.yaml"
         self._data = self._load_config()
 
     def _load_config(self) -> Dict[str, Any]:
