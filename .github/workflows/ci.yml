@@ -39,7 +39,9 @@ jobs:
       - name: Initialize evaluation database
         env:
           PYTHONPATH: backend
-        run: python -m database.seed_data
+        run: |
+          mkdir -p data logs
+          python -m database.seed_data
 
       - name: Run deterministic intent evaluation
         env:
