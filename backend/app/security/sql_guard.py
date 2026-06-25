@@ -25,6 +25,9 @@ class SQLGuard:
         "CALL", "EXECUTE", "GRANT", "REVOKE"
     }
 
+    # DuckDB 特有的危险 Command（SQLGlot 解析为 Command 类型）
+    BLOCKED_COMMANDS = {"COPY", "ATTACH", "DETACH", "EXPORT", "IMPORT"}
+
     # 系统 Schema 和系统表通常包含数据库内部元数据，不应该暴露给自然语言查询入口
     BLOCKED_SYSTEM_SCHEMAS = {"information_schema", "pg_catalog"}
     BLOCKED_TABLE_PREFIXES = ("duckdb_", "pg_")
@@ -195,9 +198,13 @@ class SQLGuard:
         }
 
     def _get_statement_type(self, parsed) -> str:
-        """识别语句类型，兼容 DuckDB EXPLAIN 被解析成 Command 的情况"""
-        if isinstance(parsed, exp.Command) and str(parsed.this).upper() == "EXPLAIN":
-            return "EXPLAIN"
+        """识别语句类型，兼容 DuckDB 命令被解析成 Command 的情况"""
+        if isinstance(parsed, exp.Command):
+            cmd = str(parsed.this).upper()
+            if cmd == "EXPLAIN":
+                return "EXPLAIN"
+            if cmd in self.BLOCKED_COMMANDS:
+                return cmd
         return parsed.key.upper()
 
     def _extract_explain_query(self, parsed):

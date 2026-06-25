@@ -136,8 +136,32 @@ class IntentGuard:
             target=_pattern(
                 r"手机号|电话号码|身份证|邮箱|\bphone(?:\s+numbers?)?\b|\b(?:emails?|ssn)\b"
             ),
-            # 批量标记是高置信条件，可降低正常聚合分析被误判的概率。
             extra=_pattern(r"全部|所有|批量|完整|\b(?:all|every|bulk|entire)\b"),
+        ),
+        IntentRule(
+            rule_id="block_file_export_intent",
+            reason="请求包含将数据导出到本地文件的意图",
+            category="data_exfiltration",
+            action=_pattern(
+                r"导出到|写入|保存到|输出到|复制到|copy\s+.*到|copy\b.*\bto\b"
+                r"|\b(?:write|save|output|dump)\b.*\b(?:file|path|disk|local)\b"
+            ),
+            target=_pattern(
+                r"本地文件|文件|磁盘|路径|\bfile\b|\bpath\b|\bdisk\b|\blocal\b"
+                r"|\bcsv\b|\bjson\b|\bparquet\b|\btxt\b"
+            ),
+        ),
+        IntentRule(
+            rule_id="block_attach_database_intent",
+            reason="请求包含附加外部数据库的意图",
+            category="database_manipulation",
+            action=_pattern(
+                r"附加|挂载|连接.*数据库文件|attach\b"
+            ),
+            target=_pattern(
+                r"数据库文件|外部数据库|本地数据库|\bdatabase\s+file\b|\battach\s+database\b"
+                r"|\.db\b|\.duckdb\b"
+            ),
         ),
     )
 
