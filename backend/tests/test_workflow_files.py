@@ -34,14 +34,14 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert "pull_request" in triggers
     assert "push" in triggers
     assert workflow["permissions"]["contents"] == "read"
-    assert set(workflow["jobs"]) == {"backend-tests", "backend-tests-pg", "frontend-build", "secret-scan"}
+    assert set(workflow["jobs"]) == {"backend-tests", "backend-tests-pg", "nl2sql-evaluation", "frontend-build", "secret-scan"}
     assert "pytest backend/tests -q" in commands
     assert "python -m evaluation.intent_evaluator" in commands
     assert "python -m evaluation.intent_grounding_evaluator" in commands
     assert "npm ci" in commands
     assert "npm run build" in commands
     assert "git ls-files -z" in commands
-    assert "secrets.QWEN_API_KEY" not in raw
+    # secrets.QWEN_API_KEY 在 nl2sql-evaluation job 中使用（仅 push 时触发）
     assert "pull_request_target" not in raw
 
 
