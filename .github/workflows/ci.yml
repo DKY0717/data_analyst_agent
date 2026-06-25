@@ -41,6 +41,16 @@ jobs:
           PYTHONPATH: backend
         run: |
           mkdir -p data logs
+          python -c "
+          import duckdb
+          from pathlib import Path
+          sql = open('database/init.sql').read()
+          db_path = str(Path('data/database.duckdb'))
+          conn = duckdb.connect(db_path)
+          conn.execute(sql)
+          conn.close()
+          print('Tables created.')
+          "
           python -m database.seed_data
 
       - name: Run deterministic intent evaluation
