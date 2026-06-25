@@ -13,6 +13,7 @@ from typing import Optional
 from ..config import settings
 from .llm_observability import calculate_estimated_cost, record_call
 from .prompt_registry import prompt_registry
+from .ab_test import ab_test_registry
 from ..utils.exceptions import LLMError, LLMTimeoutError, LLMResponseError
 
 logger = logging.getLogger(__name__)
@@ -295,13 +296,35 @@ class QwenAPIClient:
         # 注册 prompt 版本（内容不变时不创建新版本）
         prompt_registry.register("generate_sql", system_prompt, "动态模板")
 
+        # A/B 测试路由
+        ab_variant = ab_test_registry.route("generate_sql", question)
+        ab_test_id = None
+        if ab_variant:
+            ab_test_id = "generate_sql"
+            # 如果有 A/B 测试，使用变体对应的 prompt 版本
+            alt_prompt = prompt_registry.get_by_version(ab_variant.prompt_name, ab_variant.prompt_version)
+            if alt_prompt:
+                system_prompt = alt_prompt.system_prompt
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
 
         # 调用 API 获取响应
+        started_at = time.perf_counter()
         content = await self._call_api(messages, SQL_TEMPERATURE, stage="generate_sql")
+        latency_ms = int((time.perf_counter() - started_at) * 1000)
+
+        # 记录 A/B 测试结果
+        if ab_test_id and ab_variant:
+            ab_test_registry.record(
+                test_id=ab_test_id,
+                variant_name=ab_variant.name,
+                question=question,
+                success=True,
+                latency_ms=latency_ms,
+            )
 
         # 解析 JSON 响应
         return self._parse_json_response(content, "SQL 生成")
