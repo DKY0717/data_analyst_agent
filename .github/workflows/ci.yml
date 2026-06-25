@@ -36,6 +36,11 @@ jobs:
       - name: Run backend tests
         run: pytest backend/tests -q
 
+      - name: Initialize evaluation database
+        env:
+          PYTHONPATH: backend
+        run: python -m database.seed_data
+
       - name: Run deterministic intent evaluation
         env:
           PYTHONPATH: backend
