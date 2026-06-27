@@ -85,8 +85,14 @@ class QwenAPIClient:
         started_at = time.perf_counter()
 
         # 指数退避重试循环
-        for attempt in range(self.max_retries):
-            attempt_count = attempt + 1
+        max_rate_limit_retries = 8
+        rate_limit_retries = 0
+        attempt = 0
+        while attempt < self.max_retries or rate_limit_retries < max_rate_limit_retries:
+            if attempt >= self.max_retries and rate_limit_retries >= max_rate_limit_retries:
+                break
+            attempt += 1
+            attempt_count = attempt
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
@@ -98,9 +104,11 @@ class QwenAPIClient:
 
                     # 检查 HTTP 状态码
                     if response.status_code == 429:
-                        wait = min(2 ** (attempt + 2), 60)
-                        logger.warning(f"API 限流 429，等待 {wait}s 后重试 (第 {attempt + 1} 次)")
+                        rate_limit_retries += 1
+                        wait = min(4 * rate_limit_retries, 60)
+                        logger.warning(f"API 限流 429，等待 {wait}s 后重试 (第 {rate_limit_retries}/{max_rate_limit_retries} 次)")
                         await asyncio.sleep(wait)
+                        attempt -= 1
                         continue
                     if response.status_code != 200:
                         raise LLMResponseError(
@@ -132,9 +140,8 @@ class QwenAPIClient:
                     return content
 
             except httpx.TimeoutException as exc:
-                # 超时异常，记录日志并决定是否重试
-                logger.warning(f"API 调用超时 (第 {attempt + 1} 次)")
-                if attempt == self.max_retries - 1:
+                logger.warning(f"API 调用超时 (第 {attempt} 次)")
+                if attempt >= self.max_retries:
                     self._record_observability(
                         stage=stage,
                         started_at=started_at,
@@ -167,9 +174,8 @@ class QwenAPIClient:
                 raise LLMResponseError(f"API 响应结构异常: {exc}")
 
             except Exception as e:
-                # 其他异常，记录日志并决定是否重试
-                logger.error(f"API 调用异常: {e} (第 {attempt + 1} 次)")
-                if attempt == self.max_retries - 1:
+                logger.error(f"API 调用异常: {e} (第 {attempt} 次)")
+                if attempt >= self.max_retries:
                     self._record_observability(
                         stage=stage,
                         started_at=started_at,
