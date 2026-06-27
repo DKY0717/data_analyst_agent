@@ -110,6 +110,7 @@ export const useQueryStore = defineStore('query', () => {
         addToHistory(normalizedQuestion, false)
       }
     } finally {
+      abortController.value = null
       loading.value = false
       loadingStage.value = ''
       loadingProgress.value = 0

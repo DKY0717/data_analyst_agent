@@ -44,5 +44,8 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
 
 def setup_rate_limit(app: FastAPI) -> None:
     """在 FastAPI 应用上配置速率限制。"""
+    from slowapi.middleware import SlowAPIMiddleware
+
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)

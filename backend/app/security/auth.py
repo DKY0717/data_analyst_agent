@@ -123,17 +123,12 @@ async def get_current_user(
     # 方式 1: Bearer Token
     if credentials and credentials.credentials:
         token = credentials.credentials
-        if token.count(".") == 2:
+        if token.startswith("eyJ"):
             return verify_jwt_token(token)
         return verify_api_key(token)
 
     # 方式 2: X-API-Key Header
     api_key = request.headers.get("X-API-Key")
-    if api_key:
-        return verify_api_key(api_key)
-
-    # 方式 3: Query Parameter
-    api_key = request.query_params.get("api_key")
     if api_key:
         return verify_api_key(api_key)
 
@@ -158,11 +153,11 @@ async def get_optional_user(
     try:
         if credentials and credentials.credentials:
             token = credentials.credentials
-            if token.count(".") == 2:
+            if token.startswith("eyJ"):
                 return verify_jwt_token(token)
             return verify_api_key(token)
 
-        api_key = request.headers.get("X-API-Key") or request.query_params.get("api_key")
+        api_key = request.headers.get("X-API-Key")
         if api_key:
             return verify_api_key(api_key)
     except HTTPException:

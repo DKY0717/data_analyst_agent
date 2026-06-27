@@ -27,9 +27,8 @@ function handleSelect(q) {
 }
 
 function handleSubmit() {
-  if (store.question.trim()) {
-    router.replace({ name: 'query', params: { question: encodeURIComponent(store.question) } })
-  }
+  if (!store.question.trim()) return
+  router.replace({ name: 'query', params: { question: encodeURIComponent(store.question) } })
   store.submitQuestion()
 }
 
