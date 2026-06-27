@@ -4,6 +4,7 @@
 # 2. SQL 修复：当 SQL 执行失败时，根据错误信息修复 SQL
 # 3. 答案生成：根据查询结果生成自然语言解释
 
+import asyncio
 import json
 import httpx
 import logging
@@ -96,6 +97,11 @@ class QwenAPIClient:
                     )
 
                     # 检查 HTTP 状态码
+                    if response.status_code == 429:
+                        wait = min(2 ** (attempt + 2), 60)
+                        logger.warning(f"API 限流 429，等待 {wait}s 后重试 (第 {attempt + 1} 次)")
+                        await asyncio.sleep(wait)
+                        continue
                     if response.status_code != 200:
                         raise LLMResponseError(
                             f"API 返回非 200 状态码: {response.status_code}, "
