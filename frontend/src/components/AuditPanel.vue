@@ -8,21 +8,21 @@
       <el-tag :type="auditStatus.type" effect="light">{{ auditStatus.text }}</el-tag>
     </div>
 
-    <template v-if="report">
+    <template v-if="props.report">
       <div class="audit-summary">
         <div>
           <span>LIMIT 注入</span>
-          <strong>{{ report.limit_injected ? '已注入' : '未触发' }}</strong>
+          <strong>{{ props.report.limit_injected ? '已注入' : '未触发' }}</strong>
         </div>
         <div>
           <span>阻断规则</span>
-          <strong>{{ report.blocked_rules?.length || 0 }}</strong>
+          <strong>{{ props.report.blocked_rules?.length || 0 }}</strong>
         </div>
       </div>
 
-      <div v-if="report.blocked_rules?.length" class="audit-rules">
+      <div v-if="props.report.blocked_rules?.length" class="audit-rules">
         <el-tag
-          v-for="rule in report.blocked_rules"
+          v-for="rule in props.report.blocked_rules"
           :key="rule"
           type="danger"
           effect="plain"
@@ -32,7 +32,7 @@
       </div>
 
       <div class="audit-events">
-        <div v-for="(event, index) in report.events || []" :key="`${event.action}-${index}`" class="audit-event">
+        <div v-for="(event, index) in props.report.events || []" :key="`${event.action}-${index}`" class="audit-event">
           <span class="audit-dot" :class="`audit-dot--${event.status}`"></span>
           <div>
             <div class="audit-event-title">
@@ -55,18 +55,16 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  result: {
+  report: {
     type: Object,
     default: null,
   },
 })
 
-const report = computed(() => props.result?.audit_report || null)
-
 const auditStatus = computed(() => {
-  if (!report.value) return { type: 'info', text: '等待审计' }
-  if (!report.value.is_sql_safe) return { type: 'danger', text: '已拦截' }
-  if (!report.value.execution_success) return { type: 'warning', text: '执行失败' }
+  if (!props.report) return { type: 'info', text: '等待审计' }
+  if (!props.report.is_sql_safe) return { type: 'danger', text: '已拦截' }
+  if (!props.report.execution_success) return { type: 'warning', text: '执行失败' }
   return { type: 'success', text: '审计通过' }
 })
 
@@ -76,3 +74,39 @@ function eventTagType(status) {
   return 'info'
 }
 </script>
+
+<style scoped>
+.audit-rules :deep(.el-tag) {
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: 11px;
+}
+
+.audit-events {
+  padding-bottom: var(--space-5);
+}
+
+.audit-event {
+  position: relative;
+}
+
+.audit-event::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 16px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--color-border);
+}
+
+.audit-event:last-child::before {
+  display: none;
+}
+
+.audit-event-title :deep(.el-tag) {
+  font-family: var(--font-body);
+  font-size: 11px;
+  border-radius: var(--radius-sm);
+}
+</style>

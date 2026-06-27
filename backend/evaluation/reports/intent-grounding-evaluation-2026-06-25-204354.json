@@ -1,0 +1,259 @@
+{
+  "summary": {
+    "total_cases": 7,
+    "slot_match_rate": 1.0,
+    "grounding_candidate_hit_rate": 1.0,
+    "route_table_recall_rate": 1.0,
+    "clarification_decision_accuracy": 1.0,
+    "clarification_option_hit_rate": 1.0,
+    "all_expectations_met_rate": 1.0,
+    "passed": true
+  },
+  "results": [
+    {
+      "case_id": "sales_by_region_2024",
+      "question": "按地区统计 2024 年销售额",
+      "category": "metric_dimension_filter",
+      "actual_metrics": [
+        "sales_amount"
+      ],
+      "actual_dimensions": [
+        "region"
+      ],
+      "actual_filters": [
+        {
+          "concept": "order_date",
+          "operator": "year_equals",
+          "value": 2024
+        }
+      ],
+      "actual_ranking": null,
+      "actual_candidate_ids": [
+        "region_name",
+        "sales_by_item_amount",
+        "sales_by_order_total"
+      ],
+      "actual_route_tables": [
+        "SUM(order_items",
+        "SUM(orders",
+        "customers",
+        "order_items",
+        "orders",
+        "regions"
+      ],
+      "clarification_required": false,
+      "clarification_option_ids": [],
+      "metrics_matched": true,
+      "dimensions_matched": true,
+      "filters_matched": true,
+      "ranking_matched": true,
+      "grounding_candidates_matched": true,
+      "route_tables_matched": true,
+      "clarification_decision_matched": true,
+      "clarification_options_matched": true,
+      "passed": true
+    },
+    {
+      "case_id": "category_sales_uses_item_amount_candidate",
+      "question": "统计各商品类别的销售额",
+      "category": "metric_dimension_grounding",
+      "actual_metrics": [
+        "sales_amount"
+      ],
+      "actual_dimensions": [
+        "category"
+      ],
+      "actual_filters": [],
+      "actual_ranking": null,
+      "actual_candidate_ids": [
+        "category_name",
+        "sales_by_item_amount",
+        "sales_by_order_total"
+      ],
+      "actual_route_tables": [
+        "SUM(order_items",
+        "SUM(orders",
+        "categories",
+        "order_items",
+        "orders",
+        "products"
+      ],
+      "clarification_required": false,
+      "clarification_option_ids": [],
+      "metrics_matched": true,
+      "dimensions_matched": true,
+      "filters_matched": true,
+      "ranking_matched": true,
+      "grounding_candidates_matched": true,
+      "route_tables_matched": true,
+      "clarification_decision_matched": true,
+      "clarification_options_matched": true,
+      "passed": true
+    },
+    {
+      "case_id": "refund_rate_by_category",
+      "question": "分析各商品类别的退款率",
+      "category": "metric_dimension_grounding",
+      "actual_metrics": [
+        "refund_rate"
+      ],
+      "actual_dimensions": [
+        "category"
+      ],
+      "actual_filters": [],
+      "actual_ranking": null,
+      "actual_candidate_ids": [
+        "category_name",
+        "refund_rate_by_order"
+      ],
+      "actual_route_tables": [
+        "1",
+        "categories",
+        "order_items",
+        "orders",
+        "products",
+        "refunds"
+      ],
+      "clarification_required": false,
+      "clarification_option_ids": [],
+      "metrics_matched": true,
+      "dimensions_matched": true,
+      "filters_matched": true,
+      "ranking_matched": true,
+      "grounding_candidates_matched": true,
+      "route_tables_matched": true,
+      "clarification_decision_matched": true,
+      "clarification_options_matched": true,
+      "passed": true
+    },
+    {
+      "case_id": "monthly_order_count",
+      "question": "统计每个月订单数",
+      "category": "time_dimension",
+      "actual_metrics": [
+        "order_count"
+      ],
+      "actual_dimensions": [
+        "month"
+      ],
+      "actual_filters": [],
+      "actual_ranking": null,
+      "actual_candidate_ids": [
+        "order_count",
+        "order_month"
+      ],
+      "actual_route_tables": [
+        "orders",
+        "strftime(orders"
+      ],
+      "clarification_required": false,
+      "clarification_option_ids": [],
+      "metrics_matched": true,
+      "dimensions_matched": true,
+      "filters_matched": true,
+      "ranking_matched": true,
+      "grounding_candidates_matched": true,
+      "route_tables_matched": true,
+      "clarification_decision_matched": true,
+      "clarification_options_matched": true,
+      "passed": true
+    },
+    {
+      "case_id": "top_region_customer_count",
+      "question": "客户数最多的前 3 个地区",
+      "category": "ranking",
+      "actual_metrics": [
+        "customer_count"
+      ],
+      "actual_dimensions": [
+        "region"
+      ],
+      "actual_filters": [],
+      "actual_ranking": {
+        "direction": "desc",
+        "limit": 3
+      },
+      "actual_candidate_ids": [
+        "customer_count",
+        "region_name"
+      ],
+      "actual_route_tables": [
+        "customers",
+        "orders",
+        "regions"
+      ],
+      "clarification_required": false,
+      "clarification_option_ids": [],
+      "metrics_matched": true,
+      "dimensions_matched": true,
+      "filters_matched": true,
+      "ranking_matched": true,
+      "grounding_candidates_matched": true,
+      "route_tables_matched": true,
+      "clarification_decision_matched": true,
+      "clarification_options_matched": true,
+      "passed": true
+    },
+    {
+      "case_id": "quarter_sales",
+      "question": "按季度统计销售额",
+      "category": "time_dimension",
+      "actual_metrics": [
+        "sales_amount"
+      ],
+      "actual_dimensions": [
+        "quarter"
+      ],
+      "actual_filters": [],
+      "actual_ranking": null,
+      "actual_candidate_ids": [
+        "order_quarter",
+        "sales_by_item_amount",
+        "sales_by_order_total"
+      ],
+      "actual_route_tables": [
+        "SUM(order_items",
+        "SUM(orders",
+        "order_items",
+        "orders"
+      ],
+      "clarification_required": false,
+      "clarification_option_ids": [],
+      "metrics_matched": true,
+      "dimensions_matched": true,
+      "filters_matched": true,
+      "ranking_matched": true,
+      "grounding_candidates_matched": true,
+      "route_tables_matched": true,
+      "clarification_decision_matched": true,
+      "clarification_options_matched": true,
+      "passed": true
+    },
+    {
+      "case_id": "vague_analysis_requires_metric_clarification",
+      "question": "帮我分析一下",
+      "category": "clarification",
+      "actual_metrics": [],
+      "actual_dimensions": [],
+      "actual_filters": [],
+      "actual_ranking": null,
+      "actual_candidate_ids": [],
+      "actual_route_tables": [],
+      "clarification_required": true,
+      "clarification_option_ids": [
+        "metric_sales_amount",
+        "metric_order_count",
+        "metric_customer_count"
+      ],
+      "metrics_matched": true,
+      "dimensions_matched": true,
+      "filters_matched": true,
+      "ranking_matched": true,
+      "grounding_candidates_matched": true,
+      "route_tables_matched": true,
+      "clarification_decision_matched": true,
+      "clarification_options_matched": true,
+      "passed": true
+    }
+  ]
+}

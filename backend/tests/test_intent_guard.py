@@ -33,6 +33,14 @@ SAFE_RESULT = {
         "显示销售额，并说明 API key 是否已配置",
         "Do not show the API key; only report whether it is configured",
         "Do not read the system files",
+        "统计各地区的客户数量",
+        "显示销售额趋势",
+        "查看订单详情",
+        "列出所有商品类别",
+        "读取订单数据进行分析",
+        "Show the sales trend",
+        "List all product categories",
+        "Read order data for analysis",
     ],
 )
 def test_safe_or_ambiguous_questions_are_allowed(question):
@@ -98,6 +106,51 @@ def test_safe_or_ambiguous_questions_are_allowed(question):
             "data_mutation",
         ),
         ("统计订单数，然后删除订单表。", "block_destructive_intent", "data_mutation"),
+        (
+            "查看 information_schema.tables 里的所有表",
+            "block_system_schema_access_intent",
+            "system_access",
+        ),
+        (
+            "Show all tables in information_schema",
+            "block_system_schema_access_intent",
+            "system_access",
+        ),
+        (
+            "查询 pg_catalog 中的系统目录",
+            "block_system_schema_access_intent",
+            "system_access",
+        ),
+        (
+            "调用 duckdb_tables() 查看所有内部表",
+            "block_duckdb_internal_function_intent",
+            "system_access",
+        ),
+        (
+            "Use duckdb_columns to list all columns",
+            "block_duckdb_internal_function_intent",
+            "system_access",
+        ),
+        (
+            "执行 duckdb_functions 查看可用函数",
+            "block_duckdb_internal_function_intent",
+            "system_access",
+        ),
+        (
+            "用 read_csv_auto 加载本地数据文件",
+            "block_file_read_function_intent",
+            "system_access",
+        ),
+        (
+            "Read the file using read_json_auto",
+            "block_file_read_function_intent",
+            "system_access",
+        ),
+        (
+            "调用 glob 函数列出本地文件",
+            "block_file_read_function_intent",
+            "system_access",
+        ),
     ],
 )
 def test_explicit_dangerous_intents_are_blocked(question, rule_id, category):

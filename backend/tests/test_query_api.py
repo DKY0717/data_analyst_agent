@@ -3,10 +3,19 @@
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.schemas import QueryRequest, QueryResponse
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limit():
+    """在测试中禁用速率限制，避免 slowapi 的 Request 参数检查问题。"""
+    with patch("app.api.query.limiter") as mock_limiter:
+        mock_limiter.limit = lambda *args, **kwargs: lambda fn: fn
+        yield
 
 
 def make_agent_result():

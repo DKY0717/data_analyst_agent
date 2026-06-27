@@ -131,6 +131,7 @@ class AgentGraph:
     async def _check_intent(self, state: AgentState) -> Dict[str, Any]:
         """在进入数据分析工作流前执行确定性意图安全检查。"""
         logger.info("节点: check_intent - 校验用户意图")
+        await self._emit_progress(state, "校验意图安全性...", 10)
         try:
             result = intent_guard.validate(state["question"])
             is_safe = bool(result["is_safe"])
@@ -178,6 +179,7 @@ class AgentGraph:
     async def _parse_intent(self, state: AgentState) -> Dict[str, Any]:
         """分层意图解析：规则快速提取 + LLM 补充 + 合并冲突。"""
         logger.info("节点: parse_intent - 解析分析意图")
+        await self._emit_progress(state, "解析分析意图...", 25)
         question = state["question"]
 
         # 规则层：快速、确定性，提取年份、Top-N、显式业务别名
@@ -217,6 +219,7 @@ class AgentGraph:
     def _ground_schema(self, state: AgentState) -> Dict[str, Any]:
         """将结构化业务意图映射到 Schema 候选和路由证据。"""
         logger.info("节点: ground_schema - 生成 Schema Grounding")
+        self._emit_progress_sync(state, "生成 Schema Grounding...", 35)
         intent = self._analysis_intent_from_state(state)
         grounding_result = schema_grounder.ground(intent)
 
@@ -246,6 +249,7 @@ class AgentGraph:
     def _assess_clarification(self, state: AgentState) -> Dict[str, Any]:
         """根据意图缺口、冲突和会话恢复能力决定是否主动澄清。"""
         logger.info("节点: assess_clarification - 判断是否需要澄清")
+        self._emit_progress_sync(state, "判断是否需要澄清...", 40)
         intent = self._analysis_intent_from_state(state)
         grounding_result = state.get("grounding_result") or {}
         clarification = clarification_engine.check(intent)
@@ -294,6 +298,7 @@ class AgentGraph:
     async def _load_schema(self, state: AgentState) -> Dict[str, Any]:
         """加载数据库 Schema，供后续 SQL 生成使用"""
         logger.info("节点: load_schema - 加载数据库 Schema")
+        await self._emit_progress(state, "加载数据库 Schema...", 50)
         schema = schema_loader.get_full_schema()
         return {
             "schema_context": schema,
@@ -311,6 +316,7 @@ class AgentGraph:
     async def _generate_sql(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 将自然语言问题转换为 SQL"""
         logger.info("节点: generate_sql - 生成 SQL")
+        await self._emit_progress(state, "生成 SQL 查询...", 65)
         start_trace(state.get("llm_calls") or [])
         output = await sql_generator.generate(
             state["question"],
@@ -335,6 +341,7 @@ class AgentGraph:
     async def _validate_sql(self, state: AgentState) -> Dict[str, Any]:
         """使用 SQL Guard 校验 SQL 安全性，自动注入 LIMIT"""
         logger.info("节点: validate_sql - 校验 SQL 安全性")
+        await self._emit_progress(state, "校验 SQL 安全性...", 75)
         result = sql_guard.validate(state["generated_sql"])
         audit_events = self._extend_audit_events(state, result.get("audit_events", []))
         if not result.get("audit_events"):
@@ -360,6 +367,7 @@ class AgentGraph:
     async def _execute_sql(self, state: AgentState) -> Dict[str, Any]:
         """执行已通过校验的 SQL 查询"""
         logger.info("节点: execute_sql - 执行 SQL 查询")
+        await self._emit_progress(state, "执行 SQL 查询...", 85)
         result = query_runner.execute(state["validated_sql"])
         status = "success" if result["success"] else "failed"
         return {
@@ -385,6 +393,7 @@ class AgentGraph:
     async def _repair_sql(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 修复失败的 SQL，递增重试计数"""
         logger.info(f"节点: repair_sql - 修复 SQL (第 {state['retry_count'] + 1} 次)")
+        await self._emit_progress(state, "修复 SQL 查询...", 80)
 
         # 修复代理只处理已通过 Guard 但执行失败的 SQL，禁止改写 Guard 拒绝的危险意图。
         error_message = state.get("execution_error") or ""
@@ -419,6 +428,7 @@ class AgentGraph:
     async def _optimize_sql(self, state: AgentState) -> Dict[str, Any]:
         """基于执行结果和 EXPLAIN 生成 SQL 优化建议"""
         logger.info("节点: optimize_sql - 生成 SQL 优化建议")
+        await self._emit_progress(state, "生成优化建议...", 90)
         suggestions = sql_optimizer.optimize(
             state["validated_sql"],
             state["query_result"]
@@ -439,6 +449,7 @@ class AgentGraph:
     async def _generate_answer(self, state: AgentState) -> Dict[str, Any]:
         """调用 LLM 将查询结果转换为自然语言解释"""
         logger.info("节点: generate_answer - 生成答案")
+        await self._emit_progress(state, "生成分析结果...", 95)
         start_trace(state.get("llm_calls") or [])
         answer = await answer_generator.generate(
             state["question"],
@@ -480,6 +491,28 @@ class AgentGraph:
     ) -> list[Dict[str, Any]]:
         """合并已有审计事件和节点新事件。"""
         return list(state.get("audit_events") or []) + new_events
+
+    @staticmethod
+    async def _emit_progress(state: AgentState, stage: str, progress: int) -> None:
+        """调用进度回调（如果存在），用于 SSE 流式推送。"""
+        cb = state.get("_on_progress")
+        if cb:
+            try:
+                result = cb(stage, progress)
+                if hasattr(result, '__await__'):
+                    await result
+            except Exception:
+                pass
+
+    @staticmethod
+    def _emit_progress_sync(state: AgentState, stage: str, progress: int) -> None:
+        """同步版本的进度回调，用于 LangGraph 在独立线程中运行的同步节点。"""
+        cb = state.get("_on_progress")
+        if cb:
+            try:
+                cb(stage, progress)
+            except Exception:
+                pass
 
     @staticmethod
     def _analysis_intent_from_state(state: AgentState) -> AnalysisIntent:
@@ -550,6 +583,7 @@ class AgentGraph:
         question: str,
         session_id: str | None = None,
         clarification_response: dict[str, Any] | None = None,
+        on_progress: Any = None,
     ) -> AgentState:
         """运行完整的 Agent 工作流
 
@@ -604,6 +638,10 @@ class AgentGraph:
             "audit_report": None,
             "llm_calls": [],
         }
+
+        # 进度追踪：将 on_progress 回调注入到 state 中，供各节点调用
+        if on_progress:
+            initial_state["_on_progress"] = on_progress
 
         # 不在日志中记录原始问题，避免危险请求或凭据值进入日志。
         logger.info("开始处理用户问题")

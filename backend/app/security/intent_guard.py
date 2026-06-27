@@ -163,6 +163,50 @@ class IntentGuard:
                 r"|\.db\b|\.duckdb\b"
             ),
         ),
+        IntentRule(
+            rule_id="block_system_schema_access_intent",
+            reason="请求包含访问系统元数据表的意图",
+            category="system_access",
+            action=_pattern(
+                r"查看|显示|读取|查询|列出|列举|获取|访问"
+                r"|\b(?:show|read|query|list|get|access|select|fetch)\b"
+            ),
+            target=_pattern(
+                r"information_schema|pg_catalog|系统表|系统目录|元数据表|系统元数据"
+                r"|\binformation[_\s-]?schema\b|\bpg[_\s-]?catalog\b"
+                r"|\bsystem\s+tables?\b|\bmetadata\s+tables?\b"
+            ),
+        ),
+        IntentRule(
+            rule_id="block_duckdb_internal_function_intent",
+            reason="请求包含调用 DuckDB 内部函数的意图",
+            category="system_access",
+            action=_pattern(
+                r"调用|执行|使用|运行|查看|列出|显示"
+                r"|\b(?:call|execute|use|run|invoke|show|list)\b"
+            ),
+            target=_pattern(
+                r"duckdb_tables|duckdb_columns|duckdb_views|duckdb_schemas"
+                r"|duckdb_databases|duckdb_settings|duckdb_functions|duckdb_indexes"
+                r"|duckdb_constraints|duckdb_\w+"
+                r"|\bduckdb[_\s-]?(?:tables?|columns?|views?|schemas?|databases?|settings?|functions?|indexes?|constraints?)\b"
+            ),
+        ),
+        IntentRule(
+            rule_id="block_file_read_function_intent",
+            reason="请求包含通过 SQL 函数读取本地文件的意图",
+            category="system_access",
+            action=_pattern(
+                r"读取|加载|打开|导入|调用|使用|执行"
+                r"|\b(?:read|load|open|import|call|use|execute|invoke)\b"
+            ),
+            target=_pattern(
+                r"read_csv|read_json|read_parquet|read_ndjson|read_text|read_blob"
+                r"|read_csv_auto|read_json_auto|glob"
+                r"|\bread[_\s-]?(?:csv|json|parquet|ndjson|text|blob)(?:[_\s-]?auto)?\b"
+                r"|\bglob\b"
+            ),
+        ),
     )
 
     def _clean_fragments(self, question: str) -> list[str]:

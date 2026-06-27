@@ -1085,6 +1085,7 @@
 - 四种模式固定为 `full`、`without_rule_parser`、`without_graph_router`、`without_clarification`。
 - 当前 7 条 Grounding case 上，完整链路分层预期满足率为 `100%`；禁用主动澄清后为 `85.7%`，主动澄清带来 `14.3` 个百分点提升。
 - 验证结果：`pytest tests/test_ablation_runner.py tests/test_intent_grounding_evaluator.py -q` 为 `10 passed`；`pytest -q` 为 `378 passed, 1 warning`；`npm run build` 通过；Secret Scan 扫描 214 个 tracked files 通过。
+- Commit：`fb28407`。
 
 ### 当前进度
 

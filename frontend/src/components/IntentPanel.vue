@@ -66,20 +66,15 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  result: {
-    type: Object,
-    default: null,
-  },
+  intent: { type: Object, default: null },
+  loading: { type: Boolean, default: false },
+  clarification: { type: Object, default: null },
 })
 
 defineEmits(['clarify'])
 
-const intent = computed(() => props.result?.analysis_intent || null)
-
-const clarification = computed(() => intent.value?.clarification || null)
-
 const confidenceType = computed(() => {
-  const c = intent.value?.overall_confidence || 0
+  const c = props.intent?.overall_confidence || 0
   if (c >= 0.8) return 'success'
   if (c >= 0.5) return 'warning'
   return 'danger'
@@ -88,33 +83,61 @@ const confidenceType = computed(() => {
 
 <style scoped>
 .intent-section {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
+  padding: 0 var(--space-5);
 }
+
 .intent-section h4 {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-2);
   font-size: 12px;
-  color: #909399;
+  color: var(--color-text-muted);
+  font-weight: 500;
 }
+
 .intent-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
+
+.intent-tags :deep(.el-tag) {
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+}
+
 .clarification {
-  background: #fdf6ec;
-  border-radius: 6px;
-  padding: 10px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin: 0 var(--space-5) var(--space-3);
 }
+
+[data-theme="dark"] .clarification {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+
+.clarification p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
 .clarification-options {
-  margin-top: 8px;
+  margin-top: var(--space-2);
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-2);
 }
+
 .clickable-tag {
   cursor: pointer;
+  transition: all var(--transition-hover);
 }
+
 .clickable-tag:hover {
   opacity: 0.8;
+  transform: translateY(-1px);
 }
 </style>

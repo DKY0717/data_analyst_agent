@@ -1,0 +1,2818 @@
+cases:
+- id: ecommerce_spider_000
+  question: 统计客户总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT COUNT(*) FROM customers
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: How many singers do we have?
+- id: ecommerce_spider_001
+  question: 统计订单总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT COUNT(*) FROM orders
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the total number of singers?
+- id: ecommerce_spider_002
+  question: 按订单金额从高到低排列所有订单
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders ORDER BY total_amount DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show name, country, age for all singers ordered by age from the
+    oldest to the youngest.
+- id: ecommerce_spider_003
+  question: 按年龄从大到小排列所有客户
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers ORDER BY age DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names, countries, and ages for every singer in descending
+    order of age?
+- id: ecommerce_spider_004
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the average, minimum, and maximum age of all singers
+    from France?
+- id: ecommerce_spider_005
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the average, minimum, and maximum age for all French
+    singers?
+- id: ecommerce_spider_006
+  question: 按年龄从大到小排列所有客户
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers ORDER BY age DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show the name and the release year of the song by the youngest
+    singer.
+- id: ecommerce_spider_007
+  question: 按价格从低到高排列所有商品
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products ORDER BY price ASC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names and release years for all the songs of the
+    youngest singer?
+- id: ecommerce_spider_008
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are all distinct countries where singers above age 20 are
+    from?
+- id: ecommerce_spider_009
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are  the different countries with singers above age 20?
+- id: ecommerce_spider_010
+  question: 统计各状态的订单数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT status, COUNT(*) FROM orders GROUP BY status
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show all countries and the number of singers in each country.
+- id: ecommerce_spider_011
+  question: 统计各支付方式的订单数
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - payments
+  reference_sql: SELECT payment_method, COUNT(*) FROM payments GROUP BY payment_method
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: How many singers are from each country?
+- id: ecommerce_spider_012
+  question: 查询年龄大于平均年龄的客户
+  category: filtering
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > (SELECT AVG(age)
+    FROM customers)
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: List all song names by singers above the average age.
+- id: ecommerce_spider_013
+  question: 查询订单金额高于平均金额的订单
+  category: filtering
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE total_amount > (SELECT
+    AVG(total_amount) FROM orders)
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are all the song names by singers who are older than average?
+- id: ecommerce_spider_014
+  question: 查询2024年第一季度的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    BETWEEN '2024-01-01' AND '2024-03-31'
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show location and name for all stadiums with a capacity between
+    5000 and 10000.
+- id: ecommerce_spider_015
+  question: 查询年龄在25到35岁之间的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age BETWEEN 25 AND
+    35
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the locations and names of all stations with capacity
+    between 5000 and 10000?
+- id: ecommerce_spider_016
+  question: 查询最贵的商品价格
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT MAX(price) FROM products
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the maximum capacity and the average of all stadiums
+    ?
+- id: ecommerce_spider_017
+  question: 计算商品的平均价格
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT AVG(price) FROM products
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the average and maximum capacities for all stadiums ?
+- id: ecommerce_spider_018
+  question: 按年龄从大到小排列所有客户
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers ORDER BY age DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the name and capacity for the stadium with highest average
+    attendance?
+- id: ecommerce_spider_019
+  question: 按价格从低到高排列所有商品
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products ORDER BY price ASC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the name and capacity for the stadium with the highest
+    average attendance?
+- id: ecommerce_spider_020
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: How many concerts are there in year 2014 or 2015?
+- id: ecommerce_spider_021
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: How many concerts occurred in 2014 or 2015?
+- id: ecommerce_spider_022
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show the stadium name and the number of concerts in each stadium.
+- id: ecommerce_spider_023
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: For each stadium, how many concerts play there?
+- id: ecommerce_spider_024
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show the stadium name and capacity with most number of concerts
+    in year 2014 or after.
+- id: ecommerce_spider_025
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the name and capacity of the stadium with the most concerts
+    after 2013 ?
+- id: ecommerce_spider_026
+  question: 统计各状态的订单数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT status, COUNT(*) FROM orders GROUP BY status
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Which year has most number of concerts?
+- id: ecommerce_spider_027
+  question: 统计各支付方式的订单数
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - payments
+  reference_sql: SELECT payment_method, COUNT(*) FROM payments GROUP BY payment_method
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the year that had the most concerts?
+- id: ecommerce_spider_028
+  question: 查询订单金额高于平均金额的订单
+  category: filtering
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE total_amount > (SELECT
+    AVG(total_amount) FROM orders)
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show the stadium names without any concert.
+- id: ecommerce_spider_029
+  question: 查询价格高于平均价格的商品
+  category: filtering
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > (SELECT AVG(price)
+    FROM products)
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names of the stadiums without any concerts?
+- id: ecommerce_spider_030
+  question: 查询年龄大于平均年龄的客户
+  category: filtering
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > (SELECT AVG(age)
+    FROM customers)
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show countries where a singer above age 40 and a singer below
+    30 are from.
+- id: ecommerce_spider_031
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show names for all stadiums except for stadiums having a concert
+    in year 2014.
+- id: ecommerce_spider_032
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names of all stadiums that did not have a concert
+    in 2014?
+- id: ecommerce_spider_033
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Show the name and theme for all concerts and the number of singers
+    in each concert.
+- id: ecommerce_spider_034
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names , themes , and number of singers for every
+    concert ?
+- id: ecommerce_spider_035
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: List singer names and number of concerts for each singer.
+- id: ecommerce_spider_036
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names of the singers and number of concerts for
+    each person?
+- id: ecommerce_spider_037
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: List all singer names in concerts in year 2014.
+- id: ecommerce_spider_038
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names of the singers who performed in a concert
+    in 2014?
+- id: ecommerce_spider_039
+  question: 查询名字以'手机'开头的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name FROM products WHERE product_name LIKE '手机%'
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: what is the name and nation of the singer who have a song having
+    'Hey' in its name?
+- id: ecommerce_spider_040
+  question: 查询名字包含'张'的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name FROM customers WHERE customer_name LIKE '%张%'
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What is the name and country of origin of every singer who has
+    a song with the word 'Hey' in its title?
+- id: ecommerce_spider_041
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Find the name and location of the stadiums which some concerts
+    happened in the years of both 2014 and 2015.
+- id: ecommerce_spider_042
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the names and locations of the stadiums that had concerts
+    that occurred in both 2014 and 2015?
+- id: ecommerce_spider_043
+  question: 按价格从低到高排列所有商品
+  category: sorting
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products ORDER BY price ASC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: Find the number of concerts happened in the stadium with the
+    highest capacity .
+- id: ecommerce_spider_044
+  question: 按订单金额从高到低排列所有订单
+  category: sorting
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders ORDER BY total_amount DESC
+  source: spider_converted
+  original_db_id: concert_singer
+  original_question: What are the number of concerts that occurred in the stadium
+    with the largest capacity ?
+- id: ecommerce_spider_045
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the number of pets whose weight is heavier than 10.
+- id: ecommerce_spider_046
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: How many pets have a greater weight than 10?
+- id: ecommerce_spider_047
+  question: 按订单金额从高到低排列所有订单
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders ORDER BY total_amount DESC
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the weight of the youngest dog.
+- id: ecommerce_spider_048
+  question: 按年龄从大到小排列所有客户
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers ORDER BY age DESC
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: How much does the youngest dog weigh?
+- id: ecommerce_spider_049
+  question: 统计各商品类别的商品数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  reference_sql: SELECT T1.category_name, COUNT(*) FROM categories T1 JOIN products
+    T2 ON T1.category_id = T2.category_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the maximum weight for each type of pet. List the maximum
+    weight and pet type.
+- id: ecommerce_spider_050
+  question: 统计各状态的订单数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT status, COUNT(*) FROM orders GROUP BY status
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: List the maximum weight and type for each type of pet.
+- id: ecommerce_spider_051
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find number of pets owned by students who are older than 20.
+- id: ecommerce_spider_052
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: How many pets are owned by students that have an age greater
+    than 20?
+- id: ecommerce_spider_053
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the number of dog pets that are raised by female students
+    (with sex F).
+- id: ecommerce_spider_054
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: How many dog pets are raised by female students?
+- id: ecommerce_spider_055
+  question: 查询所有不同的订单状态
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT DISTINCT status FROM orders
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the number of distinct type of pets.
+- id: ecommerce_spider_056
+  question: 查询所有不同的支付方式
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - payments
+  reference_sql: SELECT DISTINCT payment_method FROM payments
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: How many different types of pet are there?
+- id: ecommerce_spider_057
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the first name of students who have cat or dog pet.
+- id: ecommerce_spider_058
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What are the first names of every student who has a cat or dog
+    as a pet?
+- id: ecommerce_spider_059
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the first name of students who have both cat and dog pets
+    .
+- id: ecommerce_spider_060
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What are the students' first names who have both cats and dogs
+    as pets?
+- id: ecommerce_spider_061
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the major and age of students who do not have a cat pet.
+- id: ecommerce_spider_062
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What major is every student who does not own a cat as a pet,
+    and also how old are they?
+- id: ecommerce_spider_063
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the id of students who do not have a cat pet.
+- id: ecommerce_spider_064
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What are the ids of the students who do not own cats as pets?
+- id: ecommerce_spider_065
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the first name and age of students who have a dog but do
+    not have a cat as a pet.
+- id: ecommerce_spider_066
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the first name of every student who has a dog but does
+    not have a cat?
+- id: ecommerce_spider_067
+  question: 按价格从低到高排列所有商品
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products ORDER BY price ASC
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the type and weight of the youngest pet.
+- id: ecommerce_spider_068
+  question: 按订单金额从高到低排列所有订单
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders ORDER BY total_amount DESC
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What type of pet is the youngest animal, and how much does it
+    weigh?
+- id: ecommerce_spider_069
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the id and weight of all pets whose age is older than 1.
+- id: ecommerce_spider_070
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the id and weight of every pet who is older than 1?
+- id: ecommerce_spider_071
+  question: 统计各支付方式的订单数
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - payments
+  reference_sql: SELECT payment_method, COUNT(*) FROM payments GROUP BY payment_method
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the average and maximum age for each type of pet.
+- id: ecommerce_spider_072
+  question: 统计各地区的客户数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  reference_sql: SELECT T1.region_name, COUNT(*) FROM regions T1 JOIN customers T2
+    ON T1.region_id = T2.region_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the average and maximum age for each pet type?
+- id: ecommerce_spider_073
+  question: 统计各商品类别的商品数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  reference_sql: SELECT T1.category_name, COUNT(*) FROM categories T1 JOIN products
+    T2 ON T1.category_id = T2.category_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the average weight for each pet type.
+- id: ecommerce_spider_074
+  question: 统计各状态的订单数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT status, COUNT(*) FROM orders GROUP BY status
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the average weight for each type of pet?
+- id: ecommerce_spider_075
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the first name and age of students who have a pet.
+- id: ecommerce_spider_076
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What are the different first names and ages of the students who
+    do have pets?
+- id: ecommerce_spider_077
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the id of the pet owned by student whose last name is ‘Smith’.
+- id: ecommerce_spider_078
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the id of the pet owned by the student whose last name
+    is 'Smith'?
+- id: ecommerce_spider_079
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the number of pets for each student who has any pet and
+    student id.
+- id: ecommerce_spider_080
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: For students who have pets , how many pets does each student
+    have ? list their ids instead of names .
+- id: ecommerce_spider_081
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the first name and gender of student who have more than
+    one pet.
+- id: ecommerce_spider_082
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the first name and gender of the all the students who
+    have more than one pet?
+- id: ecommerce_spider_083
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the last name of the student who has a cat that is age 3.
+- id: ecommerce_spider_084
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the last name of the student who has a cat that is 3
+    years old?
+- id: ecommerce_spider_085
+  question: 查询订单金额高于平均金额的订单
+  category: filtering
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE total_amount > (SELECT
+    AVG(total_amount) FROM orders)
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: Find the average age of students who do not have any pet .
+- id: ecommerce_spider_086
+  question: 查询价格高于平均价格的商品
+  category: filtering
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > (SELECT AVG(price)
+    FROM products)
+  source: spider_converted
+  original_db_id: pets_1
+  original_question: What is the average age for all students who do not own any pets
+    ?
+- id: ecommerce_spider_087
+  question: 统计地区总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - regions
+  reference_sql: SELECT COUNT(*) FROM regions
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many continents are there?
+- id: ecommerce_spider_088
+  question: 统计客户总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT COUNT(*) FROM customers
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of continents?
+- id: ecommerce_spider_089
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many countries does each continent have? List the continent
+    id, continent name and the number of countries.
+- id: ecommerce_spider_090
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: For each continent, list its id, name, and how many countries
+    it has?
+- id: ecommerce_spider_091
+  question: 统计地区总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - regions
+  reference_sql: SELECT COUNT(*) FROM regions
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many countries are listed?
+- id: ecommerce_spider_092
+  question: 统计客户总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT COUNT(*) FROM customers
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many countries exist?
+- id: ecommerce_spider_093
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many models does each car maker produce? List maker full
+    name, id and the number.
+- id: ecommerce_spider_094
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the full name of each car maker, along with its id and
+    how many models it produces?
+- id: ecommerce_spider_095
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which model of the car has the minimum horsepower?
+- id: ecommerce_spider_096
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the model of the car with the smallest amount of horsepower?
+- id: ecommerce_spider_097
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Find the model of the car whose weight is below the average weight.
+- id: ecommerce_spider_098
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the model for the car with a weight smaller than the
+    average?
+- id: ecommerce_spider_099
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Find the name of the makers that produced some cars in the year
+    of 1970?
+- id: ecommerce_spider_100
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the name of the different car makers who produced a car
+    in 1970?
+- id: ecommerce_spider_101
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Find the make and production time of the cars that were produced
+    in the earliest year?
+- id: ecommerce_spider_102
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the maker of the carr produced in the earliest year and
+    what year was it?
+- id: ecommerce_spider_103
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which distinct car models are the produced after 1980?
+- id: ecommerce_spider_104
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the different models for the cards produced after 1980?
+- id: ecommerce_spider_105
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many car makers are there in each continents? List the continent
+    name and the count.
+- id: ecommerce_spider_106
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the name of each continent and how many car makers are
+    there in each one?
+- id: ecommerce_spider_107
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which of the countries has the most car makers? List the country
+    name.
+- id: ecommerce_spider_108
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the name of the country with the most car makers?
+- id: ecommerce_spider_109
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many car models are produced by each maker ? Only list the
+    count and the maker full name .
+- id: ecommerce_spider_110
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of car models that are produced by each maker
+    and what is the id and full name of each maker?
+- id: ecommerce_spider_111
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the accelerate of the car make amc hornet sportabout
+    (sw)?
+- id: ecommerce_spider_112
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How much does the car accelerate that makes amc hornet sportabout
+    (sw)?
+- id: ecommerce_spider_113
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many car makers are there in france?
+- id: ecommerce_spider_114
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of makers of care in France?
+- id: ecommerce_spider_115
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many car models are produced in the usa?
+- id: ecommerce_spider_116
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the count of the car models produced in the United States?
+- id: ecommerce_spider_117
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average miles per gallon(mpg) of the cars with 4
+    cylinders?
+- id: ecommerce_spider_118
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average miles per gallon of all the cards with 4
+    cylinders?
+- id: ecommerce_spider_119
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the smallest weight of the car produced with 8 cylinders
+    on 1974 ?
+- id: ecommerce_spider_120
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the minimum weight of the car with 8 cylinders produced
+    in 1974 ?
+- id: ecommerce_spider_121
+  question: 统计订单总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT COUNT(*) FROM orders
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are all the makers and models?
+- id: ecommerce_spider_122
+  question: 统计商品总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT COUNT(*) FROM products
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the makers and models?
+- id: ecommerce_spider_123
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the countries having at least one car maker? List name
+    and id.
+- id: ecommerce_spider_124
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the names and ids of all countries with at least one
+    car maker?
+- id: ecommerce_spider_125
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of the cars with horsepower more than 150?
+- id: ecommerce_spider_126
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of cars with a horsepower greater than 150?
+- id: ecommerce_spider_127
+  question: 统计各支付方式的订单数
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - payments
+  reference_sql: SELECT payment_method, COUNT(*) FROM payments GROUP BY payment_method
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average weight of cars each year?
+- id: ecommerce_spider_128
+  question: 统计各地区的客户数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  reference_sql: SELECT T1.region_name, COUNT(*) FROM regions T1 JOIN customers T2
+    ON T1.region_id = T2.region_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average weight and year for each year?
+- id: ecommerce_spider_129
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which countries in europe have at least 3 car manufacturers?
+- id: ecommerce_spider_130
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the names of all European countries with at least 3
+    manufacturers?
+- id: ecommerce_spider_131
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the maximum horsepower and the make of the car models
+    with 3 cylinders?
+- id: ecommerce_spider_132
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the largest amount of horsepower for the models with
+    3 cylinders and what make is it?
+- id: ecommerce_spider_133
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which model saves the most gasoline? That is to say, have the
+    maximum miles per gallon.
+- id: ecommerce_spider_134
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the car model with the highest mpg ?
+- id: ecommerce_spider_135
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average horsepower of the cars before 1980?
+- id: ecommerce_spider_136
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average horsepower for all cars produced before 1980
+    ?
+- id: ecommerce_spider_137
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average edispl of the cars of model volvo?
+- id: ecommerce_spider_138
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the average edispl for all volvos?
+- id: ecommerce_spider_139
+  question: 统计各支付方式的订单数
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - payments
+  reference_sql: SELECT payment_method, COUNT(*) FROM payments GROUP BY payment_method
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the maximum accelerate for different number of cylinders?
+- id: ecommerce_spider_140
+  question: 统计各地区的客户数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  reference_sql: SELECT T1.region_name, COUNT(*) FROM regions T1 JOIN customers T2
+    ON T1.region_id = T2.region_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the maximum accelerate for all the different cylinders?
+- id: ecommerce_spider_141
+  question: 统计各商品类别的商品数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  reference_sql: SELECT T1.category_name, COUNT(*) FROM categories T1 JOIN products
+    T2 ON T1.category_id = T2.category_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which model has the most version(make) of cars?
+- id: ecommerce_spider_142
+  question: 统计各状态的订单数量
+  category: aggregation
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT status, COUNT(*) FROM orders GROUP BY status
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What model has the most different versions?
+- id: ecommerce_spider_143
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many cars have more than 4 cylinders?
+- id: ecommerce_spider_144
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of cars with more than 4 cylinders?
+- id: ecommerce_spider_145
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: car_1
+  original_question: how many cars were produced in 1980?
+- id: ecommerce_spider_146
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: In 1980, how many cars were made?
+- id: ecommerce_spider_147
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many car models were produced by the maker with full name
+    American Motor Company?
+- id: ecommerce_spider_148
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of car models created by the car maker American
+    Motor Company?
+- id: ecommerce_spider_149
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which makers designed more than 3 car models? List full name
+    and the id.
+- id: ecommerce_spider_150
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the names and ids of all makers with more than 3 models?
+- id: ecommerce_spider_151
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which distinctive models are produced by maker with the full
+    name General Motors or weighing more than 3500?
+- id: ecommerce_spider_152
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the different models created by either the car maker
+    General Motors or weighed more than 3500?
+- id: ecommerce_spider_153
+  question: 查询年龄在25到35岁之间的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age BETWEEN 25 AND
+    35
+  source: spider_converted
+  original_db_id: car_1
+  original_question: In which years cars were produced weighing no less than 3000
+    and no more than 4000 ?
+- id: ecommerce_spider_154
+  question: 查询价格在50到200之间的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price BETWEEN 50 AND
+    200
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the different years in which there were cars produced
+    that weighed less than 4000 and also cars that weighted more than 3000 ?
+- id: ecommerce_spider_155
+  question: 按订单金额从高到低排列所有订单
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders ORDER BY total_amount DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the horsepower of the car with the largest accelerate?
+- id: ecommerce_spider_156
+  question: 按年龄从大到小排列所有客户
+  category: sorting
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers ORDER BY age DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the horsepower of the car with the greatest accelerate?
+- id: ecommerce_spider_157
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: For model volvo, how many cylinders does the car with the least
+    accelerate have?
+- id: ecommerce_spider_158
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: For a volvo model, how many cylinders does the version with least
+    accelerate have?
+- id: ecommerce_spider_159
+  question: 按年龄从大到小排列所有客户
+  category: sorting
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers ORDER BY age DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many cars have a larger accelerate than the car with the
+    largest horsepower?
+- id: ecommerce_spider_160
+  question: 按价格从低到高排列所有商品
+  category: sorting
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products ORDER BY price ASC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of cars with a greater accelerate than the
+    one with the most horsepower?
+- id: ecommerce_spider_161
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many countries has more than 2 car makers ?
+- id: ecommerce_spider_162
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of countries with more than 2 car makers ?
+- id: ecommerce_spider_163
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: How many cars has over 6 cylinders?
+- id: ecommerce_spider_164
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the number of carsw ith over 6 cylinders?
+- id: ecommerce_spider_165
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: For the cars with 4 cylinders, which model has the largest horsepower?
+- id: ecommerce_spider_166
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: For all of the 4 cylinder cars, which model has the most horsepower?
+- id: ecommerce_spider_167
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Among the cars with more than lowest horsepower, which ones do
+    not have more than 3 cylinders? List the car makeid and make name.
+- id: ecommerce_spider_168
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Among the cars that do not have the minimum horsepower , what
+    are the make ids and names of all those with less than 4 cylinders ?
+- id: ecommerce_spider_169
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the maximum miles per gallon of the car with 8 cylinders
+    or produced before 1980 ?
+- id: ecommerce_spider_170
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What is the maximum mpg of the cars that had 8 cylinders or that
+    were produced before 1980 ?
+- id: ecommerce_spider_171
+  question: 查询每个客户的退款总额
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, SUM(T3.refund_amount) FROM customers T1
+    JOIN orders T2 ON T1.customer_id = T2.customer_id JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which models are lighter than 3500 but not built by the 'Ford
+    Motor Company'?
+- id: ecommerce_spider_172
+  question: 查询每个客户的订单数量
+  category: join
+  difficulty: medium
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  reference_sql: SELECT T1.customer_name, COUNT(T2.order_id) FROM customers T1 JOIN
+    orders T2 ON T1.customer_id = T2.customer_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the different models wthat are lighter than 3500 but
+    were not built by the Ford Motor Company?
+- id: ecommerce_spider_173
+  question: 查询每个地区的销售额
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - orders
+  reference_sql: SELECT T1.region_name, SUM(T3.total_amount) FROM regions T1 JOIN
+    customers T2 ON T1.region_id = T2.region_id JOIN orders T3 ON T2.customer_id =
+    T3.customer_id GROUP BY T1.region_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the name of the countries where there is not a single
+    car maker?
+- id: ecommerce_spider_174
+  question: 查询每个商品类别的销售额
+  category: join
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - categories
+  - products
+  - order_items
+  reference_sql: SELECT T1.category_name, SUM(T3.quantity * T3.unit_price) FROM categories
+    T1 JOIN products T2 ON T1.category_id = T2.category_id JOIN order_items T3 ON
+    T2.product_id = T3.product_id GROUP BY T1.category_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the names of the countries with no car makers?
+- id: ecommerce_spider_175
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: Which are the car makers which produce at least 2 models and
+    more than 3 car makers ? List the id and the maker .
+- id: ecommerce_spider_176
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the ids and makers of all car makers that produce at
+    least 2 models and make more than 3 cars?
+- id: ecommerce_spider_177
+  question: 查询每个客户的消费总额和退款总额
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - customers
+  - orders
+  - refunds
+  reference_sql: SELECT T1.customer_name, COALESCE(SUM(T2.total_amount), 0) AS total_spent,
+    COALESCE(SUM(T3.refund_amount), 0) AS total_refund FROM customers T1 LEFT JOIN
+    orders T2 ON T1.customer_id = T2.customer_id LEFT JOIN refunds T3 ON T2.order_id
+    = T3.order_id GROUP BY T1.customer_name
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the id and names of the countries which have more than
+    3 car makers or produce the 'fiat' model?
+- id: ecommerce_spider_178
+  question: 查询每个地区退款率最高的商品类别
+  category: aggregation
+  difficulty: extra_hard
+  safety_expected: safe
+  expected_tables:
+  - regions
+  - customers
+  - products
+  - orders
+  - order_items
+  - refunds
+  reference_sql: WITH refund_stats AS (SELECT T1.region_name, T4.category_name, SUM(T5.refund_amount)
+    AS total_refund FROM regions T1 JOIN customers T2 ON T1.region_id = T2.region_id
+    JOIN orders T3 ON T2.customer_id = T3.customer_id JOIN order_items T6 ON T3.order_id
+    = T6.order_id JOIN products T4 ON T6.product_id = T4.product_id JOIN refunds T5
+    ON T3.order_id = T5.order_id GROUP BY T1.region_name, T4.category_name) SELECT
+    region_name, category_name, total_refund FROM refund_stats ORDER BY region_name,
+    total_refund DESC
+  source: spider_converted
+  original_db_id: car_1
+  original_question: What are the ids and names of all countries that either have
+    more than 3 car makers or produce fiat model ?
+- id: ecommerce_spider_179
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Which country does Airline "JetBlue Airways" belong to?
+- id: ecommerce_spider_180
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: What country is Jetblue Airways affiliated with?
+- id: ecommerce_spider_181
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: What is the abbreviation of Airline "JetBlue Airways"?
+- id: ecommerce_spider_182
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Which abbreviation corresponds to Jetblue Airways?
+- id: ecommerce_spider_183
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: List all airline names and their abbreviations in "USA".
+- id: ecommerce_spider_184
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: What are the airline names and abbreviations for airlines in
+    the USA?
+- id: ecommerce_spider_185
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: List the airport code and name in the city of Anthony.
+- id: ecommerce_spider_186
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Give the airport code and airport name corresonding to the city
+    Anthony.
+- id: ecommerce_spider_187
+  question: 统计地区总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - regions
+  reference_sql: SELECT COUNT(*) FROM regions
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: How many airlines do we have?
+- id: ecommerce_spider_188
+  question: 统计客户总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT COUNT(*) FROM customers
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: What is the total number of airlines?
+- id: ecommerce_spider_189
+  question: 统计订单总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT COUNT(*) FROM orders
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: How many airports do we have?
+- id: ecommerce_spider_190
+  question: 统计商品总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT COUNT(*) FROM products
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Return the number of  airports.
+- id: ecommerce_spider_191
+  question: 统计地区总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - regions
+  reference_sql: SELECT COUNT(*) FROM regions
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: How many flights do we have?
+- id: ecommerce_spider_192
+  question: 统计客户总数
+  category: simple_select
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT COUNT(*) FROM customers
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Return the number of flights.
+- id: ecommerce_spider_193
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Which airline has abbreviation 'UAL'?
+- id: ecommerce_spider_194
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Give the airline with abbreviation 'UAL'.
+- id: ecommerce_spider_195
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: How many airlines are from USA?
+- id: ecommerce_spider_196
+  question: 查询年龄大于30岁的客户
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - customers
+  reference_sql: SELECT customer_name, age FROM customers WHERE age > 30
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Return the number of airlines in the USA.
+- id: ecommerce_spider_197
+  question: 查询价格高于100的商品
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - products
+  reference_sql: SELECT product_name, price FROM products WHERE price > 100
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Which city and country is the Alton airport at?
+- id: ecommerce_spider_198
+  question: 查询2024年的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, order_date, total_amount FROM orders WHERE order_date
+    >= '2024-01-01' AND order_date < '2025-01-01'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: Give the city and country for the Alton airport.
+- id: ecommerce_spider_199
+  question: 查询已完成的订单
+  category: filtering
+  difficulty: easy
+  safety_expected: safe
+  expected_tables:
+  - orders
+  reference_sql: SELECT order_id, total_amount FROM orders WHERE status = 'completed'
+  source: spider_converted
+  original_db_id: flight_2
+  original_question: What is the airport name for airport 'AKO'?

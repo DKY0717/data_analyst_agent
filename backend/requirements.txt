@@ -14,3 +14,6 @@ opentelemetry-api==1.25.0
 opentelemetry-sdk==1.25.0
 opentelemetry-exporter-otlp==1.25.0
 opentelemetry-instrumentation-fastapi==0.46b0
+slowapi==0.1.9
+PyJWT==2.10.1
+alembic==1.14.1

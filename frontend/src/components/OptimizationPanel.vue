@@ -13,8 +13,8 @@
         <strong>{{ executionTime }}</strong>
       </div>
       <div>
-        <span>retry</span>
-        <strong>{{ result?.retry_count ?? '-' }}</strong>
+        <span>重试次数</span>
+        <strong>{{ report?.retry_count ?? '-' }}</strong>
       </div>
     </div>
 
@@ -29,14 +29,38 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  result: {
+  report: {
     type: Object,
     default: null,
   },
 })
 
-const suggestions = computed(() => props.result?.optimization_suggestions || [])
+const suggestions = computed(() => props.report?.optimization_suggestions || [])
 const executionTime = computed(() =>
-  props.result?.execution_time_ms === undefined ? '-' : `${props.result.execution_time_ms}ms`,
+  props.report?.execution_time_ms === undefined ? '-' : `${props.report.execution_time_ms}ms`,
 )
 </script>
+
+<style scoped>
+.execution-grid div {
+  transition: all var(--transition-hover);
+}
+
+.execution-grid div:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.suggestion-list li {
+  margin-bottom: var(--space-2);
+  padding-left: var(--space-1);
+}
+
+.suggestion-list li:last-child {
+  margin-bottom: 0;
+}
+
+.suggestion-list li::marker {
+  color: var(--color-primary);
+}
+</style>

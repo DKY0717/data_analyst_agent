@@ -90,8 +90,11 @@ class EvaluationRunner:
     async def evaluate_all(self) -> Dict[str, Any]:
         """运行全部 case 并生成 summary + results"""
         results = []
-        for case in self.load_cases():
+        cases = self.load_cases()
+        for i, case in enumerate(cases):
             results.append(await self.evaluate_case(case))
+            if i < len(cases) - 1:
+                await asyncio.sleep(3)
 
         return {
             "summary": self.summarize_results(results),

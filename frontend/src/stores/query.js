@@ -1,21 +1,72 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { queryAgent, fetchSchema } from '@/api/agent'
+import { queryAgent, queryAgentSSE, fetchSchema } from '@/api/agent'
+
+const FAVORITES_KEY = 'daa_favorites'
+
+function loadFavorites() {
+  try {
+    return JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
 
 export const useQueryStore = defineStore('query', () => {
-  const question = ref('统计 2024 年每个月的销售额')
-  // 页面生命周期内复用同一个 session_id，让后端能够识别连续追问。
+  const question = ref('')
   const sessionId = ref(
     globalThis.crypto?.randomUUID?.() || `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   )
   const loading = ref(false)
+  const loadingStage = ref('')
+  const loadingProgress = ref(0)
   const result = ref(null)
   const error = ref(null)
   const history = ref([])
   const schemaTables = ref([])
+  const favorites = ref(loadFavorites())
+  const useStreaming = ref(true)
+  const abortController = ref(null)
 
   const hasResult = computed(() => Boolean(result.value))
   const hasRows = computed(() => Array.isArray(result.value?.rows) && result.value.rows.length > 0)
+  const isFavorite = computed(() => (q) => favorites.value.some(f => f.question === q))
+
+  function saveFavorites() {
+    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites.value))
+  }
+
+  function toggleFavorite(item) {
+    const idx = favorites.value.findIndex(f => f.question === item.question)
+    if (idx >= 0) {
+      favorites.value.splice(idx, 1)
+    } else {
+      favorites.value.unshift({
+        question: item.question,
+        createdAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        answer: item.answer || '',
+      })
+      if (favorites.value.length > 20) favorites.value.pop()
+    }
+    saveFavorites()
+  }
+
+  function removeFavorite(question) {
+    favorites.value = favorites.value.filter(f => f.question !== question)
+    saveFavorites()
+  }
+
+  function addToHistory(question, success, answer = '') {
+    history.value = [
+      {
+        question,
+        createdAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+        success,
+        answer,
+      },
+      ...history.value,
+    ].slice(0, 20)
+  }
 
   async function submitQuestion(nextQuestion = question.value, clarification = null) {
     const normalizedQuestion = nextQuestion.trim()
@@ -23,39 +74,52 @@ export const useQueryStore = defineStore('query', () => {
 
     question.value = normalizedQuestion
     loading.value = true
+    loadingStage.value = '正在解析意图...'
+    loadingProgress.value = 0
     error.value = null
+    result.value = null
 
     try {
-      const data = await queryAgent(normalizedQuestion, sessionId.value, clarification)
+      let data
+      if (useStreaming.value && !clarification) {
+        abortController.value = new AbortController()
+        data = await queryAgentSSE(
+          normalizedQuestion,
+          sessionId.value,
+          (stage, progress, partial) => {
+            loadingStage.value = stage
+            loadingProgress.value = progress
+            if (partial) {
+              result.value = { ...result.value, ...partial }
+            }
+          },
+          abortController.value.signal,
+        )
+        abortController.value = null
+      } else {
+        data = await queryAgent(normalizedQuestion, sessionId.value, clarification)
+      }
       result.value = data
-      // 只保留最近 8 条，避免第一版内存历史过长影响侧栏可读性。
-      history.value = [
-        {
-          question: normalizedQuestion,
-          createdAt: new Date().toLocaleTimeString('zh-CN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          success: true,
-        },
-        ...history.value,
-      ].slice(0, 8)
+      addToHistory(normalizedQuestion, true, data?.answer)
     } catch (requestError) {
-      error.value = requestError
-      result.value = null
-      history.value = [
-        {
-          question: normalizedQuestion,
-          createdAt: new Date().toLocaleTimeString('zh-CN', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }),
-          success: false,
-        },
-        ...history.value,
-      ].slice(0, 8)
+      if (requestError.name === 'AbortError') {
+        loadingStage.value = '已取消'
+      } else {
+        error.value = requestError
+        result.value = null
+        addToHistory(normalizedQuestion, false)
+      }
     } finally {
       loading.value = false
+      loadingStage.value = ''
+      loadingProgress.value = 0
+    }
+  }
+
+  function cancelQuery() {
+    if (abortController.value) {
+      abortController.value.abort()
+      abortController.value = null
     }
   }
 
@@ -67,7 +131,6 @@ export const useQueryStore = defineStore('query', () => {
     const clarification = result.value?.clarification
     if (!clarification || !option?.candidate_id) return
 
-    // 前端只提交稳定 candidate_id；原问题和冻结候选由后端 SessionStore 恢复。
     await submitQuestion(option.label, {
       clarificationId: clarification.clarification_id,
       candidateId: option.candidate_id,
@@ -83,7 +146,7 @@ export const useQueryStore = defineStore('query', () => {
     try {
       schemaTables.value = await fetchSchema()
     } catch {
-      // Schema 加载失败不阻断主流程，面板显示空列表
+      // Schema 加载失败不阻断主流程
     }
   }
 
@@ -91,16 +154,24 @@ export const useQueryStore = defineStore('query', () => {
     question,
     sessionId,
     loading,
+    loadingStage,
+    loadingProgress,
     result,
     error,
     history,
     schemaTables,
+    favorites,
+    useStreaming,
     hasResult,
     hasRows,
+    isFavorite,
     submitQuestion,
     submitClarification,
+    cancelQuery,
     setQuestion,
     clearResult,
     loadSchema,
+    toggleFavorite,
+    removeFavorite,
   }
 })

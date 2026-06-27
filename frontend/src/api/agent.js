@@ -2,8 +2,7 @@ import axios from 'axios'
 
 const client = axios.create({
   baseURL: '/api',
-  // 一次 Agent 查询可能包含生成、修复和答案生成等多次 LLM 调用，前端超时需覆盖完整链路。
-  timeout: 120000,
+  timeout: 300000,
 })
 
 export const exampleQuestions = [
@@ -35,89 +34,71 @@ export async function fetchSchema() {
   }))
 }
 
-export function createMockResult(question, sessionId) {
-  // 开发环境后端不可用时，用同一份响应结构预览 UI，避免前端和 API 契约脱节。
-  return {
-    question,
-    session_id: sessionId,
-    sql: `SELECT
-  strftime(order_date, '%Y-%m') AS month,
-  SUM(total_amount) AS sales
-FROM orders
-WHERE order_date >= DATE '2024-01-01'
-  AND order_date < DATE '2025-01-01'
-GROUP BY month
-ORDER BY month
-LIMIT 1000;`,
-    is_sql_safe: true,
-    columns: ['month', 'sales'],
-    rows: [
-      ['2024-01', 12840.5],
-      ['2024-02', 14520.8],
-      ['2024-03', 16890.3],
-      ['2024-04', 15330.2],
-      ['2024-05', 18110.7],
-      ['2024-06', 19780.4],
-    ],
-    answer: '查询结果显示，2024 年上半年销售额整体呈上升趋势，其中 6 月销售额最高，达到 19780.4 元。',
-    status: 'completed',
-    execution_time_ms: 42,
-    retry_count: 0,
-    optimization_suggestions: ['当前查询已按月份聚合，建议关注 DuckDB 对订单日期过滤和聚合的执行计划。'],
-    audit_report: {
-      question,
-      final_sql: `SELECT strftime(order_date, '%Y-%m') AS month, SUM(total_amount) AS sales FROM orders LIMIT 1000`,
-      is_sql_safe: true,
-      execution_success: true,
-      retry_count: 0,
-      limit_injected: true,
-      blocked_rules: [],
-      events: [
-        {
-          stage: 'generation',
-          action: 'generate_sql',
-          status: 'success',
-          message: 'LLM 已生成 SQL',
-          rule_id: null,
-          details: {},
-        },
-        {
-          stage: 'guard',
-          action: 'inject_limit',
-          status: 'success',
-          message: '查询缺少 LIMIT，已自动注入 LIMIT 1000',
-          rule_id: 'limit_injected',
-          details: { limit_injected: true, max_rows: 1000 },
-        },
-        {
-          stage: 'execution',
-          action: 'execute_sql',
-          status: 'success',
-          message: 'SQL 执行成功',
-          rule_id: null,
-          details: { execution_time_ms: 42, row_count: 6 },
-        },
-      ],
-    },
-    used_mock: true,
+export async function queryAgent(question, sessionId, clarification = null) {
+  const payload = { question, session_id: sessionId }
+  if (clarification) {
+    payload.clarification_id = clarification.clarificationId
+    payload.clarification_candidate_id = clarification.candidateId
+    payload.clarification_text = clarification.text || null
   }
+  const response = await client.post('/chat/query', payload)
+  return { ...response.data.data, used_mock: false }
 }
 
-export async function queryAgent(question, sessionId, clarification = null) {
-  try {
-    const payload = { question, session_id: sessionId }
-    if (clarification) {
-      payload.clarification_id = clarification.clarificationId
-      payload.clarification_candidate_id = clarification.candidateId
-      payload.clarification_text = clarification.text || null
-    }
-    const response = await client.post('/chat/query', payload)
-    // 后端返回 { code, message, data: { question, sql, rows, ... } }
-    // 提取嵌套的 data 字段，与前端组件期望的结构对齐
-    return { ...response.data.data, used_mock: false }
-  } catch (error) {
-    // 只允许开发环境使用 mock；生产环境必须暴露真实接口错误，避免把故障伪装成成功结果。
-    if (import.meta.env.DEV) return createMockResult(question, sessionId)
-    throw error
+export async function queryAgentSSE(question, sessionId, onProgress, signal) {
+  const payload = { question, session_id: sessionId }
+
+  const response = await fetch('/api/chat/query/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  })
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
   }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let finalResult = null
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || ''
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      const jsonStr = line.slice(6)
+      if (jsonStr === '[DONE]') continue
+
+      try {
+        const event = JSON.parse(jsonStr)
+
+        if (event.type === 'progress') {
+          onProgress(event.stage, event.progress, event.partial_result)
+        } else if (event.type === 'result') {
+          finalResult = { ...event.data, used_mock: false }
+          onProgress('完成', 100, finalResult)
+        } else if (event.type === 'error') {
+          throw new Error(event.message)
+        }
+      } catch (parseError) {
+        if (parseError.message && !parseError.message.includes('JSON')) {
+          throw parseError
+        }
+      }
+    }
+  }
+
+  if (!finalResult) {
+    throw new Error('SSE 流结束但未收到最终结果')
+  }
+
+  return finalResult
 }

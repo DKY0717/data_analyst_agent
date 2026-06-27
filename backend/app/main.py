@@ -7,7 +7,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings, ensure_directories
-from .api import health, schema, query
+from .api import health, schema, query, auth_router
+from .security.rate_limit import setup_rate_limit
 from .services.tracing import init_tracing
 from .utils.logger import logger
 
@@ -31,6 +32,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 配置速率限制
+setup_rate_limit(app)
+
 # CORS 中间件，允许前端跨域访问
 app.add_middleware(
     CORSMiddleware,
@@ -44,3 +48,4 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(schema.router)
 app.include_router(query.router)
+app.include_router(auth_router.router)
