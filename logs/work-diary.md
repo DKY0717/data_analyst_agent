@@ -1183,3 +1183,28 @@
 
 - 按实施计划进入代码实现：先写 `DataPermissionGuard` 红灯测试，再依次接入 AgentGraph、API 认证、审计报告和文档。
 - 每个里程碑完成后运行定向测试，最终运行 `pytest -q`、`npm run test`、`npm run build`、Secret Scan 和 `git diff --check`。
+
+### 实施进展
+
+- ✅ Milestone 1：新增 `DataPermissionGuard`
+  - 使用 SQLGlot 解析最终 SQL AST，按 `admin`、`analyst`、`support` 做表级和字段级授权。
+  - 覆盖 API Key 默认 analyst、`SELECT *` 敏感字段阻断、多表裸列 fail-closed 和 admin 全权限兼容 Repair 流。
+  - 定向验证：`pytest tests/test_data_permission_guard.py tests/test_sql_guard.py -q`，26 passed。
+  - Commit：`44246e0`
+- ✅ Milestone 2：AgentGraph 接入 `authorize_sql`
+  - 链路调整为 `validate_sql -> authorize_sql -> execute_sql`，Repair 后也重新走 Guard 和权限检查。
+  - 权限阻断不执行 QueryRunner、不进入 SQL Repair，也不写入多轮 SessionStore 上下文。
+  - 定向验证：`pytest tests/test_agent_graph.py tests/test_audit_report.py -q`，29 passed。
+  - Commit：`aa8046e`
+- ✅ Milestone 3：查询 API 强制认证与缓存隔离
+  - `/api/chat/query` 和 `/api/chat/query/stream` 注入 `get_current_user`。
+  - JWT/API Key 身份被压缩成最小 `auth_user` 摘要传入 AgentGraph；API Key 默认归一为 analyst。
+  - 认证请求跳过 question-only 共享缓存，避免跨角色复用查询结果。
+  - 定向验证：`pytest tests/test_query_api.py tests/test_auth.py tests/test_rate_limit.py -q`，30 passed，1 个既有 TestClient warning。
+  - Commit：`657959c`
+- ✅ Milestone 4：审计报告补充身份摘要
+  - `AuditReport` 增加 `user_id`、`auth_method`、`roles`，只暴露最小身份摘要，不暴露完整权限策略或凭证。
+  - 权限阻断规则进入 `blocked_rules` 并保持去重。
+  - 定向验证：`pytest tests/test_audit_report.py tests/test_query_api.py -q`，23 passed，1 个既有 TestClient warning。
+  - Commit：`50b28ac`
+- ⏳ Milestone 5：README、面试稿和工作日记同步中。

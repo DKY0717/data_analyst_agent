@@ -4,19 +4,20 @@
 
 ## 项目亮点
 
-**11 节点 LangGraph Agent 工作流** — 不是简单调 API，而是完整的有向图编排：意图解析 → Schema Grounding → 主动澄清 → SQL 生成 → 安全校验 → 执行 → 自动修复 → 优化建议 → 答案生成。
+**12 节点 LangGraph Agent 工作流** — 不是简单调 API，而是完整的有向图编排：意图解析 → Schema Grounding → 主动澄清 → SQL 生成 → SQL 安全校验 → 数据权限校验 → 执行 → 自动修复 → 优化建议 → 答案生成。
 
-**双层安全防护** — Intent Guard 在 LLM 调用前阻断危险意图（100% 阻断率），SQL Guard 在 AST 层面校验生成的 SQL。覆盖破坏性操作、凭据访问、系统表访问、文件读取等 13 条规则。
+**三层安全治理** — Intent Guard 在 LLM 调用前阻断危险意图（100% 阻断率），SQL Guard 在 AST 层面校验生成的 SQL，Data Permission Guard 在执行前按角色检查表级和字段级权限。覆盖破坏性操作、凭据访问、系统表访问、文件读取和敏感字段越权访问。
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 65 条评测用例** — 后端 459 个测试、前端 33 个单元测试、16 个 E2E 测试、65 条结构化评测用例覆盖 11 个类别。
+**500+ 测试 + 65 条评测用例** — 后端 484 个测试、前端 33 个单元测试、16 个 E2E 测试、65 条结构化评测用例覆盖 11 个类别。
 
 ## 核心架构
 
 ```mermaid
 flowchart LR
-    Q[用户问题] --> Intent[Intent Guard<br/>NLP 层拦截]
+    Q[用户问题] --> Auth[Auth<br/>JWT / API Key]
+    Auth --> Intent[Intent Guard<br/>NLP 层拦截]
     Intent -->|安全| AI[意图解析<br/>+ Schema Grounding]
     Intent -->|危险| Block[提前阻断]
     AI --> Clarify{需要澄清?}
@@ -24,7 +25,9 @@ flowchart LR
     Clarify -->|否| G[SQL Generator<br/>LLM 生成 SQL]
     G --> Guard[SQL Guard<br/>SQLGlot AST 校验]
     Guard -->|不安全| Block
-    Guard -->|安全| Exec[Query Runner<br/>DuckDB 执行]
+    Guard -->|安全| Perm[Data Permission Guard<br/>角色表/字段权限]
+    Perm -->|无权限| Block
+    Perm -->|通过| Exec[Query Runner<br/>DuckDB 执行]
     Exec -->|失败| Repair[SQL Repair<br/>错误分类 + 差异化修复]
     Repair --> Guard
     Exec -->|成功| Opt[SQL Optimizer<br/>EXPLAIN 分析]
@@ -48,18 +51,19 @@ flowchart LR
 
 ### 后端
 
-- 自然语言转 SQL（LangGraph 11 节点工作流）
-- Intent Guard + SQL Guard 双层安全防护（13 条规则，100% 阻断率）
+- 自然语言转 SQL（LangGraph 12 节点工作流）
+- Intent Guard + SQL Guard + Data Permission Guard 三层安全治理
+- 角色级表/字段权限（admin / analyst / support，越权 SQL 不执行、不修复）
 - SQL 自动修复（错误分类 + 差异化策略 + 最多 3 轮重试）
 - 分层意图解析 + Schema Grounding（指标/维度映射）
 - 主动澄清机制（模糊问题暂停，返回候选等待用户选择）
 - 多轮分析追问（session_id 上下文复用）
 - SSE 流式响应（asyncio.Queue 真实进度推送）
 - LLM 调用可观测性（Token、耗时、成本统计）
-- JWT Token + API Key 双模式认证（向后兼容）
+- JWT Token + API Key 双模式认证（未配置密钥时保持本地开发放行）
 - 速率限制（slowapi，默认 30 次/分钟）
 - Alembic 数据库迁移（DuckDB + PostgreSQL 双后端）
-- 结构化审计报告（Guard 命中、LIMIT 注入、修复事件）
+- 结构化审计报告（身份摘要、权限事件、Guard 命中、LIMIT 注入、修复事件）
 
 ### 前端
 
@@ -118,7 +122,7 @@ npm run dev
 ## 运行测试
 
 ```bash
-# 后端测试（459 个）
+# 后端测试（484 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（33 个）
@@ -163,13 +167,13 @@ data_analyst_agent/
 │   │   ├── agents/        # LangGraph Agent 工作流
 │   │   ├── db/            # 数据库连接和 Schema 加载
 │   │   ├── semantic/      # 业务语义层
-│   │   ├── security/      # Intent Guard + SQL Guard + Auth + Rate Limit
+│   │   ├── security/      # Intent Guard + SQL Guard + Data Permission + Auth + Rate Limit
 │   │   ├── services/      # LLM 服务 + 追踪 + 可观测性
 │   │   ├── models/        # Pydantic 模型
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 459 个测试
+│   └── tests/             # 484 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
