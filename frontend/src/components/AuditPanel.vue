@@ -9,6 +9,21 @@
     </div>
 
     <template v-if="props.report">
+      <div class="audit-summary audit-summary--identity">
+        <div>
+          <span>用户</span>
+          <strong>{{ props.report.user_id || 'anonymous' }}</strong>
+        </div>
+        <div>
+          <span>认证</span>
+          <strong>{{ props.report.auth_method || 'none' }}</strong>
+        </div>
+        <div>
+          <span>角色</span>
+          <strong>{{ (props.report.roles || ['guest']).join(', ') }}</strong>
+        </div>
+      </div>
+
       <div class="audit-summary">
         <div>
           <span>LIMIT 注入</span>
@@ -32,11 +47,18 @@
       </div>
 
       <div class="audit-events">
-        <div v-for="(event, index) in props.report.events || []" :key="`${event.action}-${index}`" class="audit-event">
+        <div
+          v-for="(event, index) in props.report.events || []"
+          :key="`${event.action}-${index}`"
+          class="audit-event"
+          :class="{ 'audit-event--authorization': event.stage === 'authorization' }"
+        >
           <span class="audit-dot" :class="`audit-dot--${event.status}`"></span>
           <div>
             <div class="audit-event-title">
               <strong>{{ event.action }}</strong>
+              <span class="audit-event-stage">{{ event.stage }}</span>
+              <span v-if="event.rule_id" class="audit-event-rule">{{ event.rule_id }}</span>
               <el-tag size="small" :type="eventTagType(event.status)" effect="plain">
                 {{ event.status }}
               </el-tag>
@@ -76,6 +98,10 @@ function eventTagType(status) {
 </script>
 
 <style scoped>
+.audit-summary--identity {
+  margin-bottom: var(--space-3);
+}
+
 .audit-rules :deep(.el-tag) {
   border-radius: var(--radius-full);
   font-family: var(--font-body);
@@ -88,6 +114,11 @@ function eventTagType(status) {
 
 .audit-event {
   position: relative;
+}
+
+.audit-event--authorization {
+  border-left: 3px solid var(--color-warning);
+  padding-left: var(--space-3);
 }
 
 .audit-event::before {
@@ -108,5 +139,11 @@ function eventTagType(status) {
   font-family: var(--font-body);
   font-size: 11px;
   border-radius: var(--radius-sm);
+}
+
+.audit-event-stage,
+.audit-event-rule {
+  color: var(--color-text-muted);
+  font-size: 11px;
 }
 </style>
