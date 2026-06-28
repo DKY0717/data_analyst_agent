@@ -1259,3 +1259,24 @@
 
 - 用户审核 v0.8 权限演示工作台设计。
 - 审核通过后使用 writing-plans 编写 TDD 实施计划。
+
+---
+
+## 2026-06-28 — v0.8 权限演示工作台计划
+
+### 完成的工作
+
+- 用户确认 v0.8 权限演示工作台设计。
+- 读取 `writing-plans`、`test-driven-development`、`verification-before-completion` 以及项目内 `work-diary`、`verify-after-write`、`comment-key-steps` 技能。
+- 新增 TDD 实施计划：`docs/superpowers/plans/2026-06-28-v0.8-permission-demo-workbench-implementation.md`。
+
+### 当前进度
+
+- ✅ v0.8 设计已确认。
+- ✅ v0.8 实施计划已编写。
+- ⏳ 等待选择执行方式后进入代码实现。
+
+### 下一步
+
+- 推荐使用 Inline Execution，在当前会话按计划逐步实现并在每个切片后验证。
+- 也可以使用 Subagent-Driven，为每个任务派发独立实现者并逐项复核。
