@@ -4,20 +4,43 @@
 
 import json
 import asyncio
-from fastapi import APIRouter, HTTPException, Request
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from ..models.schemas import QueryRequest, QueryResponse, SuccessResponse
 from ..agents.graph import get_agent_graph
 from ..services.query_cache import query_cache
+from ..security.auth import AuthUser, get_current_user
 from ..security.rate_limit import limiter, RATE_LIMIT_QUERY
 from ..utils.logger import logger
 
 router = APIRouter()
 
 
+def _auth_user_payload(user: AuthUser | None) -> dict[str, Any] | None:
+    """将认证对象压缩成 AgentState 可审计的最小身份摘要。"""
+    if user is None:
+        return None
+
+    roles = user.roles or []
+    if user.auth_method == "api_key" and (not roles or roles == ["user"]):
+        roles = ["analyst"]
+
+    return {
+        "user_id": user.user_id,
+        "auth_method": user.auth_method,
+        "roles": roles,
+    }
+
+
 @router.post("/api/chat/query", response_model=SuccessResponse)
 @limiter.limit(RATE_LIMIT_QUERY)
-async def query(request: Request, body: QueryRequest):
+async def query(
+    request: Request,
+    body: QueryRequest,
+    current_user: AuthUser | None = Depends(get_current_user),
+):
     """处理自然语言查询，返回 SQL、查询结果和自然语言解释
 
     完整流程:
@@ -32,9 +55,11 @@ async def query(request: Request, body: QueryRequest):
     """
     try:
         logger.info("收到查询请求")
+        auth_user = _auth_user_payload(current_user)
+        cache_allowed = current_user is None and not body.clarification_id and not body.session_id
 
-        # 跳过缓存的场景：有澄清响应、有 session_id（多轮追问上下文不同）
-        if not body.clarification_id and not body.session_id:
+        # 认证用户不能使用 question-only 共享缓存，避免跨角色复用越权结果。
+        if cache_allowed:
             cached = query_cache.get(body.question)
             if cached:
                 logger.info("缓存命中，直接返回")
@@ -53,6 +78,7 @@ async def query(request: Request, body: QueryRequest):
             body.question,
             session_id=body.session_id,
             clarification_response=clarification_response,
+            auth_user=auth_user,
         )
 
         # 阻断请求没有查询结果，统一归一为空对象以保持稳定的 HTTP 200 响应。
@@ -80,7 +106,7 @@ async def query(request: Request, body: QueryRequest):
         )
 
         # 成功且无 session_id 时写入缓存
-        if not body.session_id and result.get("execution_success"):
+        if cache_allowed and result.get("execution_success"):
             query_cache.put(body.question, response.model_dump())
 
         return SuccessResponse(
@@ -97,9 +123,15 @@ async def query(request: Request, body: QueryRequest):
 
 @router.post("/api/chat/query/stream")
 @limiter.limit(RATE_LIMIT_QUERY)
-async def query_stream(request: Request, body: QueryRequest):
+async def query_stream(
+    request: Request,
+    body: QueryRequest,
+    current_user: AuthUser | None = Depends(get_current_user),
+):
     """SSE 流式查询端点，实时推送处理进度和部分结果"""
     progress_queue: asyncio.Queue = asyncio.Queue()
+    auth_user = _auth_user_payload(current_user)
+    cache_allowed = current_user is None and not body.clarification_id and not body.session_id
 
     def on_progress_callback(stage: str, progress: int):
         progress_queue.put_nowait({"stage": stage, "progress": progress})
@@ -117,6 +149,7 @@ async def query_stream(request: Request, body: QueryRequest):
                 body.question,
                 session_id=body.session_id,
                 clarification_response=clarification_response,
+                auth_user=auth_user,
                 on_progress=on_progress_callback,
             )
             await progress_queue.put({"type": "done", "result": result})
@@ -156,7 +189,7 @@ async def query_stream(request: Request, body: QueryRequest):
                         clarification=result.get("clarification_request"),
                         audit_report=result.get("audit_report"),
                     )
-                    if not body.session_id and result.get("execution_success"):
+                    if cache_allowed and result.get("execution_success"):
                         query_cache.put(body.question, response.model_dump())
                     yield f"data: {json.dumps({'type': 'result', 'data': response.model_dump()}, ensure_ascii=False)}\n\n"
                     yield "data: [DONE]\n\n"

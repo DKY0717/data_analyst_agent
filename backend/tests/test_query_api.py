@@ -8,14 +8,21 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.schemas import QueryRequest, QueryResponse
+from app.security.auth import create_jwt_token
 
 
 @pytest.fixture(autouse=True)
 def disable_rate_limit():
-    """在测试中禁用速率限制，避免 slowapi 的 Request 参数检查问题。"""
-    with patch("app.api.query.limiter") as mock_limiter:
+    """固定 API 测试环境，避免限流和本机认证配置影响结果。"""
+    import app.security.auth as auth_mod
+
+    with patch("app.api.query.limiter") as mock_limiter, \
+         patch("app.security.auth.JWT_SECRET", ""), \
+         patch("app.security.auth.API_KEYS_RAW", ""):
+        auth_mod._api_keys = {}
         mock_limiter.limit = lambda *args, **kwargs: lambda fn: fn
         yield
+        auth_mod._api_keys = {}
 
 
 def make_agent_result():
@@ -25,6 +32,7 @@ def make_agent_result():
         "generated_sql": "SELECT region_name, SUM(total_amount) AS sales FROM orders GROUP BY region_name",
         "validated_sql": "SELECT region_name, SUM(total_amount) AS sales FROM orders GROUP BY region_name LIMIT 1000",
         "is_sql_safe": True,
+        "execution_success": True,
         "query_result": {
             "columns": ["region_name", "sales"],
             "rows": [["华东", 1000]],
@@ -188,6 +196,7 @@ def test_query_api_passes_session_id_to_agent_graph():
         "按地区拆一下",
         session_id="session-1",
         clarification_response=None,
+        auth_user=None,
     )
 
 
@@ -317,7 +326,144 @@ def test_query_api_passes_clarification_response_to_agent_graph():
             "candidate_id": "metric_sales_amount",
             "text": None,
         },
+        auth_user=None,
     )
+
+
+def test_query_requires_credentials_when_auth_enabled():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+         patch("app.api.query.get_agent_graph", return_value=mock_graph):
+        response = client.post("/api/chat/query", json={"question": "统计订单数"})
+
+    assert response.status_code == 401
+    mock_graph.run.assert_not_called()
+
+
+def test_query_stream_requires_credentials_when_auth_enabled():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+         patch("app.api.query.get_agent_graph", return_value=mock_graph):
+        response = client.post("/api/chat/query/stream", json={"question": "统计订单数"})
+
+    assert response.status_code == 401
+    mock_graph.run.assert_not_called()
+
+
+def test_query_passes_jwt_user_to_agent_graph():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_agent_result())
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        token = create_jwt_token("user:demo", ["analyst"])["access_token"]
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+         patch("app.api.query.get_agent_graph", return_value=mock_graph):
+        response = client.post(
+            "/api/chat/query",
+            json={"question": "统计订单数"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    mock_graph.run.assert_awaited_once_with(
+        "统计订单数",
+        session_id=None,
+        clarification_response=None,
+        auth_user={"user_id": "user:demo", "auth_method": "jwt", "roles": ["analyst"]},
+    )
+
+
+def test_query_passes_api_key_user_as_analyst_to_agent_graph():
+    import app.security.auth as auth_mod
+
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_agent_result())
+
+    with patch("app.security.auth.API_KEYS_RAW", "sk-test-query-key"), \
+         patch("app.api.query.get_agent_graph", return_value=mock_graph):
+        auth_mod._api_keys = {}
+        response = client.post(
+            "/api/chat/query",
+            json={"question": "统计订单数"},
+            headers={"X-API-Key": "sk-test-query-key"},
+        )
+
+    assert response.status_code == 200
+    mock_graph.run.assert_awaited_once_with(
+        "统计订单数",
+        session_id=None,
+        clarification_response=None,
+        auth_user={
+            "user_id": "apikey:sk-test-...",
+            "auth_method": "api_key",
+            "roles": ["analyst"],
+        },
+    )
+
+
+def test_query_skips_cache_when_auth_user_present():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_agent_result())
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        token = create_jwt_token("user:demo", ["analyst"])["access_token"]
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+         patch("app.api.query.get_agent_graph", return_value=mock_graph), \
+         patch("app.api.query.query_cache") as mock_cache:
+        response = client.post(
+            "/api/chat/query",
+            json={"question": "统计订单数"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    mock_cache.get.assert_not_called()
+
+
+def test_query_does_not_write_authenticated_result_to_shared_cache():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    mock_graph.run = AsyncMock(return_value=make_agent_result())
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        token = create_jwt_token("user:demo", ["analyst"])["access_token"]
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+         patch("app.api.query.get_agent_graph", return_value=mock_graph), \
+         patch("app.api.query.query_cache") as mock_cache:
+        response = client.post(
+            "/api/chat/query",
+            json={"question": "统计订单数"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    mock_cache.put.assert_not_called()
+
+
+def test_query_preserves_cache_when_auth_disabled():
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    cached = make_agent_result()
+
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph), \
+         patch("app.api.query.query_cache") as mock_cache:
+        mock_cache.get.return_value = cached
+        response = client.post("/api/chat/query", json={"question": "统计订单数"})
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "success (cached)"
+    mock_cache.get.assert_called_once_with("统计订单数")
+    mock_graph.run.assert_not_called()
 
 
 def test_query_api_does_not_log_raw_question():
@@ -347,7 +493,9 @@ def test_query_api_does_not_expose_internal_exception_details():
     )
 
     with patch("app.api.query.get_agent_graph", return_value=mock_graph), \
-         patch("app.api.query.logger") as mock_logger:
+         patch("app.api.query.logger") as mock_logger, \
+         patch("app.api.query.query_cache") as mock_cache:
+        mock_cache.get.return_value = None
         response = client.post("/api/chat/query", json={"question": "统计订单数"})
 
     assert response.status_code == 500
