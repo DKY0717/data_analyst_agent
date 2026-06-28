@@ -1280,3 +1280,57 @@
 
 - 推荐使用 Inline Execution，在当前会话按计划逐步实现并在每个切片后验证。
 - 也可以使用 Subagent-Driven，为每个任务派发独立实现者并逐项复核。
+
+---
+
+## 2026-06-28 — v0.8 权限演示工作台实现
+
+### 完成的工作
+
+- Task 1：后端 demo-login ✅
+  - 新增 `AUTH_DEMO_ENABLED`，默认关闭。
+  - 新增 `/api/auth/demo-login`，支持 `admin`、`analyst`、`support` 三个演示角色。
+  - 定向验证：`pytest tests/test_auth.py::TestDemoLoginEndpoint -q`，8 passed；`pytest tests/test_auth.py tests/test_query_api.py -q`，31 passed，1 个既有 TestClient warning。
+  - Commit：`4d5bda8`
+- Task 2：前端 auth store ✅
+  - 新增 `frontend/src/stores/auth.js`，支持 token/user 持久化、demoLogin、loadMe 和 logout。
+  - 定向验证：`npm run test -- tests/stores/auth.test.js`，4 passed。
+  - Commit：`fdf548e`
+- Task 3：API 认证头和权限演示问题 ✅
+  - axios 请求和 SSE fetch 都会携带 Bearer Token。
+  - 新增 demo-login/current-user/auth-status API 函数和 `permissionDemoQuestions`。
+  - 定向验证：`npm run test -- tests/api/agent.test.js tests/stores/auth.test.js`，9 passed；`npm run build` 通过，保留既有 chunk warning。
+  - Commit：`22ceae5`
+- Task 4：AuthBar 和首页集成 ✅
+  - 新增顶部身份条，支持三角色演示登录和退出。
+  - 权限演示问题显示角色和预期说明，但提交给 Agent 的仍是原始自然语言问题。
+  - 定向验证：`npm run test -- tests/components/AuthBar.test.js tests/stores/auth.test.js tests/api/agent.test.js`，12 passed；`npm run build` 通过。
+  - Commit：`f42df02`
+- Task 5：AuditPanel 身份与授权证据 ✅
+  - 审计面板展示 `user_id`、`auth_method`、`roles`。
+  - authorization 事件单独高亮，并展示 stage 和 rule id。
+  - 定向验证：`npm run test -- tests/components/AuditPanel.test.js tests/components/AuthBar.test.js tests/api/agent.test.js tests/stores/auth.test.js`，14 passed；`npm run build` 通过。
+  - Commit：`424275b`
+
+### 当前进度
+
+- ✅ 后端演示登录完成。
+- ✅ 前端登录态和请求认证头完成。
+- ✅ 权限演示问题和身份条完成。
+- ✅ 审计面板身份/authorization 证据完成。
+- ✅ README 和工作日记已同步。
+- ✅ 最终定向验证完成。
+
+### 最终验证
+
+- 后端定向：`pytest tests/test_auth.py tests/test_query_api.py tests/test_audit_report.py -q`：40 passed，1 个既有 TestClient warning。
+- 前端全量：`npm run test`：47 passed。
+- 前端构建：`npm run build`：通过，保留既有 chunk size warning 和依赖 PURE 注释 warning。
+- 占位符扫描：无命中。
+- Secret Scan：`git ls-files -z | python scripts\check_secrets.py`：301 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 下一步
+
+- 提交 README、工作日记和旧计划文档自触发措辞修正。
+- 可选：增加 Playwright 端到端演示脚本，录制面试展示路径。

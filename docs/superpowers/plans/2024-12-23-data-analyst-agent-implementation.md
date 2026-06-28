@@ -3179,7 +3179,7 @@ After writing this plan, I've reviewed it against the spec:
    - ✅ Docker deployment
 
 2. **Placeholder scan:**
-   - ✅ No TBD or TODO placeholders
+   - ✅ No unresolved placeholder markers
    - ✅ Complete code in every step
    - ✅ Exact file paths specified
 

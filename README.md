@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 65 条评测用例** — 后端 484 个测试、前端 33 个单元测试、16 个 E2E 测试、65 条结构化评测用例覆盖 11 个类别。
+**500+ 测试 + 65 条评测用例** — 后端 492 个测试、前端 47 个单元测试、16 个 E2E 测试、65 条结构化评测用例覆盖 11 个类别。
 
 ## 核心架构
 
@@ -77,6 +77,7 @@ flowchart LR
 - 历史记录面板
 - vue-router 路由（查询结果可通过 URL 分享）
 - 响应式布局（桌面端 / 平板端 / 移动端）
+- 权限演示工作台（admin / analyst / support 一键切换，审计面板展示身份和 authorization 事件）
 
 ### 评测体系
 
@@ -119,13 +120,24 @@ npm install
 npm run dev
 ```
 
+### v0.8 权限演示工作台
+
+本地演示角色切换需要在 `.env` 中开启：
+
+```bash
+JWT_SECRET=dev-demo-secret
+AUTH_DEMO_ENABLED=true
+```
+
+前端顶部身份条支持 `admin`、`analyst`、`support` 三种演示身份。普通查询和 SSE 查询都会携带 `Authorization: Bearer <token>`，权限阻断会在安全审计面板中展示身份摘要、authorization 事件和阻断规则。
+
 ## 运行测试
 
 ```bash
-# 后端测试（484 个）
+# 后端测试（492 个）
 cd backend && python -m pytest -q
 
-# 前端单元测试（33 个）
+# 前端单元测试（47 个）
 cd frontend && npm run test
 
 # E2E 测试（16 个）
@@ -143,6 +155,7 @@ cd backend && python -m evaluation.evaluator
 | POST | `/api/chat/query/stream` | SSE 流式查询 |
 | GET | `/api/schema` | 数据库 Schema |
 | GET | `/health` | 健康检查 |
+| POST | `/api/auth/demo-login` | 本地演示角色登录（需 `AUTH_DEMO_ENABLED=true`） |
 | POST | `/api/auth/login` | JWT 登录 |
 | GET | `/api/auth/me` | 当前用户信息 |
 
@@ -201,6 +214,7 @@ data_analyst_agent/
 | `SQL_MAX_RETRIES` | SQL 修复最大重试 | `3` |
 | `JWT_SECRET` | JWT 签名密钥（可选） | 留空=禁用认证 |
 | `API_KEYS` | 逗号分隔的 API Key（可选） | 留空=禁用 |
+| `AUTH_DEMO_ENABLED` | 本地演示角色登录开关 | `false` |
 | `RATE_LIMIT_QUERY` | 查询端点限流 | `10/minute` |
 | `DATABASE_BACKEND` | 数据库后端 | 自动检测 |
 
