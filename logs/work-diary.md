@@ -1207,4 +1207,29 @@
   - 权限阻断规则进入 `blocked_rules` 并保持去重。
   - 定向验证：`pytest tests/test_audit_report.py tests/test_query_api.py -q`，23 passed，1 个既有 TestClient warning。
   - Commit：`50b28ac`
-- ⏳ Milestone 5：README、面试稿和工作日记同步中。
+- ✅ Milestone 5：README、面试稿和工作日记同步
+  - README 更新为 12 节点 LangGraph、三层安全治理、Data Permission Guard 和 484 个后端测试。
+  - 面试稿补充“怎么防止用户越权查敏感字段”的回答，说明权限检查位于 SQL Guard 之后、QueryRunner 之前，且权限阻断不进入 Repair。
+  - 文档检查：临时标记扫描无命中，`git diff --check` 通过。
+  - Commit：`2eeefec`
+
+### 最终验证
+
+- v0.7 定向后端：`pytest tests/test_data_permission_guard.py tests/test_agent_graph.py tests/test_query_api.py tests/test_audit_report.py -q`：57 passed，1 个既有 TestClient warning。
+- 后端全量：`pytest -q`：484 passed，1 个既有 TestClient warning。
+- 前端单测：`npm run test`：33 passed。
+- 前端构建：`npm run build`：通过，保留既有 chunk size warning。
+- Secret Scan：`git ls-files -z | python scripts\check_secrets.py`：293 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 当前进度
+
+- ✅ v0.7 生产化权限治理第一阶段完成。
+- ✅ 查询接口已在认证启用时强制 JWT/API Key。
+- ✅ 最终 SQL 执行前会经过角色级表/字段权限检查。
+- ✅ 权限阻断不执行、不修复、不写入多轮上下文。
+- ✅ 审计报告包含身份摘要、权限事件和阻断规则。
+
+### 下一步
+
+- 可选增强：行级权限、多租户隔离、查询历史治理后台和权限策略外部化。
