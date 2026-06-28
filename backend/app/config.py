@@ -42,6 +42,8 @@ class Settings:
     APP_HOST: str = os.getenv("APP_HOST", "0.0.0.0")
     APP_PORT: int = _get_int("APP_PORT", 8000)
     DEBUG: bool = _get_bool("DEBUG", False)
+    # 演示登录只服务本地面试展示，默认关闭，避免生产环境暴露角色切换入口。
+    AUTH_DEMO_ENABLED: bool = _get_bool("AUTH_DEMO_ENABLED", False)
 
     # Database Configuration
     # 支持两种后端: duckdb (嵌入式) 或 postgresql (生产级)

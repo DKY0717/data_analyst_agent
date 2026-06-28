@@ -1,11 +1,20 @@
 """认证路由：登录、刷新 Token、查看当前用户。"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
+from ..config import settings
 from ..models.schemas import SuccessResponse
 from ..security.auth import AuthUser, create_jwt_token, get_current_user, is_auth_enabled
 
 router = APIRouter()
+
+
+class DemoLoginRequest(BaseModel):
+    role: str
+
+
+DEMO_ROLES = {"admin", "analyst", "support"}
 
 
 @router.get("/api/auth/status")
@@ -14,6 +23,30 @@ async def auth_status():
         "auth_enabled": is_auth_enabled(),
         "methods": ["jwt", "api_key"] if is_auth_enabled() else [],
     }
+
+
+@router.post("/api/auth/demo-login")
+async def demo_login(request: DemoLoginRequest):
+    if not settings.AUTH_DEMO_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="演示登录未启用")
+
+    role = request.role.strip().lower()
+    if role not in DEMO_ROLES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不支持的演示角色")
+
+    try:
+        token_data = create_jwt_token(user_id=f"demo:{role}", roles=[role])
+    except HTTPException as exc:
+        if exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="JWT_SECRET 未配置，无法启用本地演示登录",
+            ) from exc
+        raise
+
+    # 只返回最小身份摘要，让前端能演示权限闭环，同时不暴露密钥或完整权限策略。
+    user = {"user_id": f"demo:{role}", "auth_method": "jwt", "roles": [role]}
+    return SuccessResponse(code=200, message="demo login success", data={**token_data, "user": user})
 
 
 @router.post("/api/auth/login")

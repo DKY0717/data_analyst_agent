@@ -4,6 +4,9 @@ import os
 import pytest
 from unittest.mock import patch
 
+from fastapi.testclient import TestClient
+
+from app.main import app
 from app.security.auth import (
     AuthUser,
     _hash_key,
@@ -83,3 +86,88 @@ class TestHashKey:
     def test_hash_consistency(self):
         assert _hash_key("test") == _hash_key("test")
         assert _hash_key("test") != _hash_key("other")
+
+
+class TestDemoLoginEndpoint:
+    def test_demo_login_disabled_by_default(self):
+        client = TestClient(app)
+
+        with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", False):
+            response = client.post("/api/auth/demo-login", json={"role": "analyst"})
+
+        assert response.status_code == 404
+
+    def test_demo_login_requires_jwt_secret_when_enabled(self):
+        client = TestClient(app)
+
+        with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
+             patch("app.security.auth.JWT_SECRET", ""):
+            response = client.post("/api/auth/demo-login", json={"role": "analyst"})
+
+        assert response.status_code == 503
+        assert "JWT_SECRET" in response.json()["detail"]
+        assert "secret" not in response.text.lower().replace("jwt_secret", "")
+
+    @pytest.mark.parametrize(
+        ("role", "expected_user_id"),
+        [
+            ("admin", "demo:admin"),
+            ("analyst", "demo:analyst"),
+            ("support", "demo:support"),
+        ],
+    )
+    def test_demo_login_returns_token_for_allowed_roles(self, role, expected_user_id):
+        client = TestClient(app)
+
+        with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
+             patch("app.security.auth.JWT_SECRET", "test-secret"):
+            response = client.post("/api/auth/demo-login", json={"role": role})
+
+        assert response.status_code == 200
+        payload = response.json()["data"]
+        assert payload["token_type"] == "bearer"
+        assert payload["access_token"]
+        assert payload["user"] == {
+            "user_id": expected_user_id,
+            "auth_method": "jwt",
+            "roles": [role],
+        }
+
+    def test_demo_login_rejects_invalid_role(self):
+        client = TestClient(app)
+
+        with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
+             patch("app.security.auth.JWT_SECRET", "test-secret"):
+            response = client.post("/api/auth/demo-login", json={"role": "guest"})
+
+        assert response.status_code == 400
+        assert "不支持的演示角色" in response.json()["detail"]
+
+    def test_demo_login_token_can_load_current_user(self):
+        client = TestClient(app)
+
+        with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
+             patch("app.security.auth.JWT_SECRET", "test-secret"):
+            login_response = client.post("/api/auth/demo-login", json={"role": "support"})
+            token = login_response.json()["data"]["access_token"]
+            me_response = client.get(
+                "/api/auth/me",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        assert me_response.status_code == 200
+        assert me_response.json() == {
+            "user_id": "demo:support",
+            "auth_method": "jwt",
+            "roles": ["support"],
+        }
+
+    def test_demo_login_response_does_not_expose_jwt_secret(self):
+        client = TestClient(app)
+
+        with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
+             patch("app.security.auth.JWT_SECRET", "super-private-demo-secret"):
+            response = client.post("/api/auth/demo-login", json={"role": "admin"})
+
+        assert response.status_code == 200
+        assert "super-private-demo-secret" not in response.text
