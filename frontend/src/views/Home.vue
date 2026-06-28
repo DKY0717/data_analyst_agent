@@ -1,8 +1,8 @@
 <script setup>
-import { onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQueryStore } from '@/stores/query'
-import { exampleQuestions } from '@/api/agent'
+import { exampleQuestions, permissionDemoQuestions } from '@/api/agent'
 import QueryInput from '@/components/QueryInput.vue'
 import ExampleQuestions from '@/components/ExampleQuestions.vue'
 import AnswerPanel from '@/components/AnswerPanel.vue'
@@ -15,15 +15,26 @@ import OptimizationPanel from '@/components/OptimizationPanel.vue'
 import HistoryPanel from '@/components/HistoryPanel.vue'
 import SchemaPanel from '@/components/SchemaPanel.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import AuthBar from '@/components/AuthBar.vue'
 
 const store = useQueryStore()
 const route = useRoute()
 const router = useRouter()
+const permissionQuestionLabels = computed(() => permissionDemoQuestions.map((item) => (
+  `${item.role.toUpperCase()} - ${item.question} (${item.expected})`
+)))
 
 function handleSelect(q) {
   store.question = q
   store.submitQuestion()
   router.replace({ name: 'query', params: { question: encodeURIComponent(q) } })
+}
+
+function handlePermissionSelect(label) {
+  const item = permissionDemoQuestions.find((candidate) => label.includes(candidate.question))
+  if (!item) return
+  // 权限演示标签包含角色和预期说明，真正提交给 Agent 的仍然只是自然语言问题。
+  handleSelect(item.question)
 }
 
 function handleSubmit() {
@@ -62,6 +73,7 @@ watch(() => store.result, (r) => {
         </div>
       </div>
       <div class="status-group">
+        <AuthBar />
         <el-tag
           :type="store.schemaTables.length > 0 ? 'success' : 'warning'"
           effect="dark"
@@ -101,6 +113,10 @@ watch(() => store.result, (r) => {
         <ExampleQuestions
           :questions="exampleQuestions"
           @select="handleSelect"
+        />
+        <ExampleQuestions
+          :questions="permissionQuestionLabels"
+          @select="handlePermissionSelect"
         />
         <HistoryPanel
           :history="store.history"
