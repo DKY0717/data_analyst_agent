@@ -1155,3 +1155,30 @@
 - `npm run build`：通过，保留既有 chunk size 警告。
 - `git ls-files -z | python scripts\check_secrets.py`：289 个 tracked files 通过。
 - `git diff --check`：通过，仅有 Windows LF/CRLF 提示。
+
+---
+
+## 2026-06-28 — v0.7 生产化权限治理设计
+
+### 完成的工作
+
+- 根据用户“继续”确认进入下一版优化。
+- 明确 v0.7 第一阶段聚焦“认证 + 角色级表/字段权限 + 审计闭环”，不在本阶段纳入查询历史持久化和行级权限。
+- 新增设计规格：`docs/superpowers/specs/2026-06-28-v0.7-production-auth-governance-design.md`。
+- 设计重点：
+  - 查询接口接入 `get_current_user`。
+  - 新增 `DataPermissionGuard`，在 SQL Guard 之后、QueryRunner 执行之前做 SQL AST 权限检查。
+  - `admin`、`analyst`、`support` 三类内置角色。
+  - 权限阻断进入 `audit_report.events` 和 `blocked_rules`，且不进入 SQL Repair。
+  - 未启用认证时保留本地开发兼容模式。
+
+### 当前进度
+
+- ✅ v0.7 方向确认。
+- ✅ 设计文档已完成并自审，无占位符命中。
+- ⏳ 等待用户确认设计后，进入实施计划编写。
+
+### 下一步
+
+- 用户审核 v0.7 设计规格。
+- 审核通过后使用 writing-plans 编写 TDD 实施计划。
