@@ -50,10 +50,10 @@ cases:
       required_columns: [region_name, customer_count]
       absolute_tolerance: 0.001
     fixed_assertions:
-      row_count: 5
+      row_count: 6
       sum_column:
         column: customer_count
-        value: 100
+        value: 1000
 
   - id: sales_by_region
     question: 统计 2024 年各地区的销售额
@@ -126,7 +126,7 @@ cases:
     fixed_assertions:
       scalar:
         column: average_order_value
-        value: 1956.7938144329896
+        value: 1324.3111230521224
         absolute_tolerance: 0.001
 
   - id: repeat_purchase_rate
@@ -148,7 +148,7 @@ cases:
     fixed_assertions:
       scalar:
         column: repeat_purchase_rate
-        value: 0.76
+        value: 1.0
         absolute_tolerance: 0.001
 
   - id: payment_method_sales
@@ -183,4 +183,4 @@ cases:
       row_count: 36
       sum_column:
         column: order_count
-        value: 304
+        value: 5511

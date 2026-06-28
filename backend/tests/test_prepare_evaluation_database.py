@@ -28,9 +28,9 @@ def test_prepare_evaluation_database_rebuilds_repeatably(tmp_path):
         connection.close()
 
     assert counts == {
-        "regions": 10,
+        "regions": 30,
         "categories": 8,
-        "products": 40,
-        "orders": 304,
-        "refunds": 53,
+        "products": 200,
+        "orders": 5511,
+        "refunds": 718,
     }

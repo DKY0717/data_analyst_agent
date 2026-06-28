@@ -46,6 +46,8 @@ def init_tracing(service_name: str = "data-analyst-agent") -> None:
             logger.warning(f"OTLP 导出器初始化失败，回退到控制台: {e}")
             exporter = ConsoleSpanExporter()
     elif exporter_type == "none":
+        # 只关闭导出，不关闭 SDK tracer；测试和本地调试仍可创建 recording span。
+        trace.set_tracer_provider(provider)
         _tracer = trace.get_tracer(service_name)
         logger.info("OpenTelemetry 追踪已禁用")
         return

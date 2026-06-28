@@ -13,6 +13,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # 在 app.config 被导入前覆盖 PROJECT_ROOT，让 settings.DATA_DIR / LOG_DIR 指向测试目录。
 os.environ["PROJECT_ROOT"] = str(TEST_ROOT)
+# 测试环境不需要导出 span，避免异步 ConsoleSpanExporter 在 pytest 关闭捕获后写 stdout。
+os.environ["OTEL_EXPORTER"] = "none"
 
 
 def _prepare_test_database() -> None:

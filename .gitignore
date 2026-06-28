@@ -4,7 +4,11 @@
 
 # Claude Code
 .claude/
+.superpowers/
 .worktrees/
+
+# Local IDE/tooling
+.trae/
 
 # Environment
 .env
@@ -16,6 +20,7 @@ __pycache__/
 # Database
 *.duckdb
 *.duckdb.wal
+identifier.db
 
 # Logs
 *.log
@@ -28,3 +33,9 @@ data/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/test-results/
+
+# Evaluation outputs are generated; force-add selected baselines when needed.
+backend/evaluation/reports/*.json
+backend/evaluation/reports/*.md
+!backend/evaluation/reports/.gitkeep

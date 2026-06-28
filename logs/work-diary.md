@@ -1091,3 +1091,67 @@
 
 - ✅ 主动澄清已有可量化消融证据，能回答“为什么不是让模型直接猜 SQL”。
 - ⏳ 后续建议扩充更多歧义 case，并考虑把消融摘要写入独立 Markdown 报告。
+
+---
+
+## 2026-06-28 — 简历项目体检
+
+### 完成的工作
+
+- 根据用户问题评估项目是否适合作为 Agent 开发简历项目。
+- 阅读并抽查 README、面试稿、LangGraph 主链路、质量门禁、CI、前端配置和工作日记。
+- 运行验证：
+  - `npm run test`：33 passed。
+  - `npm run build`：通过，仍有既有大 chunk 警告。
+  - `pytest -q`：失败，原因是 backend 根目录下未跟踪临时脚本 `test_mimo.py`、`test_mimo_direct.py` 被 pytest 收集并调用真实 LLM，API Key 无效。
+  - `pytest tests -q`：456 passed, 3 failed, 1 warning。
+
+### 发现的问题
+
+- 当前不是“一键全绿”状态，直接展示给面试官前需要修复。
+- 未跟踪临时文件 `backend/test_fix.py`、`backend/test_mimo.py`、`backend/test_mimo_direct.py`、`backend/test_parse.py` 会污染 pytest 收集。
+- 主测试集 3 个失败：
+  - `block_subquery_leak` 安全 case 缺少 `expected_tables` 或 `expected_metrics`。
+  - `customer_count_by_region` 黄金基准固定断言未匹配。
+  - `test_prepare_evaluation_database_rebuilds_repeatably` 仍断言旧种子规模，与当前 5500+ 订单数据不一致。
+- 工作区存在未跟踪报告、Playwright 结果和本地数据库文件，求职展示前应清理或加入忽略规则。
+
+### 当前判断
+
+- 项目作为 Agent 简历项目的技术含金量合格，亮点包括 LangGraph 分层链路、双层安全、SQL Repair、结果正确性黄金基准、Grounding 评测、消融实验、CI 和前端工作台。
+- 但当前仓库交付面不合格：测试命令和 README 宣称不完全一致，临时文件未清理，少量测试与数据规模变更不同步。
+
+### 下一步
+
+- 清理或移动 backend 根目录临时 `test_*.py` 文件。
+- 修复 3 个后端失败测试，使 `pytest tests -q` 全绿。
+- 再运行 `pytest -q`、`npm run test`、`npm run build` 和 secret scan。
+- 同步 README/面试稿中的测试数量与实际结果。
+
+### 后端深度补充评估
+
+- 抽查后端核心实现：LangGraph 主链路、SQL Guard、Intent Guard、分层意图契约、Grounding、LLM Service、SSE API、QueryRunner、沙箱执行、结果正确性评测、Grounding 评测、消融实验、认证、限流、追踪和缓存。
+- 结论：后端在 Agent 编排、安全治理、评测体系和可解释链路上明显强于普通简历项目；核心亮点是把 NL2SQL 从“生成 SQL”推进到“可控执行、可修复、可评测、可审计”。
+- 主要短板：生产化仍是作品级，认证未强制接入查询接口，CORS 全放开，沙箱默认未启用，Schema Grounding 当前更多依赖语义配置和规则召回，测试/数据/文档存在少量不同步。
+
+### 收尾实施
+
+- 清理 backend 根目录临时 `test_*.py`，避免全量 pytest 收集手工 LLM 验证脚本。
+- 将 `block_subquery_leak` 补齐安全 case 的期望表和指标。
+- 将黄金结果基准和数据库重建测试同步到当前固定种子规模：
+  - 地区 30、商品 200、订单 5511、退款 718。
+  - 客户地区统计 6 行、合计客户数 1000。
+  - 2024 平均客单价 `1324.3111230521224`。
+  - 复购率 `1.0`。
+  - 月度订单数合计 `5511`。
+- 测试环境设置 `OTEL_EXPORTER=none`，并让 none 模式仍创建 recording span，消除 pytest 结束后的 ConsoleSpanExporter 异步写出异常。
+- `.gitignore` 增加本地工具目录、Playwright 输出、identifier.db 和评测报告生成文件。
+- 文档同步后端测试数到 `459`，并将示例 API Key 改为安全占位符。
+
+### 最终验证
+
+- `pytest -q`：459 passed, 1 warning。
+- `npm run test`：33 passed。
+- `npm run build`：通过，保留既有 chunk size 警告。
+- `git ls-files -z | python scripts\check_secrets.py`：289 个 tracked files 通过。
+- `git diff --check`：通过，仅有 Windows LF/CRLF 提示。

@@ -73,28 +73,28 @@ EXPECTED_FIXED_ASSERTIONS = {
     "monthly_sales_2024": {"row_count": 12},
     "top_products_by_sales": {"row_count": 5},
     "customer_count_by_region": {
-        "row_count": 5,
-        "sum_column": {"column": "customer_count", "value": 100},
+        "row_count": 6,
+        "sum_column": {"column": "customer_count", "value": 1000},
     },
     "sales_by_category": {"row_count": 8},
     "refund_rate_by_category": {"row_count": 8},
     "average_order_value_2024": {
         "scalar": {
             "column": "average_order_value",
-            "value": 1956.7938144329896,
+            "value": 1324.3111230521224,
             "absolute_tolerance": 0.001,
         }
     },
     "repeat_purchase_rate": {
         "scalar": {
             "column": "repeat_purchase_rate",
-            "value": 0.76,
+            "value": 1.0,
             "absolute_tolerance": 0.001,
         }
     },
     "monthly_order_count": {
         "row_count": 36,
-        "sum_column": {"column": "order_count", "value": 304},
+        "sum_column": {"column": "order_count", "value": 5511},
     },
 }
 

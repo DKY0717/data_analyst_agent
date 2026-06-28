@@ -23,7 +23,7 @@
 > 把 Key 填入项目根目录的 `.env` 文件。用编辑器打开 `.env`，在文件末尾**追加**以下两行：
 
 ```text
-QWEN_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
+QWEN_API_KEY=your_api_key_here
 QWEN_MODEL=qwen-turbo
 ```
 
