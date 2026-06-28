@@ -1176,9 +1176,10 @@
 
 - ✅ v0.7 方向确认。
 - ✅ 设计文档已完成并自审，无占位符命中。
-- ⏳ 等待用户确认设计后，进入实施计划编写。
+- ✅ 用户已确认设计。
+- ✅ 新增 TDD 实施计划：`docs/superpowers/plans/2026-06-28-v0.7-production-auth-governance-implementation.md`。
 
 ### 下一步
 
-- 用户审核 v0.7 设计规格。
-- 审核通过后使用 writing-plans 编写 TDD 实施计划。
+- 按实施计划进入代码实现：先写 `DataPermissionGuard` 红灯测试，再依次接入 AgentGraph、API 认证、审计报告和文档。
+- 每个里程碑完成后运行定向测试，最终运行 `pytest -q`、`npm run test`、`npm run build`、Secret Scan 和 `git diff --check`。
