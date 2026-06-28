@@ -1,8 +1,19 @@
 import axios from 'axios'
+import { useAuthStore } from '@/stores/auth'
 
 const client = axios.create({
   baseURL: '/api',
   timeout: 300000,
+})
+
+client.interceptors.request.use((config) => {
+  const auth = useAuthStore()
+  if (auth.token) {
+    // 普通 axios 请求统一带 JWT，保证前端标准查询和后端权限链路使用同一身份。
+    config.headers = config.headers || {}
+    config.headers.Authorization = `Bearer ${auth.token}`
+  }
+  return config
 })
 
 export const exampleQuestions = [
@@ -18,6 +29,29 @@ export const exampleQuestions = [
   '分析各支付方式的使用占比',
   '统计最近 30 天的每日订单数',
   '按客户年龄段分析消费金额分布',
+]
+
+export const permissionDemoQuestions = [
+  {
+    role: 'analyst',
+    question: '统计 2024 年每个月的销售额',
+    expected: '允许：分析师可访问订单销售额指标',
+  },
+  {
+    role: 'analyst',
+    question: '列出客户姓名和注册日期',
+    expected: '阻断：分析师不能访问 customers.customer_name',
+  },
+  {
+    role: 'support',
+    question: '查看支付金额最高的订单',
+    expected: '阻断：客服不能访问 payments 或 paid_amount',
+  },
+  {
+    role: 'admin',
+    question: '列出客户姓名和注册日期',
+    expected: '允许：管理员拥有全字段权限',
+  },
 ]
 
 const TABLE_LABELS = {
@@ -41,6 +75,26 @@ export async function fetchSchema() {
   }))
 }
 
+function normalizeHttpError(status, fallback) {
+  if (status === 401) return new Error('需要登录后才能查询')
+  return new Error(fallback)
+}
+
+export async function demoLogin(role) {
+  const response = await client.post('/auth/demo-login', { role })
+  return response.data.data
+}
+
+export async function fetchCurrentUser() {
+  const response = await client.get('/auth/me')
+  return response.data
+}
+
+export async function fetchAuthStatus() {
+  const response = await client.get('/auth/status')
+  return response.data
+}
+
 export async function queryAgent(question, sessionId, clarification = null) {
   const payload = { question, session_id: sessionId }
   if (clarification) {
@@ -48,22 +102,30 @@ export async function queryAgent(question, sessionId, clarification = null) {
     payload.clarification_candidate_id = clarification.candidateId
     payload.clarification_text = clarification.text || null
   }
-  const response = await client.post('/chat/query', payload)
-  return { ...response.data.data, used_mock: false }
+  try {
+    const response = await client.post('/chat/query', payload)
+    return { ...response.data.data, used_mock: false }
+  } catch (error) {
+    throw normalizeHttpError(error.response?.status, error.message || '查询请求失败')
+  }
 }
 
 export async function queryAgentSSE(question, sessionId, onProgress, signal) {
   const payload = { question, session_id: sessionId }
+  const auth = useAuthStore()
 
   const response = await fetch('/api/chat/query/stream', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...auth.authHeaders,
+    },
     body: JSON.stringify(payload),
     signal,
   })
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    throw normalizeHttpError(response.status, `HTTP ${response.status}: ${response.statusText}`)
   }
 
   const reader = response.body.getReader()
