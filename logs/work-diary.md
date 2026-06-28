@@ -1233,3 +1233,29 @@
 ### 下一步
 
 - 可选增强：行级权限、多租户隔离、查询历史治理后台和权限策略外部化。
+
+---
+
+## 2026-06-28 — v0.8 权限演示工作台设计
+
+### 完成的工作
+
+- 根据用户确认，选择“前端登录态 + 权限演示闭环”作为 v0.8 方向。
+- 抽查当前前端结构：
+  - `frontend/src/api/agent.js` 是普通查询和 SSE 请求入口，目前未携带认证 header。
+  - `frontend/src/stores/query.js` 只管理查询状态，没有 auth store。
+  - `frontend/src/views/Home.vue` 顶部状态区适合放身份条。
+  - `frontend/src/components/AuditPanel.vue` 已展示审计事件，但尚未展示身份摘要和 authorization 事件重点。
+- 抽查当前后端认证路由：`/api/auth/login` 只稳定返回 admin，无法覆盖 analyst/support 演示。
+- 新增设计规格：`docs/superpowers/specs/2026-06-28-v0.8-permission-demo-workbench-design.md`。
+
+### 当前进度
+
+- ✅ v0.8 方向确认。
+- ✅ 设计文档已完成。
+- ⏳ 等待用户审核 v0.8 设计后，再进入实施计划编写。
+
+### 下一步
+
+- 用户审核 v0.8 权限演示工作台设计。
+- 审核通过后使用 writing-plans 编写 TDD 实施计划。
