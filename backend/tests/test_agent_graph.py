@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from app.agents.graph import AgentGraph
 from app.analysis_intent.models import AnalysisIntent
 from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
+from app.security.data_permission import DataPermissionResult
 from app.services.llm_observability import record_call
 
 
@@ -228,6 +229,168 @@ class TestAgentGraphValidationFailure:
         mock_runner.execute.assert_not_called()
 
 
+class TestAgentGraphAuthorization:
+    """测试 SQL Guard 之后的数据权限检查节点"""
+
+    @pytest.mark.asyncio
+    async def test_permission_block_does_not_execute_or_repair(self):
+        graph = AgentGraph()
+        mock_sql_output = SQLGeneratorOutput(
+            sql="SELECT c.customer_name FROM customers c",
+            tables=["customers"],
+            columns=["customer_name"],
+            explanation="查询客户姓名",
+        )
+        permission_result = DataPermissionResult(
+            is_allowed=False,
+            reason="当前角色无权访问字段: customers.customer_name",
+            blocked_rule="block_unauthorized_column",
+            audit_events=[
+                {
+                    "stage": "authorization",
+                    "action": "authorize_sql",
+                    "status": "blocked",
+                    "message": "当前角色无权访问字段: customers.customer_name",
+                    "rule_id": "block_unauthorized_column",
+                    "details": {"table": "customers", "column": "customer_name"},
+                }
+            ],
+            referenced_tables=["customers"],
+            referenced_columns=["customers.customer_name"],
+        )
+
+        with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.sql_generator") as mock_gen, \
+             patch("app.agents.graph.sql_guard") as mock_guard, \
+             patch("app.agents.graph.data_permission_guard") as mock_permission, \
+             patch("app.agents.graph.sql_repair_agent") as mock_repair, \
+             patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.session_store") as mock_session_store:
+
+            mock_session_store.get_context.return_value = ""
+            mock_loader.get_full_schema.return_value = make_schema_context()
+            mock_gen.generate = AsyncMock(return_value=mock_sql_output)
+            mock_guard.validate.return_value = {
+                "is_safe": True,
+                "sanitized_sql": "SELECT c.customer_name FROM customers c LIMIT 1000",
+                "reason": None,
+            }
+            mock_permission.authorize.return_value = permission_result
+            mock_repair.repair = AsyncMock()
+
+            result = await graph.run(
+                "查询客户姓名",
+                session_id="session-permission-block",
+                auth_user={"user_id": "user:analyst", "auth_method": "jwt", "roles": ["analyst"]},
+            )
+
+        assert result["status"] == "blocked"
+        assert result["permission_allowed"] is False
+        assert result["permission_error"] == "当前角色无权访问字段: customers.customer_name"
+        assert "数据权限策略阻断" in result["answer"]
+        assert result["audit_report"]["blocked_rules"] == ["block_unauthorized_column"]
+        mock_permission.authorize.assert_called_once_with(
+            "SELECT c.customer_name FROM customers c LIMIT 1000",
+            {"user_id": "user:analyst", "auth_method": "jwt", "roles": ["analyst"]},
+            make_schema_context(),
+        )
+        mock_runner.execute.assert_not_called()
+        mock_repair.repair.assert_not_called()
+        mock_session_store.append_turn.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_permission_success_executes_after_sql_guard(self):
+        graph = AgentGraph()
+        mock_sql_output = SQLGeneratorOutput(
+            sql="SELECT SUM(total_amount) AS sales FROM orders",
+            tables=["orders"],
+            columns=["total_amount"],
+            explanation="统计销售额",
+        )
+        permission_result = DataPermissionResult(
+            is_allowed=True,
+            reason="SQL 通过数据权限检查",
+            blocked_rule=None,
+            audit_events=[
+                {
+                    "stage": "authorization",
+                    "action": "authorize_sql",
+                    "status": "success",
+                    "message": "SQL 通过数据权限检查",
+                    "rule_id": None,
+                    "details": {"tables": ["orders"]},
+                }
+            ],
+            referenced_tables=["orders"],
+            referenced_columns=["orders.total_amount"],
+        )
+
+        with patch("app.agents.graph.schema_loader") as mock_loader, \
+             patch("app.agents.graph.sql_generator") as mock_gen, \
+             patch("app.agents.graph.sql_guard") as mock_guard, \
+             patch("app.agents.graph.data_permission_guard") as mock_permission, \
+             patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
+             patch("app.agents.graph.answer_generator") as mock_answer:
+
+            mock_loader.get_full_schema.return_value = make_schema_context()
+            mock_gen.generate = AsyncMock(return_value=mock_sql_output)
+            mock_guard.validate.return_value = {
+                "is_safe": True,
+                "sanitized_sql": "SELECT SUM(total_amount) AS sales FROM orders LIMIT 1000",
+                "reason": None,
+            }
+            mock_permission.authorize.return_value = permission_result
+            mock_runner.execute.return_value = make_query_result_success()
+            mock_optimizer.optimize.return_value = []
+            mock_answer.generate = AsyncMock(return_value="销售额已统计")
+
+            result = await graph.run("统计销售额")
+
+        assert result["execution_success"] is True
+        assert result["permission_allowed"] is True
+        assert {event["stage"] for event in result["audit_report"]["events"]} >= {
+            "guard", "authorization", "execution"
+        }
+        mock_permission.authorize.assert_called_once()
+        mock_runner.execute.assert_called_once_with(
+            "SELECT SUM(total_amount) AS sales FROM orders LIMIT 1000"
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_accepts_auth_user_and_includes_it_in_initial_state(self):
+        graph = AgentGraph()
+
+        async def echo_state(state):
+            state["audit_events"] = []
+            return state
+
+        graph.graph = MagicMock()
+        graph.graph.ainvoke = AsyncMock(side_effect=echo_state)
+
+        result = await graph.run(
+            "统计销售额",
+            auth_user={"user_id": "user:demo", "auth_method": "jwt", "roles": ["analyst"]},
+        )
+
+        assert result["auth_user"] == {
+            "user_id": "user:demo",
+            "auth_method": "jwt",
+            "roles": ["analyst"],
+        }
+        assert result["permission_allowed"] is True
+        assert result["permission_error"] is None
+
+    def test_clarification_expired_state_has_dev_auth_defaults(self):
+        graph = AgentGraph()
+
+        state = graph._build_expired_clarification_state("销售额", "session-1")
+
+        assert state["auth_user"] is None
+        assert state["permission_allowed"] is True
+        assert state["permission_error"] is None
+
+
 class TestAgentGraphExecutionFailure:
     """测试 SQL 执行失败后的修复流程"""
 
@@ -384,7 +547,7 @@ class TestAgentGraphEdgeCases:
         expected_nodes = {
             "__start__", "check_intent", "parse_intent", "ground_schema",
             "assess_clarification", "load_schema", "generate_sql",
-            "validate_sql", "execute_sql", "repair_sql",
+            "validate_sql", "authorize_sql", "execute_sql", "repair_sql",
             "optimize_sql", "generate_answer", "__end__"
         }
         assert nodes == expected_nodes

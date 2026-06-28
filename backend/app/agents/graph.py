@@ -21,6 +21,7 @@ from ..analysis_intent.merger import AnalysisIntentMerger
 from ..db.schema_loader import schema_loader
 from ..security.intent_guard import intent_guard
 from ..security.sql_guard import sql_guard
+from ..security.data_permission import data_permission_guard
 from ..db.query_runner import query_runner
 from ..config import settings
 from ..services.llm_observability import get_calls, start_trace
@@ -47,11 +48,11 @@ class AgentGraph:
           (不安全)                                      (需要澄清)
              ↓                                                ↓
             end                                             end
-        assess_clarification → load_schema → generate_sql → validate_sql → execute_sql
-                                                                         ↓           ↓
-                                                                      (不安全)     (执行失败)
-                                                                         ↓           ↓
-                                                                        end        repair_sql → validate_sql
+        assess_clarification → load_schema → generate_sql → validate_sql → authorize_sql → execute_sql
+                                                                         ↓              ↓           ↓
+                                                                      (不安全)       (无权限)     (执行失败)
+                                                                         ↓              ↓           ↓
+                                                                        end            end        repair_sql → validate_sql
         """
         workflow = StateGraph(AgentState)
 
@@ -63,6 +64,7 @@ class AgentGraph:
         workflow.add_node("load_schema", self._load_schema)
         workflow.add_node("generate_sql", self._generate_sql)
         workflow.add_node("validate_sql", self._validate_sql)
+        workflow.add_node("authorize_sql", self._authorize_sql)
         workflow.add_node("execute_sql", self._execute_sql)
         workflow.add_node("repair_sql", self._repair_sql)
         workflow.add_node("optimize_sql", self._optimize_sql)
@@ -98,14 +100,24 @@ class AgentGraph:
             },
         )
 
-        # 条件边：SQL 校验后决定执行还是修复还是终止
+        # 条件边：SQL 校验后先进入权限检查，Guard 拒绝的 SQL 直接终止
         workflow.add_conditional_edges(
             "validate_sql",
-            self._should_execute,
+            self._should_authorize_sql,
             {
-                "execute": "execute_sql",     # SQL 安全，执行
+                "authorize": "authorize_sql",  # SQL 安全，继续做数据权限检查
                 "end": END                    # Guard 拒绝后立即终止，禁止修复代理改写危险意图
             }
+        )
+
+        # 条件边：权限通过后才能执行；权限阻断不进入 Repair，避免模型改写越权请求。
+        workflow.add_conditional_edges(
+            "authorize_sql",
+            self._should_execute_authorized_sql,
+            {
+                "execute": "execute_sql",
+                "end": END,
+            },
         )
 
         # 条件边：SQL 执行后决定生成答案还是修复还是终止
@@ -363,6 +375,24 @@ class AgentGraph:
             "audit_events": audit_events,
         }
 
+    @trace_node("authorize_sql")
+    async def _authorize_sql(self, state: AgentState) -> Dict[str, Any]:
+        """在执行前检查最终 SQL 的表/字段权限。"""
+        logger.info("节点: authorize_sql - 校验数据权限")
+        await self._emit_progress(state, "校验数据权限...", 80)
+        result = data_permission_guard.authorize(
+            state["validated_sql"],
+            state.get("auth_user"),
+            state.get("schema_context"),
+        )
+        return {
+            "status": "completed" if result.is_allowed else "blocked",
+            "permission_allowed": result.is_allowed,
+            "permission_error": None if result.is_allowed else result.reason,
+            "answer": None if result.is_allowed else f"请求已被数据权限策略阻断：{result.reason}",
+            "audit_events": self._extend_audit_events(state, result.audit_events),
+        }
+
     @trace_node("execute_sql")
     async def _execute_sql(self, state: AgentState) -> Dict[str, Any]:
         """执行已通过校验的 SQL 查询"""
@@ -561,11 +591,18 @@ class AgentGraph:
 
         return False
 
-    def _should_execute(self, state: AgentState) -> str:
-        """校验后决策：安全 SQL 执行，Guard 拒绝的 SQL 立即终止。"""
+    def _should_authorize_sql(self, state: AgentState) -> str:
+        """校验后决策：安全 SQL 继续授权，Guard 拒绝的 SQL 立即终止。"""
         if state["is_sql_safe"]:
-            return "execute"
+            return "authorize"
         logger.warning(f"SQL 校验失败，已阻断执行: {state.get('validation_error')}")
+        return "end"
+
+    def _should_execute_authorized_sql(self, state: AgentState) -> str:
+        """权限后决策：通过才执行，越权请求直接结束且不得进入 Repair。"""
+        if state.get("permission_allowed"):
+            return "execute"
+        logger.warning(f"SQL 数据权限校验失败，已阻断执行: {state.get('permission_error')}")
         return "end"
 
     def _should_continue(self, state: AgentState) -> str:
@@ -583,6 +620,7 @@ class AgentGraph:
         question: str,
         session_id: str | None = None,
         clarification_response: dict[str, Any] | None = None,
+        auth_user: dict[str, Any] | None = None,
         on_progress: Any = None,
     ) -> AgentState:
         """运行完整的 Agent 工作流
@@ -637,6 +675,9 @@ class AgentGraph:
             "audit_events": [],
             "audit_report": None,
             "llm_calls": [],
+            "auth_user": auth_user,
+            "permission_allowed": True,
+            "permission_error": None,
         }
 
         # 进度追踪：将 on_progress 回调注入到 state 中，供各节点调用
@@ -659,6 +700,10 @@ class AgentGraph:
                 final_state["question"],
                 final_state.get("clarification_request") or {},
             )
+            return final_state
+
+        # 权限阻断的 SQL 不能进入多轮上下文，避免下一轮 Prompt 继承越权字段或表名。
+        if final_state.get("permission_allowed") is False:
             return final_state
 
         # 图完成后再写回本轮摘要；失败轮也保留问题和 SQL，方便下一轮提示用户换问法或继续修复。
@@ -706,6 +751,9 @@ class AgentGraph:
             "audit_events": [event],
             "audit_report": None,
             "llm_calls": [],
+            "auth_user": None,
+            "permission_allowed": True,
+            "permission_error": None,
         }
         state["audit_report"] = audit_report_builder.build_report(state, [event])
         return state

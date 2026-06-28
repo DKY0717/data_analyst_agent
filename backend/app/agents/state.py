@@ -37,6 +37,9 @@ class AgentState(TypedDict):
         audit_events: 安全审计事件列表
         audit_report: 最终安全审计报告
         llm_calls: 当前请求内的 LLM 调用指标列表
+        auth_user: 当前认证用户摘要，不包含 Token、API Key 或请求头
+        permission_allowed: SQL 数据权限检查是否通过
+        permission_error: SQL 数据权限阻断原因
     """
     question: str
     intent_is_safe: bool
@@ -64,3 +67,6 @@ class AgentState(TypedDict):
     audit_events: List[Dict[str, Any]]
     audit_report: Optional[Dict[str, Any]]
     llm_calls: List[Dict[str, Any]]
+    auth_user: Optional[Dict[str, Any]]
+    permission_allowed: bool
+    permission_error: Optional[str]
