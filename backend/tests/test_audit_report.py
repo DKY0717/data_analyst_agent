@@ -2,6 +2,7 @@
 # 审计报告用于向用户和面试官展示“系统为什么认为这条 SQL 安全或不安全”。
 
 from app.agents.audit import AuditReportBuilder
+from app.models.schemas import AuditReport
 
 
 def test_make_event_uses_stable_shape():
@@ -56,6 +57,59 @@ def test_build_report_summarizes_events_and_final_state():
     assert report["limit_injected"] is True
     assert report["blocked_rules"] == []
     assert report["events"] == events
+
+
+def test_build_report_includes_auth_identity_summary():
+    builder = AuditReportBuilder()
+    final_state = {
+        "auth_user": {
+            "user_id": "user:demo",
+            "auth_method": "jwt",
+            "roles": ["analyst"],
+        }
+    }
+
+    report = builder.build_report(final_state, [])
+
+    assert report["user_id"] == "user:demo"
+    assert report["auth_method"] == "jwt"
+    assert report["roles"] == ["analyst"]
+    assert "ROLE_POLICIES" not in repr(report)
+
+
+def test_build_report_omits_auth_fields_when_absent():
+    builder = AuditReportBuilder()
+
+    report = builder.build_report({}, [])
+    parsed = AuditReport(**report)
+
+    assert parsed.user_id is None
+    assert parsed.auth_method is None
+    assert parsed.roles == []
+
+
+def test_permission_blocked_rule_is_summarized_once():
+    builder = AuditReportBuilder()
+    events = [
+        builder.make_event(
+            "authorization",
+            "authorize_sql",
+            "blocked",
+            "当前角色无权访问字段: customers.customer_name",
+            rule_id="block_unauthorized_column",
+        ),
+        builder.make_event(
+            "authorization",
+            "authorize_sql",
+            "blocked",
+            "当前角色无权访问字段: customers.customer_name",
+            rule_id="block_unauthorized_column",
+        ),
+    ]
+
+    report = builder.build_report({"is_sql_safe": True}, events)
+
+    assert report["blocked_rules"] == ["block_unauthorized_column"]
 
 
 def test_build_report_collects_blocked_rules():

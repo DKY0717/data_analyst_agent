@@ -76,6 +76,9 @@ class LLMObservability(BaseModel):
 class AuditReport(BaseModel):
     """一次查询的安全审计报告"""
     question: str = ""  # 用户问题
+    user_id: Optional[str] = None  # 当前认证用户 ID；未启用认证时为空
+    auth_method: Optional[str] = None  # jwt / api_key / disabled 等认证方式
+    roles: List[str] = Field(default_factory=list)  # 当前用户角色摘要，不暴露完整权限策略
     final_sql: str = ""  # 最终校验或执行 SQL
     is_sql_safe: bool = False  # 最终 SQL 是否安全
     execution_success: bool = False  # 是否执行成功

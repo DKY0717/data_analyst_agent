@@ -30,6 +30,7 @@ class AuditReportBuilder:
 
     def build_report(self, final_state: Dict[str, Any], events: List[Dict[str, Any]]) -> Dict[str, Any]:
         """从最终状态和事件列表汇总审计报告。"""
+        auth_user = final_state.get("auth_user") or {}
         # LIMIT 注入可能发生在任意一次 Guard 校验中，报告层只关心是否发生过。
         limit_injected = any(event.get("details", {}).get("limit_injected") for event in events)
         # 同一规则可能在多次修复重试中重复命中，报告只保留首次出现，事件明细仍保留完整过程。
@@ -43,6 +44,9 @@ class AuditReportBuilder:
 
         return {
             "question": final_state.get("question", ""),
+            "user_id": auth_user.get("user_id"),
+            "auth_method": auth_user.get("auth_method"),
+            "roles": list(auth_user.get("roles") or []),
             "final_sql": final_state.get("validated_sql") or final_state.get("generated_sql") or "",
             "is_sql_safe": bool(final_state.get("is_sql_safe")),
             "execution_success": bool(final_state.get("execution_success")),
