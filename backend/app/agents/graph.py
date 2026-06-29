@@ -387,6 +387,7 @@ class AgentGraph:
         )
         return {
             "status": "completed" if result.is_allowed else "blocked",
+            "validated_sql": result.authorized_sql if result.is_allowed else state["validated_sql"],
             "permission_allowed": result.is_allowed,
             "permission_error": None if result.is_allowed else result.reason,
             "answer": None if result.is_allowed else f"请求已被数据权限策略阻断：{result.reason}",
