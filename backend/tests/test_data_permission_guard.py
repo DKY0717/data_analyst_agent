@@ -73,6 +73,10 @@ def user(roles, auth_method="jwt"):
     return {"user_id": "user:test", "auth_method": auth_method, "roles": roles}
 
 
+def normalize_sql(sql):
+    return " ".join(sql.lower().split())
+
+
 def test_dev_mode_without_user_allows_query_as_admin():
     guard = DataPermissionGuard()
 
@@ -262,3 +266,57 @@ def test_guard_fails_closed_when_configured_policy_is_missing(tmp_path, monkeypa
     assert result.is_allowed is False
     assert result.blocked_rule == "block_permission_policy_error"
     assert "权限策略加载失败" in result.reason
+
+
+def test_analyst_order_query_returns_authorized_sql_with_row_filter(monkeypatch):
+    monkeypatch.delenv("DATA_PERMISSION_POLICY_PATH", raising=False)
+    guard = DataPermissionGuard()
+    sql = "SELECT SUM(total_amount) AS sales FROM orders WHERE order_date >= DATE '2024-01-01' LIMIT 1000"
+
+    result = guard.authorize(sql, user(["analyst"]), ecommerce_schema())
+
+    normalized = normalize_sql(result.authorized_sql)
+    assert result.is_allowed is True
+    assert result.authorized_sql != sql
+    assert "customer_id in (select customer_id from customers where region_id in (1, 2))" in normalized
+    assert result.row_filters_applied == [{"table": "orders", "rule_id": "row_filter_region_scope"}]
+    assert result.audit_events[0]["rule_id"] == "row_filter_applied"
+    assert result.audit_events[0]["details"]["authorized_sql_changed"] is True
+
+
+def test_admin_order_query_keeps_authorized_sql_unchanged(monkeypatch):
+    monkeypatch.delenv("DATA_PERMISSION_POLICY_PATH", raising=False)
+    guard = DataPermissionGuard()
+    sql = "SELECT SUM(total_amount) AS sales FROM orders LIMIT 1000"
+
+    result = guard.authorize(sql, user(["admin"]), ecommerce_schema())
+
+    assert result.is_allowed is True
+    assert result.authorized_sql == sql
+    assert result.row_filters_applied == []
+
+
+def test_row_filter_uses_table_alias(monkeypatch):
+    monkeypatch.delenv("DATA_PERMISSION_POLICY_PATH", raising=False)
+    guard = DataPermissionGuard()
+
+    result = guard.authorize(
+        "SELECT SUM(o.total_amount) AS sales FROM orders o LIMIT 1000",
+        user(["analyst"]),
+        ecommerce_schema(),
+    )
+
+    normalized = normalize_sql(result.authorized_sql)
+    assert result.is_allowed is True
+    assert "o.customer_id in (select customer_id from customers where region_id in (1, 2))" in normalized
+
+
+def test_row_filter_audit_does_not_dump_expression(monkeypatch):
+    monkeypatch.delenv("DATA_PERMISSION_POLICY_PATH", raising=False)
+    guard = DataPermissionGuard()
+
+    result = guard.authorize("SELECT total_amount FROM orders LIMIT 1000", user(["analyst"]), ecommerce_schema())
+
+    details = result.audit_events[0]["details"]
+    assert details["row_filters_applied"] == [{"table": "orders", "rule_id": "row_filter_region_scope"}]
+    assert "SELECT customer_id FROM customers" not in repr(details)
