@@ -1470,3 +1470,32 @@
 ### 下一步
 
 - 继续强化权限评测接入 CI 或前端安全审计面板。
+
+---
+
+## 2026-06-29 — v1.2 权限评测 CI 与质量门禁
+
+### 完成的工作
+
+- 权限评测 CLI 支持写 JSON / Markdown 报告。
+- `quality_gate.py` 纳入权限评测四项 100% 指标。
+- GitHub base CI 运行 deterministic permission evaluation。
+- 手动 Real Qwen workflow 将权限评测报告并入 quality gate。
+
+### 当前进度
+
+- ✅ 权限回归从本地命令升级为 CI 质量信号。
+- ✅ PR CI 不需要 LLM、数据库服务或新增 secrets。
+- ✅ 手动真实评测的质量门禁包含权限安全指标。
+
+### 最终验证
+
+- `pytest tests/test_permission_evaluator.py tests/test_quality_gate.py tests/test_workflow_files.py -q`：33 passed。
+- `pytest -q`：518 passed，1 个既有 Starlette/TestClient deprecation warning。
+- 占位符扫描：无命中。
+- Secret Scan：318 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 下一步
+
+- 可继续做安全审计报告导出命令或前端审计面板增强。
