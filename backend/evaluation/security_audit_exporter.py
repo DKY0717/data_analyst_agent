@@ -260,10 +260,40 @@ def _case_status(report: dict[str, Any], case_id: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Parse arguments for now; full CLI behavior is added in the next task."""
     parser = argparse.ArgumentParser(description="Export a consolidated security audit report")
-    parser.parse_args(argv)
-    return 0
+    parser.add_argument("--json", action="store_true", help="print full JSON report")
+    parser.add_argument("--write-report", action="store_true", help="write JSON and Markdown reports")
+    parser.add_argument("--output-dir", help="directory for written reports")
+    parser.add_argument("--timestamp", help="timestamp suffix for written reports")
+    parser.add_argument("--nl2sql-report", type=Path)
+    parser.add_argument("--repair-report", type=Path)
+    parser.add_argument("--correctness-report", type=Path)
+    parser.add_argument("--quality-gate-report", type=Path)
+    parser.add_argument("--fail-on-missing-real-reports", action="store_true")
+    args = parser.parse_args(argv)
+
+    try:
+        report = build_security_audit_report(
+            nl2sql_report=load_optional_report(args.nl2sql_report, "nl2sql"),
+            repair_report=load_optional_report(args.repair_report, "repair"),
+            correctness_report=load_optional_report(args.correctness_report, "correctness"),
+            quality_gate_report=load_quality_gate_report(args.quality_gate_report),
+        )
+        if args.write_report:
+            # CLI 输出复用 writer 的目录解析规则，便于本地和 CI 用同一套参数。
+            SecurityAuditReportWriter(
+                output_dir=args.output_dir,
+                timestamp=args.timestamp,
+            ).write(report)
+        if args.json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+    except (OSError, SecurityAuditInputError, TypeError) as exc:
+        print(f"安全审计导出输入错误: {exc}", file=sys.stderr)
+        return 2
+
+    if args.fail_on_missing_real_reports and report["summary"]["missing_real_reports"]:
+        return 1
+    return 0 if report["summary"]["passed"] else 1
 
 
 if __name__ == "__main__":
