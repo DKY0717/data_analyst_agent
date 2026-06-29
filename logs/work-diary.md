@@ -1357,3 +1357,24 @@
 
 - 用户审核 v0.9 权限演示 E2E 闭环设计。
 - 审核通过后使用 writing-plans 编写 TDD 实施计划。
+
+---
+
+## 2026-06-29 — v0.9 权限演示 E2E 闭环计划
+
+### 完成的工作
+
+- 用户确认 v0.9 设计 spec。
+- 新增实施计划：`docs/superpowers/plans/2026-06-29-v0.9-permission-demo-e2e-implementation.md`。
+- 计划范围聚焦在 Mock 后端响应的 Playwright E2E、现有 E2E 兼容、README 演示脚本和最终验证。
+
+### 当前进度
+
+- ✅ v0.9 设计已确认。
+- ✅ v0.9 实施计划已编写。
+- ⏳ 下一步进入实现分支并按计划执行。
+
+### 下一步
+
+- 创建 `codex/v0.9-permission-demo-e2e` 实现分支。
+- 按 TDD 执行 E2E 和文档任务。
