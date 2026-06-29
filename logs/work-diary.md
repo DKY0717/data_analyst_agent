@@ -1418,6 +1418,7 @@
 ### 完成的工作
 
 - 新增 YAML 数据权限策略加载器。
+- 为策略加载增加路径/mtime/size 缓存，避免每次授权重复解析 YAML。
 - 将 admin / analyst / support 表字段策略迁移到默认策略文件。
 - 为 analyst 订单查询增加确定性行级过滤。
 - AgentGraph 执行权限 Guard 返回的 authorized SQL。
@@ -1432,6 +1433,7 @@
 ### 最终验证
 
 - `pytest tests/test_permission_policy.py tests/test_data_permission_guard.py tests/test_agent_graph.py tests/test_query_api.py tests/test_audit_report.py -q`：69 passed，1 个既有 Starlette/TestClient deprecation warning。
+- `pytest -q`：505 passed，1 个既有 Starlette/TestClient deprecation warning。
 - 占位符扫描：无命中。
 - Secret Scan：310 个 tracked files 通过。
 - `git diff --check`：通过。
