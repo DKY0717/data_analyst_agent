@@ -66,4 +66,20 @@ describe('AuthBar', () => {
     expect(wrapper.text()).toContain('admin')
     expect(wrapper.text()).toContain('退出')
   })
+
+  it('登录后仍可一键切换演示角色', async () => {
+    const auth = useAuthStore()
+    auth.token = 'token-1'
+    auth.user = { user_id: 'demo:analyst', auth_method: 'jwt', roles: ['analyst'] }
+    auth.demoLogin = vi.fn()
+    const wrapper = mount(AuthBar, {
+      global: {
+        stubs: elementStubs,
+      },
+    })
+
+    await wrapper.find('[data-test="role-admin"]').trigger('click')
+
+    expect(auth.demoLogin).toHaveBeenCalledWith('admin')
+  })
 })

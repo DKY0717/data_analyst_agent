@@ -28,28 +28,30 @@ function logout() {
   <div class="auth-bar">
     <template v-if="!auth.isAuthenticated">
       <el-tag type="warning" effect="dark" round size="small">未认证</el-tag>
-      <el-button-group class="auth-role-group">
-        <el-button
-          v-for="role in roles"
-          :key="role.key"
-          :data-test="`role-${role.key}`"
-          :type="role.type"
-          :loading="auth.loading && auth.selectedRole === role.key"
-          size="small"
-          plain
-          @click="switchRole(role.key)"
-        >
-          {{ role.label }}
-        </el-button>
-      </el-button-group>
     </template>
 
     <template v-else>
       <el-tag type="success" effect="dark" round size="small">{{ auth.user.user_id }}</el-tag>
       <el-tag type="info" effect="plain" round size="small">{{ auth.user.auth_method }}</el-tag>
       <el-tag type="primary" effect="plain" round size="small">{{ auth.currentRole }}</el-tag>
-      <el-button size="small" plain @click="logout">退出</el-button>
     </template>
+
+    <el-button-group class="auth-role-group">
+      <el-button
+        v-for="role in roles"
+        :key="role.key"
+        :data-test="`role-${role.key}`"
+        :type="role.type"
+        :loading="auth.loading && auth.selectedRole === role.key"
+        size="small"
+        plain
+        @click="switchRole(role.key)"
+      >
+        {{ role.label }}
+      </el-button>
+    </el-button-group>
+
+    <el-button v-if="auth.isAuthenticated" size="small" plain @click="logout">退出</el-button>
   </div>
 </template>
 
