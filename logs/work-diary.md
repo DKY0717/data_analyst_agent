@@ -1518,13 +1518,18 @@
 
 - ✅ v1.3 设计规格已提交。
 - ⏳ 等待用户确认设计后，进入实施计划编写。
+- ⚠️ 复查 `main@28f15b7` 远端 CI：基础后端、PostgreSQL、前端 build、secret scan 通过；`NL2SQL Evaluation (Real Qwen)` 失败。
 
 ### 验证
 
 - 规格占位符扫描：无命中。
 - `git diff --check`：通过。
+- GitHub Actions run `28373934565`：失败 job 日志显示真实模型调用返回 `401 Invalid API Key`。
 
 ### 下一步
 
 - 用户确认规格后，使用 writing-plans 编写 v1.3 实施计划。
 - 实施时按 TDD 新增 `security_audit_exporter` 与 `security_audit_report_writer`。
+- 先决定 CI 处理方式：
+  - 更新 GitHub Secret / 供应商配置；或
+  - 将基础 CI 中的真实 NL2SQL evaluation 迁移为手动 Real Qwen workflow，避免 main push 被外部 API Key 状态阻断。
