@@ -19,7 +19,15 @@ function userForRole(role) {
   return { user_id: 'anonymous', auth_method: 'none', roles: ['guest'] }
 }
 
-function successResult(user, answer, columns, rows) {
+function successResult(user, answer, columns, rows, permissionObservability = {
+  permission_checked: true,
+  allowed: true,
+  blocked_rule: null,
+  referenced_tables: [],
+  referenced_columns: [],
+  row_filters_applied: [],
+  authorized_sql_changed: false,
+}) {
   return {
     question: '',
     session_id: 'e2e-session',
@@ -41,6 +49,7 @@ function successResult(user, answer, columns, rows) {
       execution_success: true,
       limit_injected: false,
       blocked_rules: [],
+      permission_observability: permissionObservability,
       execution_metrics: { row_count: rows.length, total_latency_ms: 120, llm_call_count: 0 },
       events: [
         {
@@ -61,6 +70,15 @@ function salesResult(user) {
     '2024 年每个月销售额已统计完成。',
     ['month', 'sales'],
     [['2024-01', 128000], ['2024-02', 136000]],
+    {
+      permission_checked: true,
+      allowed: true,
+      blocked_rule: null,
+      referenced_tables: ['orders'],
+      referenced_columns: ['orders.total_amount'],
+      row_filters_applied: [{ table: 'orders', rule_id: 'row_filter_region_scope' }],
+      authorized_sql_changed: user.roles.includes('analyst'),
+    },
   )
 }
 
@@ -95,6 +113,15 @@ function blockedResult(user) {
       execution_success: false,
       limit_injected: false,
       blocked_rules: ['block_unauthorized_column:customers.customer_name'],
+      permission_observability: {
+        permission_checked: true,
+        allowed: false,
+        blocked_rule: 'block_unauthorized_column',
+        referenced_tables: ['customers'],
+        referenced_columns: ['customers.customer_name', 'customers.registered_at'],
+        row_filters_applied: [],
+        authorized_sql_changed: false,
+      },
       execution_metrics: { row_count: 0, total_latency_ms: 30, llm_call_count: 0 },
       events: [
         {
@@ -205,6 +232,9 @@ test.describe('Permission Demo E2E', () => {
 
     await submitQuestion(page, '统计 2024 年每个月的销售额')
     await expect(page.locator('.answer-panel')).toContainText('2024 年每个月销售额已统计完成。')
+    await expect(page.locator('.audit-panel')).toContainText('数据权限')
+    await expect(page.locator('.audit-panel')).toContainText('row_filter_region_scope')
+    await expect(page.locator('.audit-panel')).toContainText('已改写')
 
     await submitQuestion(page, '列出客户姓名和注册日期')
     await expect(page.locator('.answer-panel')).toContainText('请求已被数据权限策略阻断')
@@ -214,6 +244,8 @@ test.describe('Permission Demo E2E', () => {
     await expect(page.locator('.audit-panel')).toContainText('authorization')
     await expect(page.locator('.audit-panel')).toContainText('block_unauthorized_column')
     await expect(page.locator('.audit-panel')).toContainText('block_unauthorized_column:customers.customer_name')
+    await expect(page.locator('.audit-panel')).toContainText('customers.customer_name')
+    await expect(page.locator('.audit-panel')).toContainText('阻断')
 
     await page.locator('[data-test="role-admin"]').click()
     await expect(page.locator('.auth-bar')).toContainText('demo:admin')
@@ -222,5 +254,7 @@ test.describe('Permission Demo E2E', () => {
     await expect(page.locator('.answer-panel')).toContainText('管理员已成功查询客户姓名和注册日期。')
     await expect(page.locator('.audit-panel')).toContainText('demo:admin')
     await expect(page.locator('.audit-panel')).toContainText('authorization')
+    await expect(page.locator('.audit-panel')).toContainText('允许')
+    await expect(page.locator('.audit-panel')).toContainText('未改写')
   })
 })
