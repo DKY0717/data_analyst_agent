@@ -1378,3 +1378,35 @@
 
 - 创建 `codex/v0.9-permission-demo-e2e` 实现分支。
 - 按 TDD 执行 E2E 和文档任务。
+
+---
+
+## 2026-06-29 — v0.9 权限演示 E2E 闭环实现
+
+### 完成的工作
+
+- 新增 Mock 后端响应的 Playwright 权限演示 E2E。
+- 调整登录后演示身份切换能力，保证面试演示可从 analyst 一键切到 admin。
+- 修正基础 E2E 对普通示例问题和权限演示问题的数量断言。
+- 新增 `frontend/scripts/run-e2e.mjs`，让 Windows 下 E2E 能启动并清理 FastAPI/Vite 服务，避免 Playwright webServer 清理挂起。
+- README 新增 30 秒面试演示路径和定向 E2E 命令。
+
+### 当前进度
+
+- ✅ v0.9 权限演示验收闭环完成。
+- ✅ E2E 不依赖真实 Qwen/MiMo API。
+- ✅ `npm run test:e2e` 已从 16 条扩展为 17 条，并能稳定退出。
+
+### 最终验证
+
+- `npm run test:e2e -- permission-demo.spec.js`：1 passed。
+- `npm run test:e2e`：17 passed。
+- `npm run test`：9 个 test files，48 passed。
+- `npm run build`：通过，保留既有 Rollup PURE 注释 warning 和 chunk size warning。
+- 占位符扫描：无命中。
+- Secret Scan：`git ls-files -z | python scripts\check_secrets.py`，305 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 下一步
+
+- 继续 v1.0：权限策略外部化和行级权限设计。
