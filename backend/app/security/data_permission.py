@@ -11,9 +11,12 @@ from sqlglot import exp
 
 from ..agents.audit import audit_report_builder
 from ..utils.logger import logger
-
-
-ALL_COLUMNS = "*"
+from .permission_policy import (
+    ALL_COLUMNS,
+    PermissionPolicyError,
+    PermissionPolicyLoader,
+    TablePolicy,
+)
 
 
 @dataclass(frozen=True)
@@ -35,31 +38,6 @@ class DataPermissionResult:
     audit_events: list[dict[str, Any]]
     referenced_tables: list[str]
     referenced_columns: list[str]
-
-
-# 第一版采用内置 RBAC 策略，让项目不依赖外部 IAM 也能展示企业数据治理闭环。
-ROLE_POLICIES: dict[str, dict[str, set[str]]] = {
-    "admin": {
-        ALL_COLUMNS: {ALL_COLUMNS},
-    },
-    "analyst": {
-        "regions": {ALL_COLUMNS},
-        "customers": {"customer_id", "gender", "age", "region_id", "register_date"},
-        "categories": {ALL_COLUMNS},
-        "products": {ALL_COLUMNS},
-        "orders": {ALL_COLUMNS},
-        "order_items": {ALL_COLUMNS},
-        "payments": {"payment_id", "order_id", "payment_method", "payment_status", "paid_at"},
-        "refunds": {"refund_id", "order_id", "refund_reason", "refund_date"},
-    },
-    "support": {
-        "regions": {ALL_COLUMNS},
-        "categories": {ALL_COLUMNS},
-        "products": {ALL_COLUMNS},
-        "orders": {ALL_COLUMNS},
-        "order_items": {ALL_COLUMNS},
-    },
-}
 
 
 class DataPermissionGuard:
@@ -110,7 +88,18 @@ class DataPermissionGuard:
                 details=column_error.get("details"),
             )
 
-        allowed_tables = self._allowed_tables(permission_user.roles)
+        try:
+            allowed_tables = self._allowed_tables(permission_user.roles)
+        except PermissionPolicyError as exc:
+            return self._blocked(
+                "权限策略加载失败",
+                "block_permission_policy_error",
+                permission_user,
+                referenced_tables,
+                referenced_columns,
+                details={"error_type": type(exc).__name__},
+            )
+
         for table in referenced_tables:
             if table not in allowed_tables and ALL_COLUMNS not in allowed_tables:
                 return self._blocked(
@@ -124,7 +113,8 @@ class DataPermissionGuard:
 
         for qualified_column in referenced_columns:
             table, column = qualified_column.split(".", 1)
-            allowed_columns = allowed_tables.get(table) or allowed_tables.get(ALL_COLUMNS)
+            table_policy = allowed_tables.get(table) or allowed_tables.get(ALL_COLUMNS)
+            allowed_columns = table_policy.columns if table_policy else None
             if allowed_columns is None or (
                 ALL_COLUMNS not in allowed_columns and column not in allowed_columns
             ):
@@ -165,12 +155,23 @@ class DataPermissionGuard:
             roles=roles,
         )
 
-    def _allowed_tables(self, roles: list[str]) -> dict[str, set[str]]:
+    def _allowed_tables(self, roles: list[str]) -> dict[str, TablePolicy]:
         """多个角色取权限并集；未知角色不授予任何隐式权限。"""
-        allowed: dict[str, set[str]] = {}
+        policy = PermissionPolicyLoader().load()
+        allowed: dict[str, TablePolicy] = {}
         for role in roles:
-            for table, columns in ROLE_POLICIES.get(role, {}).items():
-                allowed.setdefault(table, set()).update(columns)
+            role_policy = policy.roles.get(role)
+            if role_policy is None:
+                continue
+            for table, table_policy in role_policy.tables.items():
+                existing = allowed.get(table)
+                if existing is None:
+                    allowed[table] = table_policy
+                    continue
+                allowed[table] = TablePolicy(
+                    columns=set(existing.columns).union(table_policy.columns),
+                    row_filter=existing.row_filter or table_policy.row_filter,
+                )
         return allowed
 
     def _columns_by_table_from_schema(self, schema: dict[str, Any] | None) -> dict[str, set[str]]:

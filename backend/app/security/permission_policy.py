@@ -47,7 +47,7 @@ class PermissionPolicy:
 
 
 def default_policy_path() -> Path:
-    return settings.BASE_DIR / "backend" / "app" / "security" / "data_permissions.yaml"
+    return Path(__file__).resolve().parent / "data_permissions.yaml"
 
 
 def configured_policy_path() -> Path:

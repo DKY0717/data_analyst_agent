@@ -1,6 +1,8 @@
 # Data Permission Guard 测试
 # 这些测试只验证 SQL AST 权限决策，不访问数据库或调用 LLM。
 
+from pathlib import Path
+
 from app.security.data_permission import DataPermissionGuard
 
 
@@ -225,3 +227,38 @@ def test_authorization_event_contains_no_policy_dump():
     assert event["details"]["roles"] == ["analyst"]
     assert "ROLE_POLICIES" not in repr(event)
     assert "customers" not in event["details"]
+
+
+def test_guard_uses_external_policy_file(tmp_path, monkeypatch):
+    policy_path = Path(tmp_path) / "policy.yaml"
+    policy_path.write_text(
+        """
+version: 1
+roles:
+  analyst:
+    tables:
+      orders:
+        columns: ["order_id"]
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DATA_PERMISSION_POLICY_PATH", str(policy_path))
+    guard = DataPermissionGuard()
+
+    allowed = guard.authorize("SELECT order_id FROM orders LIMIT 1000", user(["analyst"]), ecommerce_schema())
+    blocked = guard.authorize("SELECT total_amount FROM orders LIMIT 1000", user(["analyst"]), ecommerce_schema())
+
+    assert allowed.is_allowed is True
+    assert blocked.is_allowed is False
+    assert blocked.blocked_rule == "block_unauthorized_column"
+
+
+def test_guard_fails_closed_when_configured_policy_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_PERMISSION_POLICY_PATH", str(tmp_path / "missing.yaml"))
+    guard = DataPermissionGuard()
+
+    result = guard.authorize("SELECT total_amount FROM orders LIMIT 1000", user(["analyst"]), ecommerce_schema())
+
+    assert result.is_allowed is False
+    assert result.blocked_rule == "block_permission_policy_error"
+    assert "权限策略加载失败" in result.reason
