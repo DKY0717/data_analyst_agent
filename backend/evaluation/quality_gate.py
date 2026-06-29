@@ -20,6 +20,10 @@ QUALITY_THRESHOLDS = {
     "clarification_decision_accuracy": 1.0,
     "clarification_option_hit_rate": 1.0,
     "all_expectations_met_rate": 1.0,
+    "permission_allowed_decision_accuracy": 1.0,
+    "permission_blocked_rule_accuracy": 1.0,
+    "permission_row_filter_expectation_accuracy": 1.0,
+    "permission_authorized_sql_change_accuracy": 1.0,
 }
 
 METRIC_LABELS = {
@@ -34,6 +38,10 @@ METRIC_LABELS = {
     "clarification_decision_accuracy": "澄清决策准确率",
     "clarification_option_hit_rate": "澄清候选命中率",
     "all_expectations_met_rate": "v0.6 全部预期满足率",
+    "permission_allowed_decision_accuracy": "数据权限决策准确率",
+    "permission_blocked_rule_accuracy": "数据权限阻断规则准确率",
+    "permission_row_filter_expectation_accuracy": "数据权限行级过滤命中率",
+    "permission_authorized_sql_change_accuracy": "数据权限 SQL 改写命中率",
 }
 
 
@@ -67,8 +75,9 @@ def evaluate_quality(
     repair_summary: dict,
     correctness_summary: dict,
     intent_grounding_summary: dict,
+    permission_summary: dict,
 ) -> dict:
-    """按固定阈值评估真实评测、正确性基准与 v0.6 分层链路。"""
+    """按固定阈值评估真实评测、正确性基准、分层链路和权限回归。"""
     metric_sources = {
         "safe_execution_success_rate": nl2sql_summary,
         "unsafe_block_rate": nl2sql_summary,
@@ -81,11 +90,17 @@ def evaluate_quality(
         "clarification_decision_accuracy": intent_grounding_summary,
         "clarification_option_hit_rate": intent_grounding_summary,
         "all_expectations_met_rate": intent_grounding_summary,
+        "permission_allowed_decision_accuracy": permission_summary,
+        "permission_blocked_rule_accuracy": permission_summary,
+        "permission_row_filter_expectation_accuracy": permission_summary,
+        "permission_authorized_sql_change_accuracy": permission_summary,
     }
 
     checks = []
     for metric, threshold in QUALITY_THRESHOLDS.items():
-        actual = _required_number(metric_sources[metric], metric)
+        # 权限评测报告内部沿用短指标名；质量门禁前缀化，避免和其他评测指标混淆。
+        source_metric = metric.removeprefix("permission_") if metric.startswith("permission_") else metric
+        actual = _required_number(metric_sources[metric], source_metric)
         checks.append(
             {
                 "metric": metric,
@@ -113,6 +128,7 @@ def to_markdown(
     repair_summary: dict,
     correctness_summary: dict,
     intent_grounding_summary: dict,
+    permission_summary: dict,
 ) -> str:
     """生成适合 GitHub Step Summary 展示的中文门禁摘要。"""
     status = "通过" if result["passed"] else "未通过"
@@ -161,6 +177,11 @@ def to_markdown(
                 f"{_display_number(intent_grounding_summary, 'all_expectations_met_rate'):.3%} | "
                 "0.00 | 0.00 |"
             ),
+            (
+                "| Data Permission | "
+                f"{_display_number(permission_summary, 'allowed_decision_accuracy'):.3%} | "
+                "0.00 | 0.00 |"
+            ),
         ]
     )
 
@@ -190,6 +211,7 @@ def main(args: list[str] | None = None) -> int:
     parser.add_argument("--repair-report", required=True, type=Path)
     parser.add_argument("--correctness-report", required=True, type=Path)
     parser.add_argument("--intent-grounding-report", required=True, type=Path)
+    parser.add_argument("--permission-report", required=True, type=Path)
     parser.add_argument("--json-output", required=True, type=Path)
     parser.add_argument("--markdown-output", required=True, type=Path)
     parser.add_argument("--enforce", action="store_true")
@@ -200,11 +222,13 @@ def main(args: list[str] | None = None) -> int:
         repair_summary = _load_summary(parsed.repair_report)
         correctness_summary = _load_summary(parsed.correctness_report)
         intent_grounding_summary = _load_summary(parsed.intent_grounding_report)
+        permission_summary = _load_summary(parsed.permission_report)
         result = evaluate_quality(
             nl2sql_summary,
             repair_summary,
             correctness_summary,
             intent_grounding_summary,
+            permission_summary,
         )
         markdown = to_markdown(
             result,
@@ -212,6 +236,7 @@ def main(args: list[str] | None = None) -> int:
             repair_summary,
             correctness_summary,
             intent_grounding_summary,
+            permission_summary,
         )
         _write_text(
             parsed.json_output,

@@ -89,6 +89,11 @@ jobs:
           EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
         run: python -m evaluation.intent_grounding_evaluator
 
+      - name: Run deterministic permission evaluation
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+        run: python -m evaluation.permission_evaluator --write-report
+
       - name: Evaluate quality gate
         shell: bash
         env:
@@ -99,6 +104,7 @@ jobs:
           REPAIR_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'sql-repair-evaluation-*.json' | sort | tail -n 1)"
           CORRECTNESS_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'result-correctness-evaluation-*.json' | sort | tail -n 1)"
           INTENT_GROUNDING_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'intent-grounding-evaluation-*.json' | sort | tail -n 1)"
+          PERMISSION_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'permission-evaluation-*.json' | sort | tail -n 1)"
           ENFORCE_ARGS=()
           if [[ "${{ inputs.enforce_thresholds }}" == "true" ]]; then
             ENFORCE_ARGS+=(--enforce)
@@ -108,6 +114,7 @@ jobs:
             --repair-report "$REPAIR_REPORT" \
             --correctness-report "$CORRECTNESS_REPORT" \
             --intent-grounding-report "$INTENT_GROUNDING_REPORT" \
+            --permission-report "$PERMISSION_REPORT" \
             --json-output "$EVALUATION_REPORT_DIR/quality-gate.json" \
             --markdown-output "$EVALUATION_REPORT_DIR/quality-gate.md" \
             "${ENFORCE_ARGS[@]}"

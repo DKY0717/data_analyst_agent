@@ -31,26 +31,33 @@ def passing_summaries():
             "clarification_option_hit_rate": 1.0,
             "all_expectations_met_rate": 1.0,
         },
+        {
+            "allowed_decision_accuracy": 1.0,
+            "blocked_rule_accuracy": 1.0,
+            "row_filter_expectation_accuracy": 1.0,
+            "authorized_sql_change_accuracy": 1.0,
+        },
     )
 
 
 def test_evaluate_quality_passes_when_all_thresholds_are_met():
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
 
     result = evaluate_quality(
         nl2sql_summary,
         repair_summary,
         correctness_summary,
         grounding_summary,
+        permission_summary,
     )
 
     assert result["passed"] is True
-    assert len(result["checks"]) == 11
+    assert len(result["checks"]) == 15
     assert all(check["passed"] for check in result["checks"])
 
 
 def test_evaluate_quality_rejects_old_31_of_32_safety_baseline():
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
     nl2sql_summary["unsafe_block_rate"] = 0.875
     nl2sql_summary["safety_expectation_met_rate"] = 31 / 32
 
@@ -59,6 +66,7 @@ def test_evaluate_quality_rejects_old_31_of_32_safety_baseline():
         repair_summary,
         correctness_summary,
         grounding_summary,
+        permission_summary,
     )
 
     assert result["passed"] is False
@@ -66,6 +74,26 @@ def test_evaluate_quality_rejects_old_31_of_32_safety_baseline():
         "unsafe_block_rate",
         "safety_expectation_met_rate",
     ]
+
+
+def test_quality_gate_fails_when_permission_metric_misses_threshold():
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
+    permission_summary["row_filter_expectation_accuracy"] = 0.8
+
+    result = evaluate_quality(
+        nl2sql_summary,
+        repair_summary,
+        correctness_summary,
+        grounding_summary,
+        permission_summary,
+    )
+
+    assert result["passed"] is False
+    assert any(
+        check["metric"] == "permission_row_filter_expectation_accuracy"
+        and check["passed"] is False
+        for check in result["checks"]
+    )
 
 
 @pytest.mark.parametrize(
@@ -82,17 +110,22 @@ def test_evaluate_quality_rejects_old_31_of_32_safety_baseline():
         ("grounding", "clarification_decision_accuracy"),
         ("grounding", "clarification_option_hit_rate"),
         ("grounding", "all_expectations_met_rate"),
+        ("permission", "allowed_decision_accuracy"),
+        ("permission", "blocked_rule_accuracy"),
+        ("permission", "row_filter_expectation_accuracy"),
+        ("permission", "authorized_sql_change_accuracy"),
     ],
 )
 def test_evaluate_quality_fails_when_a_metric_drops_below_threshold(
     summary_name, metric
 ):
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
     summaries = {
         "nl2sql": nl2sql_summary,
         "repair": repair_summary,
         "correctness": correctness_summary,
         "grounding": grounding_summary,
+        "permission": permission_summary,
     }
     target_summary = summaries[summary_name]
     target_summary[metric] -= 0.001
@@ -102,15 +135,17 @@ def test_evaluate_quality_fails_when_a_metric_drops_below_threshold(
         repair_summary,
         correctness_summary,
         grounding_summary,
+        permission_summary,
     )
 
     failed_checks = [check for check in result["checks"] if not check["passed"]]
     assert result["passed"] is False
-    assert [check["metric"] for check in failed_checks] == [metric]
+    expected_metric = f"permission_{metric}" if summary_name == "permission" else metric
+    assert [check["metric"] for check in failed_checks] == [expected_metric]
 
 
 def test_evaluate_quality_rejects_missing_required_metric():
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
     del grounding_summary["route_table_recall_rate"]
 
     with pytest.raises(QualityGateError, match="route_table_recall_rate"):
@@ -119,11 +154,12 @@ def test_evaluate_quality_rejects_missing_required_metric():
             repair_summary,
             correctness_summary,
             grounding_summary,
+            permission_summary,
         )
 
 
 def test_evaluate_quality_rejects_non_numeric_required_metric():
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
     repair_summary["end_to_end_repair_success_rate"] = "100%"
 
     with pytest.raises(QualityGateError, match="end_to_end_repair_success_rate"):
@@ -132,12 +168,13 @@ def test_evaluate_quality_rejects_non_numeric_required_metric():
             repair_summary,
             correctness_summary,
             grounding_summary,
+            permission_summary,
         )
 
 
 @pytest.mark.parametrize("invalid_value", [float("nan"), float("inf")])
 def test_evaluate_quality_rejects_non_finite_required_metric(invalid_value):
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
     nl2sql_summary["safe_execution_success_rate"] = invalid_value
 
     with pytest.raises(QualityGateError, match="safe_execution_success_rate"):
@@ -146,11 +183,12 @@ def test_evaluate_quality_rejects_non_finite_required_metric(invalid_value):
             repair_summary,
             correctness_summary,
             grounding_summary,
+            permission_summary,
         )
 
 
 def test_display_metrics_default_to_zero_without_affecting_gate():
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
     for summary in (nl2sql_summary, repair_summary):
         summary.pop("average_llm_total_tokens", None)
         summary.pop("average_llm_latency_ms", None)
@@ -160,6 +198,7 @@ def test_display_metrics_default_to_zero_without_affecting_gate():
         repair_summary,
         correctness_summary,
         grounding_summary,
+        permission_summary,
     )
     markdown = to_markdown(
         result,
@@ -167,6 +206,7 @@ def test_display_metrics_default_to_zero_without_affecting_gate():
         repair_summary,
         correctness_summary,
         grounding_summary,
+        permission_summary,
     )
 
     assert result["passed"] is True
@@ -174,7 +214,7 @@ def test_display_metrics_default_to_zero_without_affecting_gate():
 
 
 def write_reports(tmp_path, *, below_threshold=False):
-    nl2sql_summary, repair_summary, correctness_summary, grounding_summary = passing_summaries()
+    nl2sql_summary, repair_summary, correctness_summary, grounding_summary, permission_summary = passing_summaries()
     if below_threshold:
         nl2sql_summary["unsafe_block_rate"] = 0.5
 
@@ -182,6 +222,7 @@ def write_reports(tmp_path, *, below_threshold=False):
     repair_path = tmp_path / "repair.json"
     correctness_path = tmp_path / "correctness.json"
     grounding_path = tmp_path / "grounding.json"
+    permission_path = tmp_path / "permission.json"
     nl2sql_path.write_text(
         json.dumps({"summary": nl2sql_summary}), encoding="utf-8"
     )
@@ -190,11 +231,12 @@ def write_reports(tmp_path, *, below_threshold=False):
         json.dumps({"summary": correctness_summary}), encoding="utf-8"
     )
     grounding_path.write_text(json.dumps({"summary": grounding_summary}), encoding="utf-8")
-    return nl2sql_path, repair_path, correctness_path, grounding_path
+    permission_path.write_text(json.dumps({"summary": permission_summary}), encoding="utf-8")
+    return nl2sql_path, repair_path, correctness_path, grounding_path, permission_path
 
 
 def test_main_writes_json_and_markdown_outputs(tmp_path):
-    nl2sql_path, repair_path, correctness_path, grounding_path = write_reports(tmp_path)
+    nl2sql_path, repair_path, correctness_path, grounding_path, permission_path = write_reports(tmp_path)
     json_output = tmp_path / "quality-gate.json"
     markdown_output = tmp_path / "quality-gate.md"
 
@@ -208,6 +250,8 @@ def test_main_writes_json_and_markdown_outputs(tmp_path):
             str(correctness_path),
             "--intent-grounding-report",
             str(grounding_path),
+            "--permission-report",
+            str(permission_path),
             "--json-output",
             str(json_output),
             "--markdown-output",
@@ -222,12 +266,14 @@ def test_main_writes_json_and_markdown_outputs(tmp_path):
     assert "SQL Repair 端到端成功率" in markdown
     assert "结果正确率" in markdown
     assert "Grounding 候选命中率" in markdown
+    assert "数据权限决策准确率" in markdown
+    assert "Data Permission" in markdown
     assert "平均 Token" in markdown
     assert "平均 LLM 耗时" in markdown
 
 
 def test_main_warn_mode_returns_zero_when_gate_fails(tmp_path):
-    nl2sql_path, repair_path, correctness_path, grounding_path = write_reports(
+    nl2sql_path, repair_path, correctness_path, grounding_path, permission_path = write_reports(
         tmp_path,
         below_threshold=True,
     )
@@ -244,6 +290,8 @@ def test_main_warn_mode_returns_zero_when_gate_fails(tmp_path):
             str(correctness_path),
             "--intent-grounding-report",
             str(grounding_path),
+            "--permission-report",
+            str(permission_path),
             "--json-output",
             str(json_output),
             "--markdown-output",
@@ -256,7 +304,7 @@ def test_main_warn_mode_returns_zero_when_gate_fails(tmp_path):
 
 
 def test_main_enforce_mode_returns_one_when_gate_fails(tmp_path):
-    nl2sql_path, repair_path, correctness_path, grounding_path = write_reports(
+    nl2sql_path, repair_path, correctness_path, grounding_path, permission_path = write_reports(
         tmp_path,
         below_threshold=True,
     )
@@ -271,6 +319,8 @@ def test_main_enforce_mode_returns_one_when_gate_fails(tmp_path):
             str(correctness_path),
             "--intent-grounding-report",
             str(grounding_path),
+            "--permission-report",
+            str(permission_path),
             "--json-output",
             str(tmp_path / "quality-gate.json"),
             "--markdown-output",
@@ -284,7 +334,7 @@ def test_main_enforce_mode_returns_one_when_gate_fails(tmp_path):
 
 @pytest.mark.parametrize("invalid_content", [None, "{not-json"])
 def test_main_returns_two_for_missing_or_invalid_report(tmp_path, invalid_content):
-    nl2sql_path, repair_path, correctness_path, grounding_path = write_reports(tmp_path)
+    nl2sql_path, repair_path, correctness_path, grounding_path, permission_path = write_reports(tmp_path)
     if invalid_content is None:
         nl2sql_path.unlink()
     else:
@@ -300,6 +350,8 @@ def test_main_returns_two_for_missing_or_invalid_report(tmp_path, invalid_conten
             str(correctness_path),
             "--intent-grounding-report",
             str(grounding_path),
+            "--permission-report",
+            str(permission_path),
             "--json-output",
             str(tmp_path / "quality-gate.json"),
             "--markdown-output",
