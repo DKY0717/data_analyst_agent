@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 65 条评测用例** — 后端 492 个测试、前端 47 个单元测试、17 个 E2E 测试、65 条结构化评测用例覆盖 11 个类别。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 512 个测试、前端 48 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 核心架构
 
@@ -64,7 +64,7 @@ flowchart LR
 - JWT Token + API Key 双模式认证（未配置密钥时保持本地开发放行）
 - 速率限制（slowapi，默认 30 次/分钟）
 - Alembic 数据库迁移（DuckDB + PostgreSQL 双后端）
-- 结构化审计报告（身份摘要、权限事件、Guard 命中、LIMIT 注入、修复事件）
+- 结构化审计报告（身份摘要、权限可观测性、Guard 命中、LIMIT 注入、修复事件）
 
 ### 前端
 
@@ -90,6 +90,7 @@ flowchart LR
 | SQL Repair 故障注入 | 6 条 | 修复成功率 100% |
 | 结果正确性黄金基准 | 10 条 | 正确率 100% |
 | 分层意图 + Grounding | 7 条 | 六项指标 100% |
+| 数据权限评测 | 5 条 | 权限决策 / 阻断规则 / 行级过滤预期 100% |
 | 结构化评测用例 | 65 条 | 覆盖 11 个类别 |
 
 ## 快速开始
@@ -146,13 +147,22 @@ AUTH_DEMO_ENABLED=true
 
 Data Permission Guard 从 `backend/app/security/data_permissions.yaml` 加载角色表/字段权限，并在执行前对需要行级隔离的角色自动注入 SQL 行过滤条件。比如 analyst 查询订单销售额时，后端会在最终 SQL 执行前加入区域范围过滤；审计报告只展示命中的规则 ID 和表名，不泄露完整策略表达式。
 
+### v1.1 权限可观测性和评测
+
+每次查询的 `audit_report` 会汇总 `permission_observability`，直接展示是否经过权限检查、是否允许、命中的阻断规则、引用表字段、行级过滤规则 ID，以及最终 SQL 是否被权限层改写。权限评测可在不调用 LLM、不连接真实数据库的情况下回归验证 admin / analyst / support 的关键安全场景：
+
+```bash
+cd backend
+python -m evaluation.permission_evaluator --json
+```
+
 ## 运行测试
 
 ```bash
-# 后端测试（492 个）
+# 后端测试（512 个）
 cd backend && python -m pytest -q
 
-# 前端单元测试（47 个）
+# 前端单元测试（48 个）
 cd frontend && npm run test
 
 # E2E 测试（17 个）
@@ -163,6 +173,9 @@ cd frontend && npm run test:e2e -- permission-demo.spec.js
 
 # 评测用例
 cd backend && python -m evaluation.evaluator
+
+# 数据权限评测（不调用 LLM，不连接真实数据库）
+cd backend && python -m evaluation.permission_evaluator --json
 ```
 
 ## API 接口

@@ -1441,3 +1441,32 @@
 ### 下一步
 
 - 继续下一版：策略可观测性/评测用例或权限演示增强。
+
+---
+
+## 2026-06-29 — v1.1 权限可观测性和评测实现
+
+### 完成的工作
+
+- 新增 `audit_report.permission_observability` 权限摘要。
+- 新增确定性权限评测 runner，覆盖 admin / analyst / support 关键场景。
+- 新增权限评测 JSON 与 Markdown 报告写入器。
+- README 同步权限观测和评测命令。
+
+### 当前进度
+
+- ✅ 权限检查结果可在 API 响应中稳定展示。
+- ✅ 权限评测不依赖 LLM 或真实数据库。
+- ✅ 报告只展示规则 ID 和表名，不泄露完整策略表达式。
+
+### 最终验证
+
+- `pytest tests/test_audit_report.py tests/test_query_api.py tests/test_permission_evaluator.py tests/test_permission_report_writer.py tests/test_data_permission_guard.py -q`：47 passed，1 个既有 Starlette/TestClient deprecation warning。
+- `pytest -q`：512 passed，1 个既有 Starlette/TestClient deprecation warning。
+- 占位符扫描：无命中。
+- Secret Scan：316 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 下一步
+
+- 继续强化权限评测接入 CI 或前端安全审计面板。

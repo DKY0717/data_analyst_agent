@@ -73,6 +73,17 @@ class LLMObservability(BaseModel):
     calls: List[LLMCallMetrics] = Field(default_factory=list)
 
 
+class PermissionObservability(BaseModel):
+    """一次请求内数据权限检查的稳定摘要，不暴露完整策略。"""
+    permission_checked: bool = False
+    allowed: Optional[bool] = None
+    blocked_rule: Optional[str] = None
+    referenced_tables: List[str] = Field(default_factory=list)
+    referenced_columns: List[str] = Field(default_factory=list)
+    row_filters_applied: List[Dict[str, str]] = Field(default_factory=list)
+    authorized_sql_changed: bool = False
+
+
 class AuditReport(BaseModel):
     """一次查询的安全审计报告"""
     question: str = ""  # 用户问题
@@ -86,6 +97,7 @@ class AuditReport(BaseModel):
     limit_injected: bool = False  # 是否发生自动 LIMIT 注入
     blocked_rules: List[str] = Field(default_factory=list)  # 被命中的阻断规则
     llm_observability: LLMObservability = Field(default_factory=LLMObservability)  # LLM 调用汇总
+    permission_observability: PermissionObservability = Field(default_factory=PermissionObservability)  # 权限检查摘要
     events: List[AuditEvent] = Field(default_factory=list)  # 审计事件明细
 
 class QueryResponse(BaseModel):

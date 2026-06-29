@@ -75,6 +75,17 @@ def make_agent_result():
                     }
                 ],
             },
+            "permission_observability": {
+                "permission_checked": True,
+                "allowed": True,
+                "blocked_rule": None,
+                "referenced_tables": ["orders"],
+                "referenced_columns": ["orders.total_amount"],
+                "row_filters_applied": [
+                    {"table": "orders", "rule_id": "row_filter_region_scope"}
+                ],
+                "authorized_sql_changed": True,
+            },
             "events": [
                 {
                     "stage": "guard",
@@ -192,6 +203,11 @@ def test_query_api_passes_session_id_to_agent_graph():
     assert payload["data"]["audit_report"]["limit_injected"] is True
     assert payload["data"]["audit_report"]["events"][0]["stage"] == "guard"
     assert payload["data"]["audit_report"]["llm_observability"]["total_tokens"] == 120
+    permission = payload["data"]["audit_report"]["permission_observability"]
+    assert permission["permission_checked"] is True
+    assert permission["row_filters_applied"] == [
+        {"table": "orders", "rule_id": "row_filter_region_scope"}
+    ]
     mock_graph.run.assert_awaited_once_with(
         "按地区拆一下",
         session_id="session-1",

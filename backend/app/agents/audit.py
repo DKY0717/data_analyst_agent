@@ -54,7 +54,41 @@ class AuditReportBuilder:
             "limit_injected": limit_injected,
             "blocked_rules": blocked_rules,
             "llm_observability": summarize(final_state.get("llm_calls") or []),
+            "permission_observability": self._summarize_permission(events),
             "events": events,
+        }
+
+    def _summarize_permission(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """从权限审计事件提取稳定摘要，避免前端和评测重复扫描明细。"""
+        authorization_events = [
+            event
+            for event in events
+            if event.get("stage") == "authorization" and event.get("action") == "authorize_sql"
+        ]
+        if not authorization_events:
+            return {
+                "permission_checked": False,
+                "allowed": None,
+                "blocked_rule": None,
+                "referenced_tables": [],
+                "referenced_columns": [],
+                "row_filters_applied": [],
+                "authorized_sql_changed": False,
+            }
+
+        # 一个请求可能有多次安全校验事件；最终报告以最后一次权限决策为准。
+        latest_event = authorization_events[-1]
+        details = latest_event.get("details") or {}
+        return {
+            "permission_checked": True,
+            "allowed": latest_event.get("status") == "success",
+            "blocked_rule": latest_event.get("rule_id")
+            if latest_event.get("status") == "blocked"
+            else None,
+            "referenced_tables": list(details.get("tables") or []),
+            "referenced_columns": list(details.get("columns_checked") or []),
+            "row_filters_applied": list(details.get("row_filters_applied") or []),
+            "authorized_sql_changed": bool(details.get("authorized_sql_changed")),
         }
 
 
