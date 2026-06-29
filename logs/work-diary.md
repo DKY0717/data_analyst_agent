@@ -1410,3 +1410,32 @@
 ### 下一步
 
 - 继续 v1.0：权限策略外部化和行级权限设计。
+
+---
+
+## 2026-06-29 — v1.0 权限策略外部化和行级权限实现
+
+### 完成的工作
+
+- 新增 YAML 数据权限策略加载器。
+- 将 admin / analyst / support 表字段策略迁移到默认策略文件。
+- 为 analyst 订单查询增加确定性行级过滤。
+- AgentGraph 执行权限 Guard 返回的 authorized SQL。
+- README 和 `.env.example` 同步策略配置说明。
+
+### 当前进度
+
+- ✅ v1.0 权限策略外部化完成。
+- ✅ 行级权限过滤由后端 SQL AST 改写完成，不依赖 LLM。
+- ✅ 审计报告展示 row filter 证据但不泄露完整策略。
+
+### 最终验证
+
+- `pytest tests/test_permission_policy.py tests/test_data_permission_guard.py tests/test_agent_graph.py tests/test_query_api.py tests/test_audit_report.py -q`：69 passed，1 个既有 Starlette/TestClient deprecation warning。
+- 占位符扫描：无命中。
+- Secret Scan：310 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 下一步
+
+- 继续下一版：策略可观测性/评测用例或权限演示增强。
