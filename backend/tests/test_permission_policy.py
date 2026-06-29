@@ -38,6 +38,25 @@ roles:
     assert "customers" in table.row_filter.referenced_tables
 
 
+def test_loader_reuses_cached_policy_when_file_is_unchanged(tmp_path):
+    path = write_policy(
+        tmp_path / "policy.yaml",
+        """
+version: 1
+roles:
+  analyst:
+    tables:
+      orders:
+        columns: ["order_id"]
+""",
+    )
+
+    first = PermissionPolicyLoader(path).load()
+    second = PermissionPolicyLoader(path).load()
+
+    assert second is first
+
+
 def test_loader_rejects_missing_configured_file(tmp_path):
     loader = PermissionPolicyLoader(tmp_path / "missing.yaml")
 

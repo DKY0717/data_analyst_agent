@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import sqlglot
 import yaml
@@ -61,12 +61,20 @@ def configured_policy_path() -> Path:
 class PermissionPolicyLoader:
     """加载并校验数据权限策略。"""
 
+    _cache: ClassVar[dict[Path, tuple[int, int, PermissionPolicy]]] = {}
+
     def __init__(self, path: str | Path | None = None):
         self.path = Path(path) if path is not None else configured_policy_path()
 
     def load(self) -> PermissionPolicy:
         if not self.path.exists():
             raise PermissionPolicyError(f"Permission policy file not found: {self.path}")
+
+        stat = self.path.stat()
+        cache_key = self.path.resolve()
+        cached = self._cache.get(cache_key)
+        if cached and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+            return cached[2]
 
         try:
             with self.path.open("r", encoding="utf-8") as file:
@@ -88,7 +96,9 @@ class PermissionPolicyLoader:
             self._normalize_name(role_name, "role"): self._parse_role(role_name, role_config)
             for role_name, role_config in roles_raw.items()
         }
-        return PermissionPolicy(version=version, roles=roles)
+        policy = PermissionPolicy(version=version, roles=roles)
+        self._cache[cache_key] = (stat.st_mtime_ns, stat.st_size, policy)
+        return policy
 
     def _parse_role(self, role_name: Any, role_config: Any) -> RolePolicy:
         if not isinstance(role_config, dict):
