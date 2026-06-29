@@ -220,3 +220,81 @@ def test_build_report_summarizes_llm_calls():
     assert report["llm_observability"]["total_tokens"] == 230
     assert report["llm_observability"]["total_latency_ms"] == 800
     assert report["llm_observability"]["estimated_cost"] == 0.003
+
+
+def test_build_report_includes_empty_permission_observability_by_default():
+    builder = AuditReportBuilder()
+
+    report = builder.build_report({}, [])
+    parsed = AuditReport(**report)
+
+    assert parsed.permission_observability.permission_checked is False
+    assert parsed.permission_observability.allowed is None
+    assert parsed.permission_observability.blocked_rule is None
+    assert parsed.permission_observability.referenced_tables == []
+    assert parsed.permission_observability.referenced_columns == []
+    assert parsed.permission_observability.row_filters_applied == []
+    assert parsed.permission_observability.authorized_sql_changed is False
+
+
+def test_build_report_summarizes_allowed_row_filter_permission_event():
+    builder = AuditReportBuilder()
+    events = [
+        builder.make_event(
+            "authorization",
+            "authorize_sql",
+            "success",
+            "SQL 通过数据权限检查",
+            rule_id="row_filter_applied",
+            details={
+                "tables": ["orders"],
+                "columns_checked": ["orders.total_amount"],
+                "row_filters_applied": [
+                    {"table": "orders", "rule_id": "row_filter_region_scope"}
+                ],
+                "authorized_sql_changed": True,
+            },
+        )
+    ]
+
+    report = builder.build_report({"is_sql_safe": True}, events)
+
+    permission = report["permission_observability"]
+    assert permission["permission_checked"] is True
+    assert permission["allowed"] is True
+    assert permission["blocked_rule"] is None
+    assert permission["referenced_tables"] == ["orders"]
+    assert permission["referenced_columns"] == ["orders.total_amount"]
+    assert permission["row_filters_applied"] == [
+        {"table": "orders", "rule_id": "row_filter_region_scope"}
+    ]
+    assert permission["authorized_sql_changed"] is True
+    assert "SELECT customer_id FROM customers" not in repr(permission)
+
+
+def test_build_report_summarizes_blocked_permission_event():
+    builder = AuditReportBuilder()
+    events = [
+        builder.make_event(
+            "authorization",
+            "authorize_sql",
+            "blocked",
+            "当前角色无权访问字段: customers.customer_name",
+            rule_id="block_unauthorized_column",
+            details={
+                "tables": ["customers"],
+                "columns_checked": ["customers.customer_name"],
+            },
+        )
+    ]
+
+    report = builder.build_report({"is_sql_safe": True}, events)
+
+    permission = report["permission_observability"]
+    assert permission["permission_checked"] is True
+    assert permission["allowed"] is False
+    assert permission["blocked_rule"] == "block_unauthorized_column"
+    assert permission["referenced_tables"] == ["customers"]
+    assert permission["referenced_columns"] == ["customers.customer_name"]
+    assert permission["row_filters_applied"] == []
+    assert permission["authorized_sql_changed"] is False
