@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 527 个测试、前端 48 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 527 个测试、前端 51 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 核心架构
 
@@ -78,7 +78,7 @@ flowchart LR
 - 历史记录面板
 - vue-router 路由（查询结果可通过 URL 分享）
 - 响应式布局（桌面端 / 平板端 / 移动端）
-- 权限演示工作台（admin / analyst / support 一键切换，审计面板展示身份和 authorization 事件）
+- 权限演示工作台（admin / analyst / support 一键切换，审计面板展示身份、authorization 事件和数据权限摘要）
 
 ### 评测体系
 
@@ -131,17 +131,17 @@ JWT_SECRET=dev-demo-secret
 AUTH_DEMO_ENABLED=true
 ```
 
-前端顶部身份条支持 `admin`、`analyst`、`support` 三种演示身份。普通查询和 SSE 查询都会携带 `Authorization: Bearer <token>`，权限阻断会在安全审计面板中展示身份摘要、authorization 事件和阻断规则。
+前端顶部身份条支持 `admin`、`analyst`、`support` 三种演示身份。普通查询和 SSE 查询都会携带 `Authorization: Bearer <token>`，权限阻断会在安全审计面板中展示身份摘要、authorization 事件、数据权限摘要和阻断规则。
 
 #### 30 秒面试演示路径
 
 1. 在顶部身份条点击 `Analyst`，确认当前身份显示为 `demo:analyst`。
 2. 提交 `统计 2024 年每个月的销售额`，展示分析结果正常返回。
 3. 提交 `列出客户姓名和注册日期`，展示请求被数据权限策略阻断。
-4. 打开右侧安全审计，指出 `demo:analyst`、`authorization blocked` 和 `block_unauthorized_column`。
+4. 打开右侧安全审计，指出 `demo:analyst`、`authorization blocked`、`row_filter_region_scope`、`block_unauthorized_column` 和被阻断字段 `customers.customer_name`。
 5. 切换为 `Admin`，再次提交同一客户姓名问题，展示管理员查询成功。
 
-这条演示路径说明：Agent 不只会生成 SQL，还能在最终 SQL 执行前做角色级字段权限校验，并把阻断证据写入审计报告。
+这条演示路径说明：Agent 不只会生成 SQL，还能在最终 SQL 执行前做角色级字段权限校验和行级过滤，并把允许、改写、阻断证据写入审计报告。
 
 ### v1.0 权限策略外部化
 
@@ -175,7 +175,7 @@ python -m evaluation.security_audit_exporter --write-report
 # 后端测试（527 个）
 cd backend && python -m pytest -q
 
-# 前端单元测试（48 个）
+# 前端单元测试（51 个）
 cd frontend && npm run test
 
 # E2E 测试（17 个）

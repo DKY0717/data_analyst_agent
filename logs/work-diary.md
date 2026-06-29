@@ -1598,3 +1598,18 @@
 ### 下一步
 
 - 按 TDD 更新 `AuditPanel` 组件测试、组件实现、权限演示 E2E 和 README。
+
+### 实现补充
+
+- `AuditPanel.vue` 新增“数据权限”证据区，展示权限检查、允许/阻断、SQL 改写、引用表/字段、行级过滤规则和阻断规则。
+- 组件单测覆盖 analyst 行级过滤允许、analyst 越权字段阻断和缺省权限摘要兼容。
+- 权限演示 E2E mock 已覆盖 analyst 行级过滤、analyst 越权阻断和 admin 允许查询。
+- README 30 秒演示脚本增加权限摘要观察点。
+
+### 最终验证
+
+- `npm run test -- tests/components/AuditPanel.test.js`：5 passed。
+- `npm run test`：51 passed。
+- `npm run test:e2e -- permission-demo.spec.js`：1 passed。
+- `npm run build`：通过，保留既有 Rollup PURE 注释 warning 和 chunk size warning。
+- `git diff --check`：通过。
