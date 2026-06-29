@@ -6,7 +6,7 @@
 
 **12 节点 LangGraph Agent 工作流** — 不是简单调 API，而是完整的有向图编排：意图解析 → Schema Grounding → 主动澄清 → SQL 生成 → SQL 安全校验 → 数据权限校验 → 执行 → 自动修复 → 优化建议 → 答案生成。
 
-**三层安全治理** — Intent Guard 在 LLM 调用前阻断危险意图（100% 阻断率），SQL Guard 在 AST 层面校验生成的 SQL，Data Permission Guard 在执行前按角色检查表级和字段级权限。覆盖破坏性操作、凭据访问、系统表访问、文件读取和敏感字段越权访问。
+**三层安全治理** — Intent Guard 在 LLM 调用前阻断危险意图（100% 阻断率），SQL Guard 在 AST 层面校验生成的 SQL，Data Permission Guard 在执行前按 YAML 策略检查角色级表/字段权限并注入行级过滤。覆盖破坏性操作、凭据访问、系统表访问、文件读取和敏感字段越权访问。
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
@@ -25,7 +25,7 @@ flowchart LR
     Clarify -->|否| G[SQL Generator<br/>LLM 生成 SQL]
     G --> Guard[SQL Guard<br/>SQLGlot AST 校验]
     Guard -->|不安全| Block
-    Guard -->|安全| Perm[Data Permission Guard<br/>角色表/字段权限]
+    Guard -->|安全| Perm[Data Permission Guard<br/>策略权限 + 行级过滤]
     Perm -->|无权限| Block
     Perm -->|通过| Exec[Query Runner<br/>DuckDB 执行]
     Exec -->|失败| Repair[SQL Repair<br/>错误分类 + 差异化修复]
@@ -54,6 +54,7 @@ flowchart LR
 - 自然语言转 SQL（LangGraph 12 节点工作流）
 - Intent Guard + SQL Guard + Data Permission Guard 三层安全治理
 - 角色级表/字段权限（admin / analyst / support，越权 SQL 不执行、不修复）
+- YAML 数据权限策略 + 行级 SQL 过滤（执行前由后端 AST 改写，不依赖 LLM）
 - SQL 自动修复（错误分类 + 差异化策略 + 最多 3 轮重试）
 - 分层意图解析 + Schema Grounding（指标/维度映射）
 - 主动澄清机制（模糊问题暂停，返回候选等待用户选择）
@@ -140,6 +141,10 @@ AUTH_DEMO_ENABLED=true
 5. 切换为 `Admin`，再次提交同一客户姓名问题，展示管理员查询成功。
 
 这条演示路径说明：Agent 不只会生成 SQL，还能在最终 SQL 执行前做角色级字段权限校验，并把阻断证据写入审计报告。
+
+### v1.0 权限策略外部化
+
+Data Permission Guard 从 `backend/app/security/data_permissions.yaml` 加载角色表/字段权限，并在执行前对需要行级隔离的角色自动注入 SQL 行过滤条件。比如 analyst 查询订单销售额时，后端会在最终 SQL 执行前加入区域范围过滤；审计报告只展示命中的规则 ID 和表名，不泄露完整策略表达式。
 
 ## 运行测试
 
@@ -228,6 +233,7 @@ data_analyst_agent/
 | `JWT_SECRET` | JWT 签名密钥（可选） | 留空=禁用认证 |
 | `API_KEYS` | 逗号分隔的 API Key（可选） | 留空=禁用 |
 | `AUTH_DEMO_ENABLED` | 本地演示角色登录开关 | `false` |
+| `DATA_PERMISSION_POLICY_PATH` | 数据权限策略 YAML 路径；留空使用默认策略 | 留空 |
 | `RATE_LIMIT_QUERY` | 查询端点限流 | `10/minute` |
 | `DATABASE_BACKEND` | 数据库后端 | 自动检测 |
 

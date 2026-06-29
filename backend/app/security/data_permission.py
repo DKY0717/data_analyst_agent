@@ -11,9 +11,13 @@ from sqlglot import exp
 
 from ..agents.audit import audit_report_builder
 from ..utils.logger import logger
-
-
-ALL_COLUMNS = "*"
+from .permission_policy import (
+    ALL_COLUMNS,
+    PermissionPolicyError,
+    PermissionPolicyLoader,
+    RowFilterPolicy,
+    TablePolicy,
+)
 
 
 @dataclass(frozen=True)
@@ -35,31 +39,8 @@ class DataPermissionResult:
     audit_events: list[dict[str, Any]]
     referenced_tables: list[str]
     referenced_columns: list[str]
-
-
-# 第一版采用内置 RBAC 策略，让项目不依赖外部 IAM 也能展示企业数据治理闭环。
-ROLE_POLICIES: dict[str, dict[str, set[str]]] = {
-    "admin": {
-        ALL_COLUMNS: {ALL_COLUMNS},
-    },
-    "analyst": {
-        "regions": {ALL_COLUMNS},
-        "customers": {"customer_id", "gender", "age", "region_id", "register_date"},
-        "categories": {ALL_COLUMNS},
-        "products": {ALL_COLUMNS},
-        "orders": {ALL_COLUMNS},
-        "order_items": {ALL_COLUMNS},
-        "payments": {"payment_id", "order_id", "payment_method", "payment_status", "paid_at"},
-        "refunds": {"refund_id", "order_id", "refund_reason", "refund_date"},
-    },
-    "support": {
-        "regions": {ALL_COLUMNS},
-        "categories": {ALL_COLUMNS},
-        "products": {ALL_COLUMNS},
-        "orders": {ALL_COLUMNS},
-        "order_items": {ALL_COLUMNS},
-    },
-}
+    authorized_sql: str
+    row_filters_applied: list[dict[str, Any]]
 
 
 class DataPermissionGuard:
@@ -110,7 +91,18 @@ class DataPermissionGuard:
                 details=column_error.get("details"),
             )
 
-        allowed_tables = self._allowed_tables(permission_user.roles)
+        try:
+            allowed_tables = self._allowed_tables(permission_user.roles)
+        except PermissionPolicyError as exc:
+            return self._blocked(
+                "权限策略加载失败",
+                "block_permission_policy_error",
+                permission_user,
+                referenced_tables,
+                referenced_columns,
+                details={"error_type": type(exc).__name__},
+            )
+
         for table in referenced_tables:
             if table not in allowed_tables and ALL_COLUMNS not in allowed_tables:
                 return self._blocked(
@@ -124,7 +116,8 @@ class DataPermissionGuard:
 
         for qualified_column in referenced_columns:
             table, column = qualified_column.split(".", 1)
-            allowed_columns = allowed_tables.get(table) or allowed_tables.get(ALL_COLUMNS)
+            table_policy = allowed_tables.get(table) or allowed_tables.get(ALL_COLUMNS)
+            allowed_columns = table_policy.columns if table_policy else None
             if allowed_columns is None or (
                 ALL_COLUMNS not in allowed_columns and column not in allowed_columns
             ):
@@ -137,7 +130,30 @@ class DataPermissionGuard:
                     details={"table": table, "column": column},
                 )
 
-        return self._allowed(permission_user, referenced_tables, referenced_columns)
+        authorized_sql, row_filters_applied, row_filter_error = self._apply_row_filters(
+            sql,
+            parsed,
+            referenced_tables,
+            table_aliases,
+            allowed_tables,
+        )
+        if row_filter_error:
+            return self._blocked(
+                row_filter_error["reason"],
+                row_filter_error["rule_id"],
+                permission_user,
+                referenced_tables,
+                referenced_columns,
+                details=row_filter_error.get("details"),
+            )
+
+        return self._allowed(
+            permission_user,
+            referenced_tables,
+            referenced_columns,
+            authorized_sql,
+            row_filters_applied,
+        )
 
     def _normalize_user(self, user: dict[str, Any] | PermissionUser | None) -> PermissionUser:
         """把 API 层传入的身份压缩成权限模块需要的最小形式。"""
@@ -165,12 +181,23 @@ class DataPermissionGuard:
             roles=roles,
         )
 
-    def _allowed_tables(self, roles: list[str]) -> dict[str, set[str]]:
+    def _allowed_tables(self, roles: list[str]) -> dict[str, TablePolicy]:
         """多个角色取权限并集；未知角色不授予任何隐式权限。"""
-        allowed: dict[str, set[str]] = {}
+        policy = PermissionPolicyLoader().load()
+        allowed: dict[str, TablePolicy] = {}
         for role in roles:
-            for table, columns in ROLE_POLICIES.get(role, {}).items():
-                allowed.setdefault(table, set()).update(columns)
+            role_policy = policy.roles.get(role)
+            if role_policy is None:
+                continue
+            for table, table_policy in role_policy.tables.items():
+                existing = allowed.get(table)
+                if existing is None:
+                    allowed[table] = table_policy
+                    continue
+                allowed[table] = TablePolicy(
+                    columns=set(existing.columns).union(table_policy.columns),
+                    row_filter=existing.row_filter or table_policy.row_filter,
+                )
         return allowed
 
     def _columns_by_table_from_schema(self, schema: dict[str, Any] | None) -> dict[str, set[str]]:
@@ -295,21 +322,116 @@ class DataPermissionGuard:
             return matches[0]
         return None
 
+    def _apply_row_filters(
+        self,
+        sql: str,
+        parsed: exp.Expression,
+        referenced_tables: list[str],
+        table_aliases: dict[str, str],
+        allowed_tables: dict[str, TablePolicy],
+    ) -> tuple[str, list[dict[str, Any]], dict[str, Any] | None]:
+        """对命中策略的表注入行级过滤；无法安全改写时 fail-closed。"""
+        filters: list[tuple[str, str, RowFilterPolicy]] = []
+        for table in referenced_tables:
+            table_policy = allowed_tables.get(table) or allowed_tables.get(ALL_COLUMNS)
+            if table_policy and table_policy.row_filter:
+                alias = self._alias_for_table(table, table_aliases)
+                if alias is None:
+                    return sql, [], {
+                        "rule_id": "block_row_filter_unsupported",
+                        "reason": f"无法安全应用行级权限过滤: {table}",
+                        "details": {"table": table},
+                    }
+                filters.append((table, alias, table_policy.row_filter))
+
+        if not filters:
+            return sql, [], None
+
+        try:
+            rewritten = parsed.copy()
+            for table, alias, row_filter in filters:
+                predicate = self._qualified_filter_expression(row_filter.expression, table, alias)
+                select_scope = self._select_scope_for_table(rewritten, table)
+                if select_scope is None:
+                    return sql, [], {
+                        "rule_id": "block_row_filter_unsupported",
+                        "reason": f"无法定位行级权限过滤作用域: {table}",
+                        "details": {"table": table},
+                    }
+                existing_where = select_scope.args.get("where")
+                if existing_where is None:
+                    select_scope.set("where", exp.Where(this=predicate))
+                else:
+                    select_scope.set(
+                        "where",
+                        exp.Where(this=exp.and_(existing_where.this, predicate)),
+                    )
+            applied = [
+                {"table": table, "rule_id": row_filter.rule_id}
+                for table, _, row_filter in filters
+            ]
+            return rewritten.sql(dialect="duckdb"), applied, None
+        except Exception as exc:
+            logger.warning("行级权限 SQL 改写失败")
+            return sql, [], {
+                "rule_id": "block_row_filter_unsupported",
+                "reason": "行级权限过滤无法安全应用",
+                "details": {"error_type": type(exc).__name__},
+            }
+
+    def _alias_for_table(self, table: str, table_aliases: dict[str, str]) -> str | None:
+        """返回 SQL 中用于引用该物理表的别名；无别名时返回表名。"""
+        for alias, physical_table in table_aliases.items():
+            if physical_table == table:
+                return alias
+        return table
+
+    def _select_scope_for_table(self, parsed: exp.Expression, table: str) -> exp.Select | None:
+        """定位读取目标表的 SELECT scope。"""
+        for select in parsed.find_all(exp.Select):
+            if any((candidate.name or "").lower() == table for candidate in select.find_all(exp.Table)):
+                return select
+        return parsed if isinstance(parsed, exp.Select) else None
+
+    def _qualified_filter_expression(self, expression: str, table: str, alias: str) -> exp.Expression:
+        """只限定行过滤表达式顶层目标表字段，保留子查询内部字段归属。"""
+        predicate = sqlglot.parse_one(expression, dialect="duckdb", into=exp.Condition)
+        for column in predicate.find_all(exp.Column):
+            if column.table or column.find_ancestor(exp.Select):
+                continue
+            if alias != table:
+                column.set("table", exp.to_identifier(alias))
+        return predicate
+
     def _allowed(
         self,
         user: PermissionUser,
         referenced_tables: list[str],
         referenced_columns: list[str],
+        authorized_sql: str,
+        row_filters_applied: list[dict[str, Any]],
     ) -> DataPermissionResult:
+        has_row_filters = bool(row_filters_applied)
         return DataPermissionResult(
             is_allowed=True,
             reason="SQL 通过数据权限检查",
             blocked_rule=None,
             audit_events=[
-                self._event("success", "SQL 通过数据权限检查", user, referenced_tables, referenced_columns)
+                self._event(
+                    "success",
+                    "SQL 通过数据权限检查",
+                    user,
+                    referenced_tables,
+                    referenced_columns,
+                    rule_id="row_filter_applied" if has_row_filters else None,
+                    row_filters_applied=row_filters_applied,
+                    authorized_sql_changed=has_row_filters,
+                )
             ],
             referenced_tables=referenced_tables,
             referenced_columns=referenced_columns,
+            authorized_sql=authorized_sql,
+            row_filters_applied=row_filters_applied,
         )
 
     def _blocked(
@@ -330,6 +452,8 @@ class DataPermissionGuard:
             ],
             referenced_tables=referenced_tables,
             referenced_columns=referenced_columns,
+            authorized_sql="",
+            row_filters_applied=[],
         )
 
     def _event(
@@ -341,6 +465,8 @@ class DataPermissionGuard:
         referenced_columns: list[str],
         rule_id: str | None = None,
         details: dict[str, Any] | None = None,
+        row_filters_applied: list[dict[str, Any]] | None = None,
+        authorized_sql_changed: bool = False,
     ) -> dict[str, Any]:
         """审计事件只记录决策证据，不泄露完整策略或凭证。"""
         event_details = {
@@ -349,6 +475,8 @@ class DataPermissionGuard:
             "roles": user.roles,
             "tables": referenced_tables,
             "columns_checked": referenced_columns,
+            "row_filters_applied": row_filters_applied or [],
+            "authorized_sql_changed": authorized_sql_changed,
         }
         event_details.update(details or {})
         return audit_report_builder.make_event(

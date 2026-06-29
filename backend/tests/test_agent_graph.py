@@ -257,6 +257,8 @@ class TestAgentGraphAuthorization:
             ],
             referenced_tables=["customers"],
             referenced_columns=["customers.customer_name"],
+            authorized_sql="",
+            row_filters_applied=[],
         )
 
         with patch("app.agents.graph.schema_loader") as mock_loader, \
@@ -323,6 +325,8 @@ class TestAgentGraphAuthorization:
             ],
             referenced_tables=["orders"],
             referenced_columns=["orders.total_amount"],
+            authorized_sql="SELECT SUM(total_amount) AS sales FROM orders LIMIT 1000",
+            row_filters_applied=[],
         )
 
         with patch("app.agents.graph.schema_loader") as mock_loader, \
@@ -356,6 +360,98 @@ class TestAgentGraphAuthorization:
         mock_runner.execute.assert_called_once_with(
             "SELECT SUM(total_amount) AS sales FROM orders LIMIT 1000"
         )
+
+    @pytest.mark.asyncio
+    async def test_permission_authorized_sql_replaces_validated_sql_before_execution(self):
+        graph = AgentGraph()
+        permission_result = DataPermissionResult(
+            is_allowed=True,
+            reason="SQL 通过数据权限检查",
+            blocked_rule=None,
+            audit_events=[
+                {
+                    "stage": "authorization",
+                    "action": "authorize_sql",
+                    "status": "success",
+                    "message": "SQL 通过数据权限检查",
+                    "rule_id": "row_filter_applied",
+                    "details": {
+                        "row_filters_applied": [
+                            {"table": "orders", "rule_id": "row_filter_region_scope"}
+                        ],
+                    },
+                }
+            ],
+            referenced_tables=["orders"],
+            referenced_columns=["orders.total_amount"],
+            authorized_sql=(
+                "SELECT SUM(total_amount) FROM orders "
+                "WHERE customer_id IN (SELECT customer_id FROM customers WHERE region_id IN (1, 2)) "
+                "LIMIT 1000"
+            ),
+            row_filters_applied=[{"table": "orders", "rule_id": "row_filter_region_scope"}],
+        )
+
+        with patch("app.agents.graph.intent_guard") as mock_intent, \
+             patch.object(graph.rule_parser, "parse") as mock_rule_parse, \
+             patch.object(graph.llm_parser, "parse", new_callable=AsyncMock) as mock_llm_parse, \
+             patch("app.agents.graph.schema_grounder") as mock_grounder, \
+             patch("app.agents.graph.clarification_engine") as mock_clarification, \
+             patch("app.agents.graph.schema_loader") as mock_schema, \
+             patch("app.agents.graph.sql_generator") as mock_generator, \
+             patch("app.agents.graph.sql_guard") as mock_guard, \
+             patch("app.agents.graph.data_permission_guard") as mock_permission, \
+             patch("app.agents.graph.query_runner") as mock_runner, \
+             patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
+             patch("app.agents.graph.answer_generator") as mock_answer:
+
+            mock_intent.validate.return_value = {
+                "is_safe": True,
+                "reason": None,
+                "rule_id": None,
+                "category": None,
+            }
+            mock_rule_parse.return_value = AnalysisIntent(question="统计销售额")
+            mock_llm_parse.side_effect = RuntimeError("skip llm")
+            mock_grounder.ground.return_value = {"schema_route": {"selected_tables": ["orders"]}}
+            mock_clarification.check.return_value = None
+            mock_schema.get_full_schema.return_value = {
+                "tables": {"orders": {"columns": [{"name": "total_amount"}]}}
+            }
+            mock_generator.generate = AsyncMock(return_value=SQLGeneratorOutput(
+                sql="SELECT SUM(total_amount) FROM orders",
+                tables=["orders"],
+                columns=["total_amount"],
+                explanation="sum",
+            ))
+            mock_guard.validate.return_value = {
+                "is_safe": True,
+                "sanitized_sql": "SELECT SUM(total_amount) FROM orders LIMIT 1000",
+                "reason": None,
+                "audit_events": [],
+                "limit_injected": True,
+            }
+            mock_permission.authorize.return_value = permission_result
+            mock_runner.execute.return_value = {
+                "success": True,
+                "columns": ["sales"],
+                "rows": [[100]],
+                "row_count": 1,
+                "execution_time_ms": 5,
+            }
+            mock_optimizer.optimize.return_value = []
+            mock_answer.generate = AsyncMock(return_value="销售额为 100")
+
+            result = await graph.run(
+                "统计销售额",
+                session_id="session-row-filter",
+                auth_user={"user_id": "demo:analyst", "auth_method": "jwt", "roles": ["analyst"]},
+            )
+
+        mock_runner.execute.assert_called_once_with(permission_result.authorized_sql)
+        assert result["validated_sql"] == permission_result.authorized_sql
+        assert result["audit_report"]["final_sql"] == permission_result.authorized_sql
+        assert result["audit_report"]["blocked_rules"] == []
 
     @pytest.mark.asyncio
     async def test_run_accepts_auth_user_and_includes_it_in_initial_state(self):

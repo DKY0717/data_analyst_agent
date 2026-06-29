@@ -1,0 +1,41 @@
+version: 1
+roles:
+  admin:
+    tables:
+      "*":
+        columns: ["*"]
+
+  analyst:
+    tables:
+      regions:
+        columns: ["*"]
+      customers:
+        columns: ["customer_id", "gender", "age", "region_id", "register_date"]
+      categories:
+        columns: ["*"]
+      products:
+        columns: ["*"]
+      orders:
+        columns: ["*"]
+        row_filter:
+          expression: "customer_id IN (SELECT customer_id FROM customers WHERE region_id IN (1, 2))"
+          rule_id: "row_filter_region_scope"
+      order_items:
+        columns: ["*"]
+      payments:
+        columns: ["payment_id", "order_id", "payment_method", "payment_status", "paid_at"]
+      refunds:
+        columns: ["refund_id", "order_id", "refund_reason", "refund_date"]
+
+  support:
+    tables:
+      regions:
+        columns: ["*"]
+      categories:
+        columns: ["*"]
+      products:
+        columns: ["*"]
+      orders:
+        columns: ["*"]
+      order_items:
+        columns: ["*"]

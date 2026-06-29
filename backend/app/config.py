@@ -44,6 +44,7 @@ class Settings:
     DEBUG: bool = _get_bool("DEBUG", False)
     # 演示登录只服务本地面试展示，默认关闭，避免生产环境暴露角色切换入口。
     AUTH_DEMO_ENABLED: bool = _get_bool("AUTH_DEMO_ENABLED", False)
+    DATA_PERMISSION_POLICY_PATH: str = os.getenv("DATA_PERMISSION_POLICY_PATH", "")
 
     # Database Configuration
     # 支持两种后端: duckdb (嵌入式) 或 postgresql (生产级)
