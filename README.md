@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 518 个测试、前端 48 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 527 个测试、前端 48 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 核心架构
 
@@ -158,10 +158,21 @@ python -m evaluation.permission_evaluator --json
 
 v1.2 起，GitHub Actions 会在基础 CI 中运行 deterministic permission evaluation；手动 Real Qwen 评测工作流也会把权限评测报告纳入 quality gate，确保权限决策、阻断规则、行级过滤和 SQL 改写预期都保持 100%。
 
+### v1.3 安全审计报告导出
+
+安全审计导出命令会把 Intent Guard、Schema Grounding、Data Permission Guard、可选真实评测报告和 quality gate 结果汇总为 JSON / Markdown 两份材料。默认模式不调用真实 LLM、不连接真实数据库，适合本地面试演示和版本交付审计：
+
+```bash
+cd backend
+python -m evaluation.security_audit_exporter --write-report
+```
+
+如果已经有真实评测报告，也可以把 `nl2sql-evaluation-*.json`、`sql-repair-evaluation-*.json`、`result-correctness-evaluation-*.json` 和 `quality-gate.json` 传入同一份审计报告。报告会明确区分“已验证通过”和“未提供真实评测输入”，避免把缺失输入误写成 0 分或通过。
+
 ## 运行测试
 
 ```bash
-# 后端测试（518 个）
+# 后端测试（527 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（48 个）
@@ -178,6 +189,9 @@ cd backend && python -m evaluation.evaluator
 
 # 数据权限评测（不调用 LLM，不连接真实数据库）
 cd backend && python -m evaluation.permission_evaluator --json
+
+# 安全审计报告导出（不调用 LLM，不连接真实数据库）
+cd backend && python -m evaluation.security_audit_exporter --write-report
 ```
 
 ## API 接口

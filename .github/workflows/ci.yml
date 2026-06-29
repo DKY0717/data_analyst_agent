@@ -133,58 +133,6 @@ jobs:
           PG_DATABASE: data_analyst_agent
         run: pytest backend/tests -q
 
-  nl2sql-evaluation:
-    name: NL2SQL Evaluation (Real Qwen)
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
-
-      - name: Install backend dependencies
-        run: pip install -r backend/requirements.txt
-
-      - name: Initialize evaluation database
-        env:
-          PYTHONPATH: backend
-        run: |
-          mkdir -p data logs
-          python -c "
-          import duckdb
-          from pathlib import Path
-          sql = open('database/init.sql').read()
-          db_path = str(Path('data/database.duckdb'))
-          conn = duckdb.connect(db_path)
-          conn.execute(sql)
-          conn.close()
-          print('Tables created.')
-          "
-          python -m database.seed_data
-
-      - name: Run NL2SQL evaluation
-        env:
-          PYTHONPATH: backend
-          QWEN_API_KEY: ${{ secrets.MIMO_API_KEY }}
-          QWEN_API_URL: https://token-plan-cn.xiaomimimo.com/v1/chat/completions
-          QWEN_MODEL: mimo-v2.5-pro
-        run: python -m evaluation.evaluator
-
-      - name: Upload evaluation report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nl2sql-evaluation-report
-          path: backend/evaluation/reports/
-
   frontend-build:
     name: Frontend production build
     runs-on: ubuntu-latest
