@@ -63,6 +63,11 @@ jobs:
           PYTHONPATH: backend
         run: python -m evaluation.intent_grounding_evaluator
 
+      - name: Run deterministic permission evaluation
+        env:
+          PYTHONPATH: backend
+        run: python -m evaluation.permission_evaluator --json
+
   backend-tests-pg:
     name: Backend tests (PostgreSQL)
     runs-on: ubuntu-latest

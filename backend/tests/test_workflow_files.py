@@ -38,6 +38,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert "pytest backend/tests -q" in commands
     assert "python -m evaluation.intent_evaluator" in commands
     assert "python -m evaluation.intent_grounding_evaluator" in commands
+    assert "python -m evaluation.permission_evaluator --json" in commands
     assert "npm ci" in commands
     assert "npm run build" in commands
     assert "git ls-files -z" in commands
@@ -57,6 +58,7 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
         "python -m evaluation.repair_evaluator",
         "python -m evaluation.result_correctness_evaluator",
         "python -m evaluation.intent_grounding_evaluator",
+        "python -m evaluation.permission_evaluator",
         "python -m evaluation.quality_gate",
     }
     evaluation_steps = [
@@ -85,9 +87,12 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert "python -m evaluation.repair_evaluator" in commands
     assert "python -m evaluation.result_correctness_evaluator" in commands
     assert "python -m evaluation.intent_grounding_evaluator" in commands
+    assert "python -m evaluation.permission_evaluator --write-report" in commands
     assert "python -m evaluation.quality_gate" in commands
     assert "--correctness-report" in commands
     assert "--intent-grounding-report" in commands
+    assert "--permission-report" in commands
+    assert "PERMISSION_REPORT=" in commands
     assert "python -m scripts.prepare_evaluation_database" in commands
     assert commands.index("python -m scripts.prepare_evaluation_database") < commands.index(
         "python -m evaluation.evaluator"
@@ -100,6 +105,9 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     ) < commands.index("python -m evaluation.intent_grounding_evaluator")
     assert commands.index(
         "python -m evaluation.intent_grounding_evaluator"
+    ) < commands.index("python -m evaluation.permission_evaluator")
+    assert commands.index(
+        "python -m evaluation.permission_evaluator"
     ) < commands.index("python -m evaluation.quality_gate")
     # runner.temp 在 job 级 env 尚不可用；报告目录必须等 runner 分配后在 step 级注入。
     assert "EVALUATION_REPORT_DIR" not in job.get("env", {})
