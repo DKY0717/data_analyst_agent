@@ -1517,7 +1517,11 @@
 ### 当前进度
 
 - ✅ v1.3 设计规格已提交。
-- ⏳ 等待用户确认设计后，进入实施计划编写。
+- ✅ v1.3 实施计划已提交：`9ea9cb5`。
+- ✅ CI 红灯已修复：`9de12e3`，基础 CI 不再依赖真实 LLM Secret。
+- ✅ 安全审计报告 writer 已实现：`32e65fe`。
+- ✅ 确定性安全审计 builder 已实现：`9770372`。
+- ✅ 安全审计导出 CLI 已实现：`fcf37c4`。
 - ⚠️ 复查 `main@28f15b7` 远端 CI：基础后端、PostgreSQL、前端 build、secret scan 通过；`NL2SQL Evaluation (Real Qwen)` 失败。
 
 ### 验证
@@ -1528,11 +1532,8 @@
 
 ### 下一步
 
-- 用户确认规格后，使用 writing-plans 编写 v1.3 实施计划。
-- 实施时按 TDD 新增 `security_audit_exporter` 与 `security_audit_report_writer`。
-- 先决定 CI 处理方式：
-  - 更新 GitHub Secret / 供应商配置；或
-  - 将基础 CI 中的真实 NL2SQL evaluation 迁移为手动 Real Qwen workflow，避免 main push 被外部 API Key 状态阻断。
+- 完成 README 更新与最终验证。
+- 合并 v1.3 到 `main` 后推送，触发新的基础 CI 验证。
 
 ### CI 修复补充
 
@@ -1543,3 +1544,35 @@
   - `pytest tests/test_workflow_files.py -q`：2 passed。
   - `pytest tests/test_workflow_files.py tests/test_quality_gate.py -q`：30 passed。
   - `git diff --check`：通过。
+
+### 实现补充
+
+- 新增 `backend/evaluation/security_audit_report_writer.py`：
+  - 输出 `security-audit-*.json` 和 `security-audit-*.md`。
+  - Markdown 只渲染白名单指标，避免泄露完整策略表达式和密钥形态。
+- 新增 `backend/evaluation/security_audit_exporter.py`：
+  - 默认运行 Intent / Intent Grounding / Data Permission 确定性评测。
+  - 可选读取 NL2SQL、SQL Repair、结果正确性和 quality gate JSON 报告。
+  - 支持 `--json`、`--write-report`、`--output-dir`、`--timestamp`、`--fail-on-missing-real-reports`。
+- README 增加 v1.3 使用命令和面试用途说明。
+
+### 当前验证
+
+- `pytest tests/test_security_audit_report_writer.py -q`：2 passed。
+- `pytest tests/test_security_audit_exporter.py::test_build_security_audit_report_without_real_reports_marks_missing_inputs tests/test_security_audit_exporter.py::test_build_security_audit_report_marks_permission_failure -q`：2 passed。
+- `pytest tests/test_security_audit_exporter.py tests/test_security_audit_report_writer.py -q`：9 passed。
+- `python -m evaluation.security_audit_exporter --json`：退出码 0，输出完整 JSON。
+
+### 最终验证
+
+- `pytest tests/test_security_audit_exporter.py tests/test_security_audit_report_writer.py -q`：9 passed。
+- `pytest tests/test_permission_evaluator.py tests/test_quality_gate.py tests/test_workflow_files.py -q`：33 passed。
+- `pytest -q`：527 passed，1 个既有 Starlette/TestClient deprecation warning。
+- 占位符扫描：无命中。
+- Secret Scan：324 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 下一步
+
+- 合并 v1.3 到 `main` 并推送。
+- 推送后复查新的基础 CI，确认不再因真实 LLM API Key 导致 push CI 失败。
