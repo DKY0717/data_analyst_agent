@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 65 条评测用例** — 后端 492 个测试、前端 47 个单元测试、16 个 E2E 测试、65 条结构化评测用例覆盖 11 个类别。
+**500+ 测试 + 65 条评测用例** — 后端 492 个测试、前端 47 个单元测试、17 个 E2E 测试、65 条结构化评测用例覆盖 11 个类别。
 
 ## 核心架构
 
@@ -131,6 +131,16 @@ AUTH_DEMO_ENABLED=true
 
 前端顶部身份条支持 `admin`、`analyst`、`support` 三种演示身份。普通查询和 SSE 查询都会携带 `Authorization: Bearer <token>`，权限阻断会在安全审计面板中展示身份摘要、authorization 事件和阻断规则。
 
+#### 30 秒面试演示路径
+
+1. 在顶部身份条点击 `Analyst`，确认当前身份显示为 `demo:analyst`。
+2. 提交 `统计 2024 年每个月的销售额`，展示分析结果正常返回。
+3. 提交 `列出客户姓名和注册日期`，展示请求被数据权限策略阻断。
+4. 打开右侧安全审计，指出 `demo:analyst`、`authorization blocked` 和 `block_unauthorized_column`。
+5. 切换为 `Admin`，再次提交同一客户姓名问题，展示管理员查询成功。
+
+这条演示路径说明：Agent 不只会生成 SQL，还能在最终 SQL 执行前做角色级字段权限校验，并把阻断证据写入审计报告。
+
 ## 运行测试
 
 ```bash
@@ -140,8 +150,11 @@ cd backend && python -m pytest -q
 # 前端单元测试（47 个）
 cd frontend && npm run test
 
-# E2E 测试（16 个）
+# E2E 测试（17 个）
 cd frontend && npm run test:e2e
+
+# 权限演示 E2E（Mock 后端响应，不依赖真实 LLM）
+cd frontend && npm run test:e2e -- permission-demo.spec.js
 
 # 评测用例
 cd backend && python -m evaluation.evaluator
