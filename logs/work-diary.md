@@ -1533,3 +1533,13 @@
 - 先决定 CI 处理方式：
   - 更新 GitHub Secret / 供应商配置；或
   - 将基础 CI 中的真实 NL2SQL evaluation 迁移为手动 Real Qwen workflow，避免 main push 被外部 API Key 状态阻断。
+
+### CI 修复补充
+
+- 用户确认采用第二种方式：基础 CI 不再运行真实模型评测，真实 Qwen 评测统一保留在手动 `real-qwen-evaluation.yml`。
+- TDD RED：更新 `backend/tests/test_workflow_files.py` 后，`pytest tests/test_workflow_files.py -q` 先失败，指出 `ci.yml` 仍包含 `nl2sql-evaluation` job。
+- 修复：移除 `.github/workflows/ci.yml` 中 push 必跑的 `NL2SQL Evaluation (Real Qwen)` job，并断言基础 CI 不再引用 `MIMO_API_KEY`、`secrets.QWEN_API_KEY` 或 `python -m evaluation.evaluator`。
+- 验证：
+  - `pytest tests/test_workflow_files.py -q`：2 passed。
+  - `pytest tests/test_workflow_files.py tests/test_quality_gate.py -q`：30 passed。
+  - `git diff --check`：通过。
