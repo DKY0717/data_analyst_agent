@@ -1,6 +1,9 @@
+import json
+
 from evaluation.permission_evaluator import (
     PermissionEvaluationCase,
     PermissionEvaluationRunner,
+    main,
 )
 
 
@@ -43,3 +46,28 @@ def test_permission_evaluator_records_mismatch_without_policy_dump(monkeypatch):
     assert result["actual_blocked_rule"] == "block_unauthorized_column"
     assert result["error_type"] is None
     assert "ROLE_POLICIES" not in repr(report)
+
+
+def test_permission_evaluator_cli_writes_reports(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("DATA_PERMISSION_POLICY_PATH", raising=False)
+
+    exit_code = main([
+        "--write-report",
+        "--output-dir",
+        str(tmp_path),
+        "--timestamp",
+        "ci-permission",
+    ])
+
+    assert exit_code == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["passed"] is True
+    json_path = tmp_path / "permission-evaluation-ci-permission.json"
+    markdown_path = tmp_path / "permission-evaluation-ci-permission.md"
+    assert json_path.exists()
+    assert markdown_path.exists()
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    markdown = markdown_path.read_text(encoding="utf-8")
+    assert payload["summary"]["allowed_decision_accuracy"] == 1.0
+    assert "# 数据权限评测报告" in markdown
+    assert "SELECT customer_id FROM customers" not in markdown

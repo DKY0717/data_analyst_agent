@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from app.security.data_permission import DataPermissionGuard
+from evaluation.permission_report_writer import PermissionReportWriter
 
 
 @dataclass(frozen=True)
@@ -273,8 +274,14 @@ class PermissionEvaluationRunner:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run deterministic permission evaluation")
     parser.add_argument("--json", action="store_true", help="print full JSON report")
+    parser.add_argument("--write-report", action="store_true", help="write JSON and Markdown reports")
+    parser.add_argument("--output-dir", help="directory for written reports")
+    parser.add_argument("--timestamp", help="timestamp suffix for written reports")
     args = parser.parse_args(argv)
     report = PermissionEvaluationRunner().evaluate_all()
+    if args.write_report:
+        # CI 需要持久化机器可读和面试可读报告，输出目录遵循现有 evaluation writer 规则。
+        PermissionReportWriter(output_dir=args.output_dir, timestamp=args.timestamp).write(report)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
