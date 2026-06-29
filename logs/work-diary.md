@@ -1499,3 +1499,32 @@
 ### 下一步
 
 - 可继续做安全审计报告导出命令或前端审计面板增强。
+
+---
+
+## 2026-06-29 — v1.3 安全审计报告导出设计
+
+### 完成的工作
+
+- 确认下一步路线：v1.3 安全审计报告导出 → v1.4 前端审计面板增强 → v1.5 面试包装文档。
+- 创建分支 `codex/v1.3-security-audit-export`。
+- 新增设计规格：`docs/superpowers/specs/2026-06-29-v1.3-security-audit-export-design.md`。
+- 设计采用“确定性现跑 + 可选外部报告输入”：
+  - 默认运行 Intent / Intent Grounding / Data Permission 确定性评测。
+  - 可选聚合 NL2SQL、SQL Repair、结果正确性和 quality gate JSON 报告。
+  - 缺失真实评测输入时明确标记为未提供，不把缺失误写成失败或成功。
+
+### 当前进度
+
+- ✅ v1.3 设计规格已提交。
+- ⏳ 等待用户确认设计后，进入实施计划编写。
+
+### 验证
+
+- 规格占位符扫描：无命中。
+- `git diff --check`：通过。
+
+### 下一步
+
+- 用户确认规格后，使用 writing-plans 编写 v1.3 实施计划。
+- 实施时按 TDD 新增 `security_audit_exporter` 与 `security_audit_report_writer`。
