@@ -18,17 +18,18 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: [
+  webServer: process.env.E2E_MANAGED_SERVERS === '1' ? undefined : [
     {
-      command: 'cd ../backend && python -m uvicorn app.main:app --port 8001',
+      command: 'python -m uvicorn app.main:app --port 8001',
+      cwd: '../backend',
       port: 8001,
-      reuseExistingServer: true,
+      reuseExistingServer: false,
       timeout: 30000,
     },
     {
       command: 'npm run dev',
       port: 3000,
-      reuseExistingServer: true,
+      reuseExistingServer: false,
       timeout: 30000,
     },
   ],

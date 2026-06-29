@@ -13,13 +13,15 @@ test.describe('Data Analyst Agent - 页面基础', () => {
 
   test('左侧栏包含输入框、示例问题、历史面板、Schema 面板', async ({ page }) => {
     await expect(page.locator('.query-card')).toBeVisible()
-    await expect(page.locator('.chip-list')).toBeVisible()
-    await expect(page.locator('.compact-panel').first()).toBeVisible()
+    const panels = page.locator('.left-column .compact-panel')
+    await expect(panels.nth(0).locator('.chip-list')).toBeVisible()
+    await expect(panels.nth(2)).toBeVisible()
   })
 
-  test('示例问题展示 12 条', async ({ page }) => {
-    const chips = page.locator('.question-chip')
-    await expect(chips).toHaveCount(12)
+  test('普通示例问题展示 12 条，权限演示问题展示 4 条', async ({ page }) => {
+    const panels = page.locator('.left-column .compact-panel')
+    await expect(panels.nth(0).locator('.question-chip')).toHaveCount(12)
+    await expect(panels.nth(1).locator('.question-chip')).toHaveCount(4)
   })
 
   test('初始状态显示空结果提示', async ({ page }) => {
