@@ -73,6 +73,8 @@ class Settings:
     SQL_TIMEOUT: int = _get_int("SQL_TIMEOUT", 30)
     SQL_MAX_ROWS: int = _get_int("SQL_MAX_ROWS", 1000)
     SQL_MAX_RETRIES: int = _get_int("SQL_MAX_RETRIES", 3)
+    # 生产可打开子进程沙箱隔离 SQL 执行；默认关闭，保留本地开发和测试的简单路径。
+    SANDBOX_MODE: bool = _get_bool("SANDBOX_MODE", False)
 
     # Logging Configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

@@ -264,6 +264,7 @@ data_analyst_agent/
 | `SQL_TIMEOUT` | 查询超时（秒） | `30` |
 | `SQL_MAX_ROWS` | 最大返回行数 | `1000` |
 | `SQL_MAX_RETRIES` | SQL 修复最大重试 | `3` |
+| `SANDBOX_MODE` | SQL 执行子进程沙箱开关 | `false` |
 | `JWT_SECRET` | JWT 签名密钥（可选） | 留空=禁用认证 |
 | `API_KEYS` | 逗号分隔的 API Key（可选） | 留空=禁用 |
 | `AUTH_DEMO_ENABLED` | 本地演示角色登录开关 | `false` |

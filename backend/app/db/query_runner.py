@@ -20,9 +20,9 @@ class QueryRunner:
     - false: 直接模式，在主进程中执行（开发调试）
     """
 
-    def __init__(self, timeout: int = None, sandbox: bool = False):
+    def __init__(self, timeout: int = None, sandbox: bool | None = None):
         self.timeout = timeout or settings.SQL_TIMEOUT
-        self.sandbox = sandbox
+        self.sandbox = settings.SANDBOX_MODE if sandbox is None else sandbox
 
     def execute(self, sql: str) -> Dict[str, Any]:
         """执行SQL查询"""
