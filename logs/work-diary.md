@@ -1576,3 +1576,40 @@
 
 - 合并 v1.3 到 `main` 并推送。
 - 推送后复查新的基础 CI，确认不再因真实 LLM API Key 导致 push CI 失败。
+
+---
+
+## 2026-06-29 — v1.4 前端权限审计面板增强设计
+
+### 完成的工作
+
+- 创建分支 `codex/v1.4-permission-audit-panel`。
+- 确认后端 `audit_report.permission_observability` 已稳定提供权限检查摘要。
+- 抽查现有 `AuditPanel.vue`、组件单测和权限演示 E2E。
+- 新增设计规格：`docs/superpowers/specs/2026-06-29-v1.4-permission-audit-panel-design.md`。
+- 设计范围聚焦前端展示，不改动后端 AgentGraph，不展示完整权限策略表达式。
+
+### 当前进度
+
+- ✅ v1.4 设计规格已完成。
+- ✅ v1.4 TDD 实施计划已完成。
+- ⏳ 下一步按计划进入组件与 E2E 实现。
+
+### 下一步
+
+- 按 TDD 更新 `AuditPanel` 组件测试、组件实现、权限演示 E2E 和 README。
+
+### 实现补充
+
+- `AuditPanel.vue` 新增“数据权限”证据区，展示权限检查、允许/阻断、SQL 改写、引用表/字段、行级过滤规则和阻断规则。
+- 组件单测覆盖 analyst 行级过滤允许、analyst 越权字段阻断和缺省权限摘要兼容。
+- 权限演示 E2E mock 已覆盖 analyst 行级过滤、analyst 越权阻断和 admin 允许查询。
+- README 30 秒演示脚本增加权限摘要观察点。
+
+### 最终验证
+
+- `npm run test -- tests/components/AuditPanel.test.js`：5 passed。
+- `npm run test`：51 passed。
+- `npm run test:e2e -- permission-demo.spec.js`：1 passed。
+- `npm run build`：通过，保留既有 Rollup PURE 注释 warning 和 chunk size warning。
+- `git diff --check`：通过。
