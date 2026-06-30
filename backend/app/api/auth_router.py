@@ -14,6 +14,11 @@ class DemoLoginRequest(BaseModel):
     role: str
 
 
+class PasswordLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 DEMO_ROLES = {"admin", "analyst", "support"}
 
 
@@ -50,7 +55,7 @@ async def demo_login(request: DemoLoginRequest):
 
 
 @router.post("/api/auth/login")
-async def login(username: str, password: str):
+async def login(request: PasswordLoginRequest):
     if not settings.AUTH_PASSWORD_LOGIN_ENABLED:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="密码登录未启用")
 
@@ -60,9 +65,9 @@ async def login(username: str, password: str):
             detail="管理员账号未配置，无法启用密码登录",
         )
 
-    if username == settings.AUTH_ADMIN_USERNAME and password == settings.AUTH_ADMIN_PASSWORD:
+    if request.username == settings.AUTH_ADMIN_USERNAME and request.password == settings.AUTH_ADMIN_PASSWORD:
         try:
-            token_data = create_jwt_token(user_id=username, roles=["admin", "user"])
+            token_data = create_jwt_token(user_id=request.username, roles=["admin", "user"])
         except HTTPException as exc:
             if exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR:
                 raise HTTPException(

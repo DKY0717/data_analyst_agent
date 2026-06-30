@@ -1703,3 +1703,5 @@
 - 当前真实后端测试收集数更新为 `540 tests collected`，README 和 `docs/interview_guide.md` 已同步。
 - RED：新增认证/限流测试后曾出现 7 个预期失败，覆盖凭证片段泄露、JWT 前缀碰撞和缺失配置项。
 - GREEN：`pytest backend/tests/test_rate_limit.py backend/tests/test_auth.py backend/tests/test_query_api.py backend/tests/test_project_docs_consistency.py -q`：47 passed，1 个既有 Starlette/TestClient warning。
+- 继续发现 `/api/auth/login` 原签名会从 query string 接收用户名和密码，存在凭证进入 URL/访问日志的风险；已改为 `PasswordLoginRequest` JSON body，并新增 query string 凭证拒绝测试。
+- GREEN：`pytest backend/tests/test_auth.py::TestPasswordLoginEndpoint -q`：5 passed，1 个既有 Starlette/TestClient warning；后端测试数同步为 `541`。

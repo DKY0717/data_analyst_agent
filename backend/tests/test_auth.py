@@ -180,7 +180,7 @@ class TestPasswordLoginEndpoint:
         with patch("app.api.auth_router.settings.AUTH_PASSWORD_LOGIN_ENABLED", False):
             response = client.post(
                 "/api/auth/login",
-                params={"username": "admin", "password": "admin123"},
+                json={"username": "admin", "password": "admin123"},
             )
 
         assert response.status_code == 404
@@ -194,7 +194,7 @@ class TestPasswordLoginEndpoint:
              patch("app.security.auth.JWT_SECRET", "test-secret"):
             response = client.post(
                 "/api/auth/login",
-                params={"username": "admin", "password": "admin123"},
+                json={"username": "admin", "password": "admin123"},
             )
 
         assert response.status_code == 401
@@ -208,7 +208,7 @@ class TestPasswordLoginEndpoint:
              patch("app.security.auth.JWT_SECRET", ""):
             response = client.post(
                 "/api/auth/login",
-                params={"username": "owner", "password": "private-pass"},
+                json={"username": "owner", "password": "private-pass"},
             )
 
         assert response.status_code == 503
@@ -223,7 +223,7 @@ class TestPasswordLoginEndpoint:
              patch("app.security.auth.JWT_SECRET", "test-secret"):
             response = client.post(
                 "/api/auth/login",
-                params={"username": "owner", "password": "private-pass"},
+                json={"username": "owner", "password": "private-pass"},
             )
 
         assert response.status_code == 200
@@ -231,3 +231,17 @@ class TestPasswordLoginEndpoint:
         assert payload["token_type"] == "bearer"
         assert payload["access_token"]
         assert "private-pass" not in response.text
+
+    def test_password_login_rejects_query_string_credentials(self):
+        client = TestClient(app)
+
+        with patch("app.api.auth_router.settings.AUTH_PASSWORD_LOGIN_ENABLED", True), \
+             patch("app.api.auth_router.settings.AUTH_ADMIN_USERNAME", "owner"), \
+             patch("app.api.auth_router.settings.AUTH_ADMIN_PASSWORD", "private-pass"), \
+             patch("app.security.auth.JWT_SECRET", "test-secret"):
+            response = client.post(
+                "/api/auth/login",
+                params={"username": "owner", "password": "private-pass"},
+            )
+
+        assert response.status_code == 422
