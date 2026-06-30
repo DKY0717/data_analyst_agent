@@ -1741,3 +1741,28 @@
 
 - 提交并推送 runtime readiness 改动，等待 GitHub Actions 回归。
 - 后续继续看生产暴露面：`/health/ab-tests` 写入端点未鉴权、监控端点暴露范围、CORS 默认策略等。
+
+### 管理写端点鉴权补充
+
+- 发现 `POST /health/ab-tests` 是运行时写操作，会注册 A/B 测试配置，但此前与只读 health/metrics 端点一样没有鉴权依赖。
+- 新增 `require_management_user()`：本地未启用认证时保持开发放行；认证启用后只允许 admin JWT 或 API Key 调用管理写操作，普通 analyst/support JWT 返回 403。
+- `POST /health/ab-tests` 接入管理权限依赖；`/health` 和 `/health/readiness` 继续公开，避免破坏 Docker/K8s 探针。
+- README API 表补充 cache、metrics、A/B test 端点，并明确 `POST /health/ab-tests` 在认证启用时需要 admin JWT 或 API Key。
+- 新增测试覆盖：认证启用后匿名创建 A/B test 返回 401，analyst JWT 返回 403，admin JWT 和 API Key 可以创建。
+- README 和面试稿测试数同步为 `551`。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_health.py -q` 曾出现 2 个预期失败，证明匿名/analyst 仍可写 A/B test。
+- GREEN：`pytest backend/tests/test_health.py backend/tests/test_auth.py backend/tests/test_project_docs_consistency.py -q`：35 passed，1 个既有 Starlette/TestClient warning。
+- 后端全量：`pytest backend/tests -q`：551 passed，1 个既有 Starlette/TestClient warning。
+- 测试收集：`pytest backend/tests --collect-only -q`：551 tests collected。
+- 前端单测：`npm run test`：10 files / 53 passed。
+- 前端构建：`npm run build`：通过，仅保留第三方 `@vueuse/core` PURE 注释 warning。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：333 tracked files 通过。
+
+### 下一步
+
+- 提交并推送管理写端点鉴权改动，等待 GitHub Actions。
+- 继续审计剩余生产暴露面：只读监控端点是否需要可配置鉴权、CORS 默认策略、A/B test payload 输入校验。

@@ -163,3 +163,23 @@ async def get_optional_user(
         return None
 
     return None
+
+
+async def require_management_user(
+    current_user: AuthUser | None = Depends(get_current_user),
+) -> AuthUser | None:
+    """管理类写操作依赖：本地免认证时放行，生产认证开启后只允许管理员或 API Key。"""
+    if current_user is None:
+        return None
+
+    # API Key 视为后端到后端的机器凭证，用于 CI、监控或运维脚本调用管理接口。
+    if current_user.auth_method == "api_key":
+        return current_user
+
+    if "admin" in current_user.roles:
+        return current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="需要管理员权限",
+    )

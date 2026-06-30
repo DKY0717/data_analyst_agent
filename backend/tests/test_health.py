@@ -1,6 +1,9 @@
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.security.auth import create_jwt_token
 
 
 def test_readiness_checks_database():
@@ -34,3 +37,73 @@ def test_readiness_failure_hides_database_error(monkeypatch):
     assert response.status_code == 503
     assert response.json()["detail"] == "服务未就绪"
     assert "private" not in response.text
+
+
+def make_ab_test_payload(test_id: str = "prompt_test"):
+    # 使用完整的 A/B 测试 payload，确保测试覆盖真实管理写入接口。
+    return {
+        "test_id": test_id,
+        "description": "compare prompt variants",
+        "variants": [
+            {"name": "control", "prompt_name": "generate_sql", "prompt_version": 1, "weight": 1.0},
+            {"name": "treatment", "prompt_name": "generate_sql", "prompt_version": 2, "weight": 1.0},
+        ],
+    }
+
+
+def test_create_ab_test_requires_credentials_when_auth_enabled():
+    client = TestClient(app)
+
+    # 认证开启后，运行时配置写入口不能再匿名调用。
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        response = client.post("/health/ab-tests", json=make_ab_test_payload())
+
+    assert response.status_code == 401
+
+
+def test_create_ab_test_rejects_non_admin_jwt_when_auth_enabled():
+    client = TestClient(app)
+
+    # 普通分析员身份只能查询数据，不能修改 A/B 测试运行时配置。
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        token = create_jwt_token("demo:analyst", ["analyst"])["access_token"]
+        response = client.post(
+            "/health/ab-tests",
+            json=make_ab_test_payload(),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 403
+
+
+def test_create_ab_test_accepts_admin_jwt_when_auth_enabled():
+    client = TestClient(app)
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        token = create_jwt_token("demo:admin", ["admin"])["access_token"]
+        response = client.post(
+            "/health/ab-tests",
+            json=make_ab_test_payload("admin_prompt_test"),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["test_id"] == "admin_prompt_test"
+
+
+def test_create_ab_test_accepts_api_key_when_auth_enabled():
+    import app.security.auth as auth_mod
+
+    client = TestClient(app)
+
+    # API Key 作为机器凭证保留给 CI、监控或运维脚本使用。
+    with patch("app.security.auth.API_KEYS_RAW", "sk-management-key"):
+        auth_mod._api_keys = {}
+        response = client.post(
+            "/health/ab-tests",
+            json=make_ab_test_payload("api_key_prompt_test"),
+            headers={"X-API-Key": "sk-management-key"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["test_id"] == "api_key_prompt_test"

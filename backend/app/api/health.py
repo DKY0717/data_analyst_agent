@@ -2,15 +2,15 @@
 # 提供 /health、/health/cache、/health/metrics、/health/ab-tests 端点
 
 import time
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from ..models.schemas import SuccessResponse
 from ..services.query_cache import query_cache
 from ..services.prompt_registry import prompt_registry
 from ..services.ab_test import ab_test_registry, ABTest, ABTestVariant
-from ..agents.session_store import session_store
 from ..db.connection import db_connection
+from ..security.auth import AuthUser, require_management_user
 
 router = APIRouter()
 
@@ -105,7 +105,10 @@ async def list_ab_tests():
 
 
 @router.post("/health/ab-tests", response_model=SuccessResponse)
-async def create_ab_test(request: ABTestCreateRequest):
+async def create_ab_test(
+    request: ABTestCreateRequest,
+    _: AuthUser | None = Depends(require_management_user),
+):
     """创建一个 A/B 测试"""
     variants = []
     for v in request.variants:

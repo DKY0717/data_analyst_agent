@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（547 个）" in readme
-    assert "tests/             # 547 个测试" in readme
+    assert "后端测试（551 个）" in readme
+    assert "tests/             # 551 个测试" in readme
+    assert "后端测试（547 个）" not in readme
     assert "后端测试（546 个）" not in readme
     assert "后端测试（544 个）" not in readme
     assert "后端测试（543 个）" not in readme
@@ -78,8 +79,11 @@ def test_llm_service_header_matches_openai_compatible_default():
 def test_readiness_endpoint_is_documented_and_used_by_docker_healthcheck():
     readme = read_text("README.md")
     docker_compose = read_text("docker-compose.yml")
+    health_api = read_text("backend/app/api/health.py")
 
     assert "| GET | `/health` | 存活检查 |" in readme
     assert "| GET | `/health/readiness` | 就绪检查（验证数据库连接） |" in readme
+    assert "| POST | `/health/ab-tests` | 创建 A/B 测试（启用认证时需 admin JWT 或 API Key） |" in readme
     assert "http://localhost:8000/health/readiness" in docker_compose
     assert "condition: service_healthy" in docker_compose
+    assert "require_management_user" in health_api
