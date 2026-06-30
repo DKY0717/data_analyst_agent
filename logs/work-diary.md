@@ -1790,3 +1790,28 @@
 
 - 提交并推送 A/B test 输入契约修复，等待 GitHub Actions。
 - 继续审计 CORS 默认策略和只读监控端点暴露范围。
+
+### CORS 默认策略补充
+
+- 发现 `backend/app/main.py` 使用 `allow_origins=["*"]`，本地开发方便但生产语义过松，面试中容易被追问。
+- 新增 `CORS_ALLOW_ORIGINS` 配置，默认只允许本地前端来源：`localhost/127.0.0.1:3000` 和 `localhost/127.0.0.1:5173`。
+- `CORSMiddleware` 改为读取 `settings.CORS_ALLOW_ORIGINS`，不再默认 wildcard。
+- `.env.example` 和 README 环境变量表补充 CORS 白名单说明，生产部署应配置真实前端域名。
+- 一致性测试锁定：README、`.env.example`、`config.py`、`main.py` 都必须保留 CORS 配置契约，且 main 不能回到 `allow_origins=["*"]`。
+- README 和面试稿测试数同步为 `553`。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_project_docs_consistency.py::test_cors_defaults_are_localhost_only_and_documented -q` 曾失败，证明 CORS 契约缺失。
+- GREEN：`pytest backend/tests/test_project_docs_consistency.py backend/tests/test_health.py -q`：15 passed，1 个既有 Starlette/TestClient warning。
+- 后端全量：`pytest backend/tests -q`：553 passed，1 个既有 Starlette/TestClient warning。
+- 测试收集：`pytest backend/tests --collect-only -q`：553 tests collected。
+- 前端单测：`npm run test`：10 files / 53 passed。
+- 前端构建：`npm run build`：通过，仅保留第三方 `@vueuse/core` PURE 注释 warning。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：333 tracked files 通过。
+
+### 下一步
+
+- 提交并推送 CORS 默认策略改动，等待 GitHub Actions。
+- 继续审计只读监控端点暴露范围、Vite proxy 端口与 README/AGENTS 的一致性。

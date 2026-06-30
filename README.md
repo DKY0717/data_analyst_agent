@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 552 个测试、前端 53 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 553 个测试、前端 53 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -177,7 +177,7 @@ python -m evaluation.security_audit_exporter --write-report
 ## 运行测试
 
 ```bash
-# 后端测试（552 个）
+# 后端测试（553 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（53 个）
@@ -243,7 +243,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 552 个测试
+│   └── tests/             # 553 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
@@ -275,6 +275,7 @@ data_analyst_agent/
 | `AUTH_DEMO_ENABLED` | 本地演示角色登录开关 | `false` |
 | `AUTH_PASSWORD_LOGIN_ENABLED` | 密码登录开关 | `false` |
 | `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD` | 密码登录管理员账号 | 空 |
+| `CORS_ALLOW_ORIGINS` | 逗号分隔的前端来源白名单 | 本地前端地址 |
 | `DATA_PERMISSION_POLICY_PATH` | 数据权限策略 YAML 路径；留空使用默认策略 | 留空 |
 | `RATE_LIMIT_QUERY` | 查询端点限流 | `10/minute` |
 | `DATABASE_BACKEND` | 数据库后端 | 自动检测 |

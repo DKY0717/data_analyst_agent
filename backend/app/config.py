@@ -21,6 +21,14 @@ def _get_bool(env_key: str, default: bool) -> bool:
     return val in ("true", "1", "yes", "on")
 
 
+def _get_csv_list(env_key: str, default: list[str]) -> list[str]:
+    """读取逗号分隔配置；空值使用安全默认值，避免生产误退回通配符。"""
+    val = os.getenv(env_key, "").strip()
+    if not val:
+        return default
+    return [item.strip() for item in val.split(",") if item.strip()]
+
+
 def _get_optional_non_negative_float(env_key: str) -> float | None:
     """读取可选非负价格；空值表示不进行成本估算。"""
     val = os.getenv(env_key, "").strip()
@@ -48,6 +56,16 @@ class Settings:
     AUTH_PASSWORD_LOGIN_ENABLED: bool = _get_bool("AUTH_PASSWORD_LOGIN_ENABLED", False)
     AUTH_ADMIN_USERNAME: str = os.getenv("AUTH_ADMIN_USERNAME", "")
     AUTH_ADMIN_PASSWORD: str = os.getenv("AUTH_ADMIN_PASSWORD", "")
+    # 默认只允许本地前端开发地址；生产应通过环境变量配置真实前端域名。
+    CORS_ALLOW_ORIGINS: list[str] = _get_csv_list(
+        "CORS_ALLOW_ORIGINS",
+        [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ],
+    )
     DATA_PERMISSION_POLICY_PATH: str = os.getenv("DATA_PERMISSION_POLICY_PATH", "")
 
     # Database Configuration

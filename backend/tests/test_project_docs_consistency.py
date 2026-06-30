@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（552 个）" in readme
-    assert "tests/             # 552 个测试" in readme
+    assert "后端测试（553 个）" in readme
+    assert "tests/             # 553 个测试" in readme
+    assert "后端测试（552 个）" not in readme
     assert "后端测试（551 个）" not in readme
     assert "后端测试（547 个）" not in readme
     assert "后端测试（546 个）" not in readme
@@ -88,3 +89,16 @@ def test_readiness_endpoint_is_documented_and_used_by_docker_healthcheck():
     assert "http://localhost:8000/health/readiness" in docker_compose
     assert "condition: service_healthy" in docker_compose
     assert "require_management_user" in health_api
+
+
+def test_cors_defaults_are_localhost_only_and_documented():
+    readme = read_text("README.md")
+    env_example = read_text(".env.example")
+    config = read_text("backend/app/config.py")
+    main = read_text("backend/app/main.py")
+
+    assert "CORS_ALLOW_ORIGINS" in readme
+    assert "CORS_ALLOW_ORIGINS=" in env_example
+    assert "CORS_ALLOW_ORIGINS: list[str]" in config
+    assert 'allow_origins=settings.CORS_ALLOW_ORIGINS' in main
+    assert 'allow_origins=["*"]' not in main

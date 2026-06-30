@@ -35,10 +35,10 @@ app = FastAPI(
 # 配置速率限制
 setup_rate_limit(app)
 
-# CORS 中间件，允许前端跨域访问
+# CORS 中间件只允许配置的前端来源，避免生产环境默认开放任意 Origin。
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ALLOW_ORIGINS,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
