@@ -3,7 +3,7 @@
 
 import time
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 from ..models.schemas import SuccessResponse
 from ..services.query_cache import query_cache
@@ -18,10 +18,19 @@ router = APIRouter()
 _start_time = time.time()
 
 
+class ABTestVariantCreateRequest(BaseModel):
+    """A/B 测试变体请求模型：在进入注册逻辑前拦截缺字段和非法权重。"""
+    name: str = Field(..., min_length=1, max_length=64)
+    prompt_name: str = Field(..., min_length=1, max_length=128)
+    prompt_version: int = Field(..., ge=1)
+    weight: float = Field(1.0, gt=0)
+
+
 class ABTestCreateRequest(BaseModel):
-    test_id: str
-    description: str
-    variants: List[dict]  # [{"name": "control", "prompt_name": "generate_sql", "prompt_version": 1, "weight": 1.0}]
+    """A/B 测试创建请求模型，避免裸 dict 导致管理接口 500。"""
+    test_id: str = Field(..., min_length=1, max_length=128)
+    description: str = Field(..., min_length=1, max_length=500)
+    variants: List[ABTestVariantCreateRequest] = Field(..., min_length=1)
 
 
 @router.get("/health", response_model=SuccessResponse)
@@ -113,10 +122,10 @@ async def create_ab_test(
     variants = []
     for v in request.variants:
         variants.append(ABTestVariant(
-            name=v["name"],
-            prompt_name=v["prompt_name"],
-            prompt_version=v["prompt_version"],
-            weight=v.get("weight", 1.0),
+            name=v.name,
+            prompt_name=v.prompt_name,
+            prompt_version=v.prompt_version,
+            weight=v.weight,
         ))
 
     test = ABTest(

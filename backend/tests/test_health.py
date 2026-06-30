@@ -97,13 +97,43 @@ def test_create_ab_test_accepts_api_key_when_auth_enabled():
     client = TestClient(app)
 
     # API Key 作为机器凭证保留给 CI、监控或运维脚本使用。
-    with patch("app.security.auth.API_KEYS_RAW", "sk-management-key"):
+    try:
+        with patch("app.security.auth.API_KEYS_RAW", "sk-management-key"):
+            auth_mod._api_keys = {}
+            response = client.post(
+                "/health/ab-tests",
+                json=make_ab_test_payload("api_key_prompt_test"),
+                headers={"X-API-Key": "sk-management-key"},
+            )
+    finally:
         auth_mod._api_keys = {}
-        response = client.post(
-            "/health/ab-tests",
-            json=make_ab_test_payload("api_key_prompt_test"),
-            headers={"X-API-Key": "sk-management-key"},
-        )
 
     assert response.status_code == 200
     assert response.json()["data"]["test_id"] == "api_key_prompt_test"
+
+
+def test_create_ab_test_rejects_invalid_variant_payloads():
+    client = TestClient(app, raise_server_exceptions=False)
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        token = create_jwt_token("demo:admin", ["admin"])["access_token"]
+    invalid_payloads = [
+        {**make_ab_test_payload("missing_prompt_name"), "variants": [{"name": "control", "prompt_version": 1}]},
+        {**make_ab_test_payload("empty_variants"), "variants": []},
+        {
+            **make_ab_test_payload("negative_weight"),
+            "variants": [
+                {"name": "control", "prompt_name": "generate_sql", "prompt_version": 1, "weight": -1.0},
+            ],
+        },
+    ]
+
+    for payload in invalid_payloads:
+        with patch("app.security.auth.JWT_SECRET", "test-secret"):
+            response = client.post(
+                "/health/ab-tests",
+                json=payload,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+
+        # 管理接口输入错误应稳定返回 422，而不是进入业务逻辑后抛 500。
+        assert response.status_code == 422

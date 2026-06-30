@@ -1766,3 +1766,27 @@
 
 - 提交并推送管理写端点鉴权改动，等待 GitHub Actions。
 - 继续审计剩余生产暴露面：只读监控端点是否需要可配置鉴权、CORS 默认策略、A/B test payload 输入校验。
+
+### A/B test 输入契约补充
+
+- 继续审计发现 `POST /health/ab-tests` 使用 `variants: List[dict]`，缺少字段时会在业务逻辑中 `KeyError` 变成 500，空 variants 或负权重也可能注册出不可用配置。
+- 按 TDD 新增坏 payload 测试：缺 `prompt_name`、空 variants、负权重都应返回 422。
+- 将 A/B test 创建请求改为结构化 Pydantic 模型：`ABTestVariantCreateRequest` 校验 `name`、`prompt_name`、`prompt_version >= 1`、`weight > 0`，`ABTestCreateRequest` 校验 `variants` 至少 1 个。
+- 修复测试隔离：API Key 测试结束后清理 `_api_keys` 缓存，避免影响后续认证状态。
+- README 和面试稿测试数同步为 `552`。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_health.py::test_create_ab_test_rejects_invalid_variant_payloads -q` 曾失败，证明此前坏 payload 会返回 500。
+- GREEN：`pytest backend/tests/test_health.py backend/tests/test_project_docs_consistency.py -q`：14 passed，1 个既有 Starlette/TestClient warning。
+- 后端全量：`pytest backend/tests -q`：552 passed，1 个既有 Starlette/TestClient warning。
+- 测试收集：`pytest backend/tests --collect-only -q`：552 tests collected。
+- 前端单测：`npm run test`：10 files / 53 passed。
+- 前端构建：`npm run build`：通过，仅保留第三方 `@vueuse/core` PURE 注释 warning。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：333 tracked files 通过。
+
+### 下一步
+
+- 提交并推送 A/B test 输入契约修复，等待 GitHub Actions。
+- 继续审计 CORS 默认策略和只读监控端点暴露范围。

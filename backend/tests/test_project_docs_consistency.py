@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（551 个）" in readme
-    assert "tests/             # 551 个测试" in readme
+    assert "后端测试（552 个）" in readme
+    assert "tests/             # 552 个测试" in readme
+    assert "后端测试（551 个）" not in readme
     assert "后端测试（547 个）" not in readme
     assert "后端测试（546 个）" not in readme
     assert "后端测试（544 个）" not in readme
