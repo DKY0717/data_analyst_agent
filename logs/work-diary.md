@@ -1635,3 +1635,15 @@
 
 - 新增 v1.5 实施计划。
 - 更新 `docs/interview_guide.md`、新增 `docs/resume_project_packet.md`，并补充 README 入口。
+
+### 实现补充
+
+- 更新 `docs/interview_guide.md` 到 v1.4 当前事实，覆盖权限治理、CI、安全审计导出和前端审计面板。
+- 新增 `docs/resume_project_packet.md`，提供简历 bullet、30/90 秒介绍、STAR 故事、演示检查清单和证据索引。
+- README 新增面试/简历材料入口。
+
+### 当前验证
+
+- `docs/interview_guide.md` 关键事实扫描通过。
+- `docs/resume_project_packet.md` 关键章节和权限演示关键词扫描通过。
+- `git diff --check`：通过。
