@@ -11,7 +11,7 @@ def main():
     # 从 stdin 读取输入
     input_data = json.loads(sys.stdin.read())
     sql = input_data["sql"]
-    db_path = input_data["db_path"]
+    connection_config = input_data.get("connection_config", input_data.get("db_path"))
     backend = input_data["backend"]
 
     start_time = time.time()
@@ -19,7 +19,7 @@ def main():
     try:
         if backend == "postgresql":
             import psycopg2
-            conn = psycopg2.connect(db_path)
+            conn = psycopg2.connect(**connection_config)
             cur = conn.cursor()
             cur.execute(sql)
             columns = [desc[0] for desc in cur.description] if cur.description else []
@@ -27,7 +27,7 @@ def main():
             conn.close()
         else:
             import duckdb
-            conn = duckdb.connect(db_path, read_only=True)
+            conn = duckdb.connect(connection_config, read_only=True)
             result = conn.execute(sql)
             columns = [desc[0] for desc in result.description] if result.description else []
             rows = [list(row) for row in result.fetchall()]

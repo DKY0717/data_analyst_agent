@@ -1684,3 +1684,12 @@
 - 前端构建：`npm run build`：通过，保留既有 Rollup PURE 注释 warning 和 chunk size warning。
 - Secret Scan：331 个 tracked files 通过。
 - `git diff --check`：通过。
+
+### 沙箱执行配置补充
+
+- 发现 `QueryRunner` 文档写明 `SANDBOX_MODE` 控制子进程隔离执行，但此前配置没有接入；已新增 `SANDBOX_MODE` 设置、README/.env 说明和测试锁定。
+- 进一步自查发现 `SANDBOX_MODE=true + PostgreSQL` 时，主流程仍把 DuckDB 文件路径传给沙箱 worker，导致“双后端 + 沙箱”在 PostgreSQL 下不可用。
+- 修复 `QueryRunner._sandbox_connection_config()`：DuckDB 传本地数据库文件路径，PostgreSQL 传 `PG_HOST/PG_PORT/PG_USER/PG_PASSWORD/PG_DATABASE` 连接配置。
+- 修复 `SandboxExecutor` 与 `_sandbox_worker.py` 的传参协议，worker 按后端选择 DuckDB 只读连接或 PostgreSQL 参数连接，并保留旧 `db_path` 输入兼容。
+- RED：`pytest backend/tests/test_query_runner.py::test_query_runner_passes_postgresql_settings_to_sandbox -q` 曾证明 PostgreSQL 沙箱误收 DuckDB 路径。
+- GREEN：`pytest backend/tests/test_query_runner.py backend/tests/test_sandbox.py -q`：9 passed。
