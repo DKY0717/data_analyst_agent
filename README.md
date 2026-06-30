@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 544 个测试、前端 53 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 547 个测试、前端 53 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -177,7 +177,7 @@ python -m evaluation.security_audit_exporter --write-report
 ## 运行测试
 
 ```bash
-# 后端测试（544 个）
+# 后端测试（547 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（53 个）
@@ -206,7 +206,8 @@ cd backend && python -m evaluation.security_audit_exporter --write-report
 | POST | `/api/chat/query` | 自然语言查询 |
 | POST | `/api/chat/query/stream` | SSE 流式查询 |
 | GET | `/api/schema` | 数据库 Schema |
-| GET | `/health` | 健康检查 |
+| GET | `/health` | 存活检查 |
+| GET | `/health/readiness` | 就绪检查（验证数据库连接） |
 | POST | `/api/auth/demo-login` | 本地演示角色登录（需 `AUTH_DEMO_ENABLED=true`） |
 | POST | `/api/auth/login` | 可选密码登录（默认关闭，需显式配置管理员账号） |
 | GET | `/api/auth/me` | 当前用户信息 |
@@ -238,7 +239,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 544 个测试
+│   └── tests/             # 547 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端

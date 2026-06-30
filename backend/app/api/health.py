@@ -10,6 +10,7 @@ from ..services.query_cache import query_cache
 from ..services.prompt_registry import prompt_registry
 from ..services.ab_test import ab_test_registry, ABTest, ABTestVariant
 from ..agents.session_store import session_store
+from ..db.connection import db_connection
 
 router = APIRouter()
 
@@ -25,11 +26,38 @@ class ABTestCreateRequest(BaseModel):
 
 @router.get("/health", response_model=SuccessResponse)
 async def health_check():
-    """健康检查端点，返回服务状态"""
+    """存活检查端点：确认 API 进程仍在响应。"""
     return SuccessResponse(
         code=200,
         message="success",
         data={"status": "healthy"}
+    )
+
+
+@router.get("/health/readiness", response_model=SuccessResponse)
+async def readiness_check():
+    """就绪检查端点：确认 API 进程和数据库连接均可用。"""
+    try:
+        with db_connection.get_session() as conn:
+            if db_connection.backend == "postgresql":
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    cur.fetchone()
+            else:
+                conn.execute("SELECT 1").fetchone()
+    except Exception:
+        raise HTTPException(status_code=503, detail="服务未就绪") from None
+
+    return SuccessResponse(
+        code=200,
+        message="success",
+        data={
+            "status": "ready",
+            "database": {
+                "ok": True,
+                "backend": db_connection.backend,
+            },
+        }
     )
 
 

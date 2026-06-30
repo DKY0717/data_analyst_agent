@@ -1717,3 +1717,27 @@
 - 新增 `frontend/tests/build/bundle-config.test.js`，锁定不再全量注册 Element Plus 插件，并保留重库分包配置。
 - GREEN：`npm run test`：10 files / 53 passed；`npm run build`：通过，所有 JS chunk 均低于 500 kB，仅保留第三方 `@vueuse/core` PURE 注释 warning。
 - 后端一致性测试同步 README 前端/后端测试数，当前收集为 `544 tests collected`。
+
+### 运行时就绪检查补充
+
+- 发现 `/health` 只证明 FastAPI 进程存活，不能证明数据库连接可用；Docker healthcheck 也因此可能在数据库不可用时误判 healthy。
+- 新增 `/health/readiness`，对当前数据库后端执行 `SELECT 1`，成功返回 `status=ready` 和数据库后端类型，失败只返回泛化的 `服务未就绪`，避免泄露 DSN、密码或底层异常。
+- Docker healthcheck 改为访问 `/health/readiness`，前端服务依赖从 `service_started` 改为 `service_healthy`。
+- README API 表拆分 `/health` 存活检查和 `/health/readiness` 就绪检查，面试稿与 README 后端测试数同步为 `547`。
+- 新增 `backend/tests/test_health.py` 覆盖 readiness 成功和异常脱敏；一致性测试锁定 readiness 文档、docker healthcheck 和 `service_healthy`。
+
+### 当前验证
+
+- `pytest backend/tests/test_health.py backend/tests/test_project_docs_consistency.py -q`：9 passed，1 个既有 Starlette/TestClient warning。
+- `pytest backend/tests --collect-only -q`：547 tests collected。
+- `pytest backend/tests -q`：547 passed，1 个既有 Starlette/TestClient warning。
+- `npm run test`：10 files / 53 passed。
+- `npm run build`：通过，仅保留第三方 `@vueuse/core` PURE 注释 warning。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：332 tracked files 通过。
+- `docker compose config -q`：本机 `docker` 命令不可用，改用 `python -c "import yaml; yaml.safe_load(...)"` 验证 `docker-compose.yml` YAML 语法通过。
+
+### 下一步
+
+- 提交并推送 runtime readiness 改动，等待 GitHub Actions 回归。
+- 后续继续看生产暴露面：`/health/ab-tests` 写入端点未鉴权、监控端点暴露范围、CORS 默认策略等。
