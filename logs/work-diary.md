@@ -1908,8 +1908,10 @@
 - `git diff --check`：通过。
 - `git ls-files -z | python scripts\check_secrets.py`：333 tracked files 通过。
 - 本机无法执行 Docker 镜像构建验证：`docker` 命令不存在；需依赖静态契约测试、功能测试和后续 CI。
+- 首次推送后 GitHub Actions 的 PostgreSQL 矩阵失败：`test_demo_bootstrap.py` 在 `DATABASE_BACKEND=postgresql` 环境下调用 DuckDB bootstrap，函数按设计跳过，测试随后打开不存在的 DuckDB 文件。
+- 修复方式：测试内用 `monkeypatch` 显式隔离为 DuckDB 后端，避免受 CI 矩阵全局环境污染；本地已用 `DATABASE_BACKEND=postgresql` 复现并验证该单测通过。
 
 ### 下一步
 
-- 提交并推送 Docker 后端数据库自举补充，等待 GitHub Actions。
+- 提交并推送 PG CI 测试隔离修复，等待 GitHub Actions。
 - 继续审计部署文档和生产运行边界，优先看 Docker Compose 是否需要数据库初始化健康检查更强的 schema/readiness 语义。

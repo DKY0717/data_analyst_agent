@@ -3,7 +3,7 @@ from pathlib import Path
 
 import duckdb
 
-from app.db.demo_bootstrap import initialize_duckdb_demo_database
+from app.db import demo_bootstrap
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -16,16 +16,20 @@ def _copy_database_assets(target_root: Path) -> None:
     shutil.copy(ROOT / "database" / "seed_data.py", database_dir / "seed_data.py")
 
 
-def test_initialize_duckdb_demo_database_seeds_empty_volume_once(tmp_path):
+def test_initialize_duckdb_demo_database_seeds_empty_volume_once(tmp_path, monkeypatch):
+    # CI 会在 PostgreSQL 矩阵设置全局后端；本用例只验证 DuckDB 自举，需显式隔离环境。
+    monkeypatch.setattr(demo_bootstrap.settings, "DATABASE_BACKEND", "duckdb")
+    monkeypatch.setattr(demo_bootstrap.settings, "DATABASE_URL", "duckdb:///ignored-for-test.duckdb")
+
     _copy_database_assets(tmp_path)
     data_dir = tmp_path / "data"
 
-    first_result = initialize_duckdb_demo_database(
+    first_result = demo_bootstrap.initialize_duckdb_demo_database(
         base_dir=tmp_path,
         data_dir=data_dir,
         verbose=False,
     )
-    second_result = initialize_duckdb_demo_database(
+    second_result = demo_bootstrap.initialize_duckdb_demo_database(
         base_dir=tmp_path,
         data_dir=data_dir,
         verbose=False,
