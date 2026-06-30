@@ -26,7 +26,8 @@ class TestRateLimitConfig:
         }
         request = Request(scope)
         client_id = _get_client_id(request)
-        assert client_id.startswith("apikey:sk-test-")
+        assert client_id.startswith("apikey:")
+        assert "sk-test" not in client_id
 
     def test_get_client_id_with_auth_header(self):
         scope = {
@@ -38,6 +39,26 @@ class TestRateLimitConfig:
         request = Request(scope)
         client_id = _get_client_id(request)
         assert client_id.startswith("auth:")
+        assert "Bearer" not in client_id
+        assert "eyJ" not in client_id
+
+    def test_get_client_id_distinguishes_tokens_with_same_prefix(self):
+        token_a = "Bearer eyJhbGciOiJIUzI1NiJ9.user-a.signature"
+        token_b = "Bearer eyJhbGciOiJIUzI1NiJ9.user-b.signature"
+        request_a = Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/api/chat/query",
+            "headers": [(b"authorization", token_a.encode())],
+        })
+        request_b = Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/api/chat/query",
+            "headers": [(b"authorization", token_b.encode())],
+        })
+
+        assert _get_client_id(request_a) != _get_client_id(request_b)
 
     def test_get_client_id_fallback_to_ip(self):
         scope = {

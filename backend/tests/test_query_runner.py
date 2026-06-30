@@ -1,5 +1,6 @@
 # Query Runner 测试文件
 import pytest
+from app.db import query_runner as query_runner_module
 from app.db.query_runner import QueryRunner
 
 def test_query_runner_execute_select():
@@ -23,3 +24,52 @@ def test_query_runner_error_handling():
     result = runner.execute("SELECT * FROM non_existent_table")
     assert result["success"] == False
     assert "error" in result
+
+
+def test_query_runner_reads_sandbox_mode_from_settings(monkeypatch):
+    """测试默认执行模式跟随配置，避免 SANDBOX_MODE 只停留在注释里。"""
+    monkeypatch.setattr(query_runner_module.settings, "SANDBOX_MODE", True, raising=False)
+
+    runner = QueryRunner()
+
+    assert runner.sandbox is True
+
+
+def test_query_runner_explicit_sandbox_argument_overrides_settings(monkeypatch):
+    """测试显式传参仍可覆盖配置，便于单测和局部调试精确控制执行模式。"""
+    monkeypatch.setattr(query_runner_module.settings, "SANDBOX_MODE", True, raising=False)
+
+    runner = QueryRunner(sandbox=False)
+
+    assert runner.sandbox is False
+
+
+def test_query_runner_passes_postgresql_settings_to_sandbox(monkeypatch):
+    """测试 PostgreSQL 沙箱使用真实 PG 连接配置，而不是误传 DuckDB 文件路径。"""
+    captured = {}
+    monkeypatch.setattr(query_runner_module.db_connection, "backend", "postgresql")
+    monkeypatch.setattr(query_runner_module.settings, "PG_HOST", "pg.local")
+    monkeypatch.setattr(query_runner_module.settings, "PG_PORT", 15432)
+    monkeypatch.setattr(query_runner_module.settings, "PG_USER", "analyst")
+    monkeypatch.setattr(query_runner_module.settings, "PG_PASSWORD", "secret")
+    monkeypatch.setattr(query_runner_module.settings, "PG_DATABASE", "warehouse")
+
+    def fake_execute(sql, connection_config, backend):
+        captured["sql"] = sql
+        captured["connection_config"] = connection_config
+        captured["backend"] = backend
+        return {"success": True, "columns": [], "rows": [], "execution_time_ms": 0, "row_count": 0}
+
+    monkeypatch.setattr(query_runner_module.sandbox_executor, "execute", fake_execute)
+
+    result = QueryRunner(sandbox=True).execute("SELECT 1")
+
+    assert result["success"] is True
+    assert captured["backend"] == "postgresql"
+    assert captured["connection_config"] == {
+        "host": "pg.local",
+        "port": 15432,
+        "user": "analyst",
+        "password": "secret",
+        "dbname": "warehouse",
+    }

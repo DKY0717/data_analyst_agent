@@ -16,7 +16,7 @@ services:
     environment:
       - QWEN_API_KEY=${QWEN_API_KEY}
       - QWEN_API_URL=${QWEN_API_URL}
-      - QWEN_MODEL=${QWEN_MODEL:-qwen-turbo}
+      - QWEN_MODEL=${QWEN_MODEL:-mimo-v2.5-pro}
       - DATABASE_URL=duckdb:///./data/database.duckdb
       - LOG_LEVEL=INFO
     restart: unless-stopped

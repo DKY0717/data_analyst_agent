@@ -20,9 +20,9 @@ class QueryRunner:
     - false: 直接模式，在主进程中执行（开发调试）
     """
 
-    def __init__(self, timeout: int = None, sandbox: bool = False):
+    def __init__(self, timeout: int = None, sandbox: bool | None = None):
         self.timeout = timeout or settings.SQL_TIMEOUT
-        self.sandbox = sandbox
+        self.sandbox = settings.SANDBOX_MODE if sandbox is None else sandbox
 
     def execute(self, sql: str) -> Dict[str, Any]:
         """执行SQL查询"""
@@ -32,8 +32,21 @@ class QueryRunner:
 
     def _execute_sandbox(self, sql: str) -> Dict[str, Any]:
         """沙箱模式：在子进程中执行"""
-        db_path = str(settings.DATA_DIR / "database.duckdb")
-        return sandbox_executor.execute(sql, db_path, db_connection.backend)
+        connection_config = self._sandbox_connection_config()
+        return sandbox_executor.execute(sql, connection_config, db_connection.backend)
+
+    def _sandbox_connection_config(self) -> str | dict[str, Any]:
+        """按数据库后端生成沙箱子进程可用的连接配置。"""
+        if db_connection.backend == "postgresql":
+            # PostgreSQL 沙箱必须拿到 PG 连接参数，不能复用 DuckDB 的本地文件路径。
+            return {
+                "host": settings.PG_HOST,
+                "port": settings.PG_PORT,
+                "user": settings.PG_USER,
+                "password": settings.PG_PASSWORD,
+                "dbname": settings.PG_DATABASE,
+            }
+        return str(settings.DATA_DIR / "database.duckdb")
 
     def _execute_direct(self, sql: str) -> Dict[str, Any]:
         """直接模式：在主进程中执行"""

@@ -1655,3 +1655,51 @@
 - v1.5 文档事实扫描：`527`、`51`、`17`、`65`、`5 条权限`、`row_filter_region_scope`、`block_unauthorized_column`、`security_audit_exporter`、`permission_observability` 均有命中。
 - v1.5 未完成标记扫描：无命中。
 - `git diff --check`：通过。
+
+---
+
+## 2026-06-30 — 项目一致性与可运行性自查修复
+
+### 发现的问题
+
+- README 项目结构仍写着 `backend/tests` 为 `484 个测试`，与当前 `527+` 后端测试事实不一致。
+- AGENTS、README、`.env.example`、`docker-compose.yml` 对 LLM 提供方和默认模型的说法不一致：部分仍写 Qwen/DashScope 或 `qwen-turbo`，当前代码默认是 OpenAI-compatible MiMo `mimo-v2.5-pro`。
+- AGENTS 中种库命令写成在 `backend` 目录执行 `python -m database.seed_data`，实际会找不到 `database` 模块。
+- `database.seed_data.seed_database()` 对已有数据库不幂等，重复运行会触发主键冲突，影响本地演示和快速开始稳定性。
+
+### 完成的修复
+
+- 新增 `backend/tests/test_project_docs_consistency.py`，锁定 README 测试数、LLM 默认模型、docker-compose 默认值和种库命令口径。
+- 新增 `backend/tests/test_seed_data.py`，验证同一 schema 上重复运行 `seed_database()` 不报错且行数保持固定。
+- `database/seed_data.py` 在插入前按外键依赖顺序清空表，保证重复种库可重建固定数据集。
+- 统一 AGENTS、README、`.env.example`、`docker-compose.yml` 的 LLM 说明：变量名历史沿用 `QWEN_*`，当前默认 MiMo v2.5 Pro，也可切换兼容端点。
+
+### 验证结果
+
+- RED：`pytest backend/tests/test_seed_data.py -q` 曾因重复 seed 主键冲突失败。
+- GREEN：`pytest backend/tests/test_project_docs_consistency.py backend/tests/test_seed_data.py backend/tests/test_workflow_files.py backend/tests/test_check_secrets.py -q`：11 passed。
+- 后端全量：`pytest backend/tests -q`：531 passed，1 个既有 Starlette/TestClient warning。
+- 前端单测：`npm run test`：51 passed。
+- 权限演示 E2E：`npm run test:e2e -- permission-demo.spec.js`：1 passed。
+- 前端构建：`npm run build`：通过，保留既有 Rollup PURE 注释 warning 和 chunk size warning。
+- Secret Scan：331 个 tracked files 通过。
+- `git diff --check`：通过。
+
+### 沙箱执行配置补充
+
+- 发现 `QueryRunner` 文档写明 `SANDBOX_MODE` 控制子进程隔离执行，但此前配置没有接入；已新增 `SANDBOX_MODE` 设置、README/.env 说明和测试锁定。
+- 进一步自查发现 `SANDBOX_MODE=true + PostgreSQL` 时，主流程仍把 DuckDB 文件路径传给沙箱 worker，导致“双后端 + 沙箱”在 PostgreSQL 下不可用。
+- 修复 `QueryRunner._sandbox_connection_config()`：DuckDB 传本地数据库文件路径，PostgreSQL 传 `PG_HOST/PG_PORT/PG_USER/PG_PASSWORD/PG_DATABASE` 连接配置。
+- 修复 `SandboxExecutor` 与 `_sandbox_worker.py` 的传参协议，worker 按后端选择 DuckDB 只读连接或 PostgreSQL 参数连接，并保留旧 `db_path` 输入兼容。
+- RED：`pytest backend/tests/test_query_runner.py::test_query_runner_passes_postgresql_settings_to_sandbox -q` 曾证明 PostgreSQL 沙箱误收 DuckDB 路径。
+- GREEN：`pytest backend/tests/test_query_runner.py backend/tests/test_sandbox.py -q`：9 passed。
+
+### 认证与限流安全补充
+
+- 发现 Rate Limit 使用 `Authorization` 头前 16 个字符作为限流键，JWT 前缀高度相似时会导致不同用户共享限流桶，同时暴露凭证片段。
+- 修复 `_get_client_id()`：API Key 与 Authorization 均改为稳定 SHA-256 短哈希，既能区分不同凭证，又不泄露原文。
+- 发现 `/api/auth/login` 保留硬编码 `admin/admin123`，已改为默认关闭的可选密码登录；只有配置 `AUTH_PASSWORD_LOGIN_ENABLED=true`、`AUTH_ADMIN_USERNAME`、`AUTH_ADMIN_PASSWORD` 且 `JWT_SECRET` 可用时才签发 admin token。
+- `.env.example` 和 README 同步密码登录配置说明，默认继续使用 `AUTH_DEMO_ENABLED=false` 和本地 demo-login 作为面试演示路径。
+- 当前真实后端测试收集数更新为 `540 tests collected`，README 和 `docs/interview_guide.md` 已同步。
+- RED：新增认证/限流测试后曾出现 7 个预期失败，覆盖凭证片段泄露、JWT 前缀碰撞和缺失配置项。
+- GREEN：`pytest backend/tests/test_rate_limit.py backend/tests/test_auth.py backend/tests/test_query_api.py backend/tests/test_project_docs_consistency.py -q`：47 passed，1 个既有 Starlette/TestClient warning。

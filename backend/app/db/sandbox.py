@@ -31,7 +31,7 @@ class SandboxExecutor:
     def __init__(self, timeout: int = None):
         self.timeout = timeout or settings.SQL_TIMEOUT
 
-    def execute(self, sql: str, db_path: str, backend: str) -> Dict[str, Any]:
+    def execute(self, sql: str, connection_config: str | dict[str, Any], backend: str) -> Dict[str, Any]:
         """在沙箱子进程中执行 SQL"""
         start_time = time.time()
 
@@ -39,7 +39,7 @@ class SandboxExecutor:
             # 构建 worker 输入
             input_data = json.dumps({
                 "sql": sql,
-                "db_path": db_path,
+                "connection_config": connection_config,
                 "backend": backend,
             })
 

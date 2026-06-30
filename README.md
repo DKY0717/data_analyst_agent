@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 527 个测试、前端 51 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 540 个测试、前端 51 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -177,7 +177,7 @@ python -m evaluation.security_audit_exporter --write-report
 ## 运行测试
 
 ```bash
-# 后端测试（527 个）
+# 后端测试（540 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（51 个）
@@ -208,7 +208,7 @@ cd backend && python -m evaluation.security_audit_exporter --write-report
 | GET | `/api/schema` | 数据库 Schema |
 | GET | `/health` | 健康检查 |
 | POST | `/api/auth/demo-login` | 本地演示角色登录（需 `AUTH_DEMO_ENABLED=true`） |
-| POST | `/api/auth/login` | JWT 登录 |
+| POST | `/api/auth/login` | 可选密码登录（默认关闭，需显式配置管理员账号） |
 | GET | `/api/auth/me` | 当前用户信息 |
 
 ```bash
@@ -238,7 +238,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 484 个测试
+│   └── tests/             # 540 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
@@ -264,9 +264,12 @@ data_analyst_agent/
 | `SQL_TIMEOUT` | 查询超时（秒） | `30` |
 | `SQL_MAX_ROWS` | 最大返回行数 | `1000` |
 | `SQL_MAX_RETRIES` | SQL 修复最大重试 | `3` |
+| `SANDBOX_MODE` | SQL 执行子进程沙箱开关 | `false` |
 | `JWT_SECRET` | JWT 签名密钥（可选） | 留空=禁用认证 |
 | `API_KEYS` | 逗号分隔的 API Key（可选） | 留空=禁用 |
 | `AUTH_DEMO_ENABLED` | 本地演示角色登录开关 | `false` |
+| `AUTH_PASSWORD_LOGIN_ENABLED` | 密码登录开关 | `false` |
+| `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD` | 密码登录管理员账号 | 空 |
 | `DATA_PERMISSION_POLICY_PATH` | 数据权限策略 YAML 路径；留空使用默认策略 | 留空 |
 | `RATE_LIMIT_QUERY` | 查询端点限流 | `10/minute` |
 | `DATABASE_BACKEND` | 数据库后端 | 自动检测 |

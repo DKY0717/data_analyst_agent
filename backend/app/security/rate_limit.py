@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 
 from fastapi import FastAPI, Request
@@ -16,14 +17,19 @@ RATE_LIMIT_QUERY = os.getenv("RATE_LIMIT_QUERY", "10/minute")
 RATE_LIMIT_AUTH = os.getenv("RATE_LIMIT_AUTH", "5/minute")
 
 
+def _hash_identifier(value: str) -> str:
+    """把凭证类输入转成稳定哈希，限流可区分用户但不暴露原始 secret。"""
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+
+
 def _get_client_id(request: Request) -> str:
     """优先使用 API Key 或用户 ID 作为限流键，其次用 IP。"""
     api_key = request.headers.get("X-API-Key", "")
     if api_key:
-        return f"apikey:{api_key[:8]}"
+        return f"apikey:{_hash_identifier(api_key)}"
     auth = request.headers.get("Authorization", "")
     if auth:
-        return f"auth:{auth[:16]}"
+        return f"auth:{_hash_identifier(auth)}"
     return get_remote_address(request)
 
 
