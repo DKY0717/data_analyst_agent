@@ -238,7 +238,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 484 个测试
+│   └── tests/             # 527 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端

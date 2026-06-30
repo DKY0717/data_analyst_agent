@@ -6,7 +6,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 Data Analyst Agent — a natural language driven database analysis and SQL optimization system. Users ask data analysis questions in Chinese/English, and the system generates safe SQL, executes it, auto-repairs errors, and returns results with natural language explanations and charts.
 
-**LLM Provider:** Qwen API (DashScope)
+**LLM Provider:** OpenAI-compatible LLM API. Current defaults use MiMo v2.5 Pro; `QWEN_*` environment variable names are retained for backward compatibility and can also point to Qwen/DashScope-compatible endpoints.
 **Primary Database:** DuckDB (local), with PostgreSQL as optional alternative
 
 ## Commands
@@ -63,12 +63,12 @@ Natural Language Question
   → Ground Schema (maps business concepts to physical Schema expressions + JOIN routes)
   → Assess Clarification (low confidence / missing slots → structured clarification request)
   → Schema Loader (reads DB metadata via information_schema)
-  → SQL Generator (Qwen API → structured JSON output, injected with intent signals)
+  → SQL Generator (OpenAI-compatible LLM API → structured JSON output, injected with intent signals)
   → SQL Guard (SQLGlot AST validation: SELECT/WITH only, auto LIMIT injection)
   → SQL Executor (DuckDB/PostgreSQL via SQLAlchemy)
-  → SQL Repair Agent (if failure, max 3 retries using Qwen API)
+  → SQL Repair Agent (if failure, max 3 retries using the configured LLM API)
   → SQL Optimizer (AST/result checks → optional EXPLAIN ANALYZE)
-  → Answer Generator (Qwen API → natural language explanation)
+  → Answer Generator (configured LLM API → natural language explanation)
 ```
 
 ### Key Backend Modules
@@ -80,7 +80,7 @@ Natural Language Question
 | SQL Guard | `backend/app/security/sql_guard.py` | SQLGlot-based AST safety validation |
 | Schema Loader | `backend/app/db/schema_loader.py` | Reads DB schema via `information_schema` |
 | Query Runner | `backend/app/db/query_runner.py` | Executes SQL with timeout and error capture |
-| LLM Service | `backend/app/services/llm_service.py` | Qwen API client with retry logic |
+| LLM Service | `backend/app/services/llm_service.py` | OpenAI-compatible LLM client with retry logic |
 | Agent Graph | `backend/app/agents/graph.py` | LangGraph `StateGraph` orchestrating the full pipeline |
 | Agent State | `backend/app/agents/state.py` | `TypedDict` shared across all agent nodes |
 | Analysis Intent | `backend/app/analysis_intent/` | Rule parser + LLM parser + merger for intent extraction |
@@ -104,8 +104,9 @@ Vue 3 + Vite + Element Plus + Pinia (state) + ECharts (charts). Proxies `/api` t
 ## Environment Variables
 
 Copy `.env.example` to `.env`. Required:
-- `QWEN_API_KEY` — DashScope API key
-- `QWEN_MODEL` — defaults to `qwen-turbo`
+- `QWEN_API_KEY` — API key for the configured OpenAI-compatible endpoint
+- `QWEN_API_URL` — defaults to the MiMo OpenAI-compatible chat completions endpoint
+- `QWEN_MODEL` — defaults to `mimo-v2.5-pro`
 
 ## Key Design Constraints
 
@@ -128,7 +129,7 @@ Project-specific skills live in `skills/`. Read the relevant SKILL.md before wor
 | Skill | When to Read |
 |-------|-------------|
 | `sql-safety-rules` | Writing/modifying SQL Guard, SQL generation prompts, or SQL execution code |
-| `qwen-api-patterns` | Writing/modifying code that calls Qwen API (LLM service, agents) |
+| `qwen-api-patterns` | Writing/modifying code that calls the OpenAI-compatible LLM API (LLM service, agents) |
 | `agent-workflow-constraints` | Writing/modifying LangGraph agent code, workflow graph, or agent state |
 | `ecommerce-schema` | Writing SQL queries, schema loader code, seed data, or test fixtures |
 | `comment-key-steps` | Writing any new code file — add Chinese comments at key steps for learning |
