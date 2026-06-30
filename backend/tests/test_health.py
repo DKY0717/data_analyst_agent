@@ -1,9 +1,30 @@
 from unittest.mock import patch
+from contextlib import contextmanager
+from pathlib import Path
 
+import duckdb
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.security.auth import create_jwt_token
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+class DuckDBHealthConnection:
+    backend = "duckdb"
+
+    def __init__(self, db_path):
+        self.db_path = db_path
+
+    @contextmanager
+    def get_session(self):
+        connection = duckdb.connect(str(self.db_path))
+        try:
+            yield connection
+        finally:
+            connection.close()
 
 
 def test_readiness_checks_database():
@@ -37,6 +58,40 @@ def test_readiness_failure_hides_database_error(monkeypatch):
     assert response.status_code == 503
     assert response.json()["detail"] == "服务未就绪"
     assert "private" not in response.text
+
+
+def test_readiness_fails_when_business_tables_are_missing(tmp_path, monkeypatch):
+    from app.api import health
+
+    client = TestClient(app)
+    db_path = tmp_path / "missing_tables.duckdb"
+    monkeypatch.setattr(health, "db_connection", DuckDBHealthConnection(db_path))
+
+    response = client.get("/health/readiness")
+
+    # 空 DuckDB 文件能通过 SELECT 1，但不能支撑 NL2SQL 演示，readiness 必须识别为未就绪。
+    assert response.status_code == 503
+    assert response.json()["detail"] == "服务未就绪"
+
+
+def test_readiness_fails_when_key_business_tables_are_empty(tmp_path, monkeypatch):
+    from app.api import health
+
+    client = TestClient(app)
+    db_path = tmp_path / "empty_tables.duckdb"
+    init_sql = (ROOT / "database" / "init.sql").read_text(encoding="utf-8")
+    connection = duckdb.connect(str(db_path))
+    try:
+        connection.execute(init_sql)
+    finally:
+        connection.close()
+    monkeypatch.setattr(health, "db_connection", DuckDBHealthConnection(db_path))
+
+    response = client.get("/health/readiness")
+
+    # 表结构存在但核心业务表为空时，前端演示查询仍会失败或无意义，不能标记 ready。
+    assert response.status_code == 503
+    assert response.json()["detail"] == "服务未就绪"
 
 
 def make_ab_test_payload(test_id: str = "prompt_test"):

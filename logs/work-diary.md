@@ -1915,3 +1915,29 @@
 
 - 提交并推送 PG CI 测试隔离修复，等待 GitHub Actions。
 - 继续审计部署文档和生产运行边界，优先看 Docker Compose 是否需要数据库初始化健康检查更强的 schema/readiness 语义。
+
+### Readiness 深度语义补充
+
+- 继续审计发现 `/health/readiness` 只执行 `SELECT 1`，空 DuckDB 文件、缺业务表、seed 失败后的空表都会误报 ready；这会让 Docker/演示环境“探针绿但查询不可用”。
+- 将 readiness 升级为三层检查：数据库连接可用、8 张核心业务表存在、关键业务表（regions/customers/categories/products/orders/order_items/payments）非空。
+- 对外错误仍统一返回 `503 服务未就绪`，避免把数据库异常、路径或 DSN 泄露给调用方。
+- readiness 成功响应新增 `required_tables` 和关键表 `row_counts`，便于排查部署状态。
+- README API 表和 Docker 快速开始说明同步更新，明确 readiness 会验证连接、核心业务表和关键数据。
+- 新增测试覆盖：空 DuckDB 文件应返回 503；仅有表结构但关键表为空也应返回 503。
+- README 后端测试数同步为 `561`。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_health.py::test_readiness_fails_when_business_tables_are_missing backend/tests/test_health.py::test_readiness_fails_when_key_business_tables_are_empty -q` 曾失败，证明旧 readiness 对空库/空表误报 200。
+- GREEN：`pytest backend/tests/test_health.py::test_readiness_checks_database backend/tests/test_health.py::test_readiness_fails_when_business_tables_are_missing backend/tests/test_health.py::test_readiness_fails_when_key_business_tables_are_empty backend/tests/test_health.py::test_readiness_failure_hides_database_error -q`：4 passed。
+- Focused：`pytest backend/tests/test_health.py backend/tests/test_project_docs_consistency.py -q`：22 passed，1 个既有 Starlette/TestClient warning。
+- 后端收集：`pytest backend --collect-only -q`：561 tests collected。
+- 后端全量：`python -m pytest backend -q`：561 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+- 注意：曾并行运行 `collect-only` 和 pytest，Windows 下两个进程同时重建同一个测试 DuckDB 会文件冲突；后续验证已全部改为串行。
+
+### 下一步
+
+- 提交并推送 readiness 深度语义补充，等待 GitHub Actions。
+- 继续审计生产运行边界，下一优先级看 Docker/CI 是否应该真实构建后端镜像，弥补本机无 Docker CLI 的验证缺口。

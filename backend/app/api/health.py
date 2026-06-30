@@ -17,6 +17,27 @@ router = APIRouter()
 # 服务启动时间
 _start_time = time.time()
 
+REQUIRED_BUSINESS_TABLES = (
+    "regions",
+    "customers",
+    "categories",
+    "products",
+    "orders",
+    "order_items",
+    "payments",
+    "refunds",
+)
+
+REQUIRED_NON_EMPTY_TABLES = (
+    "regions",
+    "customers",
+    "categories",
+    "products",
+    "orders",
+    "order_items",
+    "payments",
+)
+
 
 class ABTestVariantCreateRequest(BaseModel):
     """A/B 测试变体请求模型：在进入注册逻辑前拦截缺字段和非法权重。"""
@@ -33,6 +54,62 @@ class ABTestCreateRequest(BaseModel):
     variants: List[ABTestVariantCreateRequest] = Field(..., min_length=1)
 
 
+def _execute_fetchall(conn, backend: str, sql: str, params=None):
+    if backend == "postgresql":
+        with conn.cursor() as cur:
+            cur.execute(sql, params or [])
+            return cur.fetchall()
+    return conn.execute(sql, params or []).fetchall()
+
+
+def _execute_fetchone(conn, backend: str, sql: str, params=None):
+    if backend == "postgresql":
+        with conn.cursor() as cur:
+            cur.execute(sql, params or [])
+            return cur.fetchone()
+    return conn.execute(sql, params or []).fetchone()
+
+
+def _assert_business_database_ready(conn, backend: str) -> dict:
+    """确认数据库不只是能连接，还具备 NL2SQL 演示所需的核心表和数据。"""
+    schema_name = "public" if backend == "postgresql" else "main"
+    table_rows = _execute_fetchall(
+        conn,
+        backend,
+        """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = %s
+        """
+        if backend == "postgresql"
+        else """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = ?
+        """,
+        [schema_name],
+    )
+    existing_tables = {row[0] for row in table_rows}
+    missing_tables = sorted(set(REQUIRED_BUSINESS_TABLES) - existing_tables)
+    if missing_tables:
+        raise RuntimeError(f"missing business tables: {', '.join(missing_tables)}")
+
+    row_counts = {}
+    for table in REQUIRED_NON_EMPTY_TABLES:
+        # 表名来自固定白名单，不接受外部输入，避免 health check 引入 SQL 注入面。
+        row_counts[table] = _execute_fetchone(
+            conn,
+            backend,
+            f"SELECT COUNT(*) FROM {table}",
+        )[0]
+
+    empty_tables = [table for table, count in row_counts.items() if count <= 0]
+    if empty_tables:
+        raise RuntimeError(f"empty business tables: {', '.join(empty_tables)}")
+
+    return row_counts
+
+
 @router.get("/health", response_model=SuccessResponse)
 async def health_check():
     """存活检查端点：确认 API 进程仍在响应。"""
@@ -45,15 +122,11 @@ async def health_check():
 
 @router.get("/health/readiness", response_model=SuccessResponse)
 async def readiness_check():
-    """就绪检查端点：确认 API 进程和数据库连接均可用。"""
+    """就绪检查端点：确认 API 进程、数据库结构和演示数据均可用。"""
     try:
         with db_connection.get_session() as conn:
-            if db_connection.backend == "postgresql":
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-                    cur.fetchone()
-            else:
-                conn.execute("SELECT 1").fetchone()
+            _execute_fetchone(conn, db_connection.backend, "SELECT 1")
+            row_counts = _assert_business_database_ready(conn, db_connection.backend)
     except Exception:
         raise HTTPException(status_code=503, detail="服务未就绪") from None
 
@@ -65,6 +138,8 @@ async def readiness_check():
             "database": {
                 "ok": True,
                 "backend": db_connection.backend,
+                "required_tables": list(REQUIRED_BUSINESS_TABLES),
+                "row_counts": row_counts,
             },
         }
     )
