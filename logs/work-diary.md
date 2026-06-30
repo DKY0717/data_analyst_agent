@@ -1655,3 +1655,32 @@
 - v1.5 文档事实扫描：`527`、`51`、`17`、`65`、`5 条权限`、`row_filter_region_scope`、`block_unauthorized_column`、`security_audit_exporter`、`permission_observability` 均有命中。
 - v1.5 未完成标记扫描：无命中。
 - `git diff --check`：通过。
+
+---
+
+## 2026-06-30 — 项目一致性与可运行性自查修复
+
+### 发现的问题
+
+- README 项目结构仍写着 `backend/tests` 为 `484 个测试`，与当前 `527+` 后端测试事实不一致。
+- AGENTS、README、`.env.example`、`docker-compose.yml` 对 LLM 提供方和默认模型的说法不一致：部分仍写 Qwen/DashScope 或 `qwen-turbo`，当前代码默认是 OpenAI-compatible MiMo `mimo-v2.5-pro`。
+- AGENTS 中种库命令写成在 `backend` 目录执行 `python -m database.seed_data`，实际会找不到 `database` 模块。
+- `database.seed_data.seed_database()` 对已有数据库不幂等，重复运行会触发主键冲突，影响本地演示和快速开始稳定性。
+
+### 完成的修复
+
+- 新增 `backend/tests/test_project_docs_consistency.py`，锁定 README 测试数、LLM 默认模型、docker-compose 默认值和种库命令口径。
+- 新增 `backend/tests/test_seed_data.py`，验证同一 schema 上重复运行 `seed_database()` 不报错且行数保持固定。
+- `database/seed_data.py` 在插入前按外键依赖顺序清空表，保证重复种库可重建固定数据集。
+- 统一 AGENTS、README、`.env.example`、`docker-compose.yml` 的 LLM 说明：变量名历史沿用 `QWEN_*`，当前默认 MiMo v2.5 Pro，也可切换兼容端点。
+
+### 验证结果
+
+- RED：`pytest backend/tests/test_seed_data.py -q` 曾因重复 seed 主键冲突失败。
+- GREEN：`pytest backend/tests/test_project_docs_consistency.py backend/tests/test_seed_data.py backend/tests/test_workflow_files.py backend/tests/test_check_secrets.py -q`：11 passed。
+- 后端全量：`pytest backend/tests -q`：531 passed，1 个既有 Starlette/TestClient warning。
+- 前端单测：`npm run test`：51 passed。
+- 权限演示 E2E：`npm run test:e2e -- permission-demo.spec.js`：1 passed。
+- 前端构建：`npm run build`：通过，保留既有 Rollup PURE 注释 warning 和 chunk size warning。
+- Secret Scan：331 个 tracked files 通过。
+- `git diff --check`：通过。
