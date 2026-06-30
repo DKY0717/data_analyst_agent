@@ -71,7 +71,7 @@ async def readiness_check():
 
 
 @router.get("/health/cache", response_model=SuccessResponse)
-async def cache_stats():
+async def cache_stats(_: AuthUser | None = Depends(require_management_user)):
     """缓存统计端点"""
     stats = query_cache.stats()
     return SuccessResponse(
@@ -82,7 +82,7 @@ async def cache_stats():
 
 
 @router.get("/health/metrics", response_model=SuccessResponse)
-async def metrics():
+async def metrics(_: AuthUser | None = Depends(require_management_user)):
     """综合监控指标端点"""
     uptime_seconds = int(time.time() - _start_time)
     cache = query_cache.stats()
@@ -103,7 +103,7 @@ async def metrics():
 
 
 @router.get("/health/ab-tests", response_model=SuccessResponse)
-async def list_ab_tests():
+async def list_ab_tests(_: AuthUser | None = Depends(require_management_user)):
     """列出所有 A/B 测试"""
     tests = ab_test_registry.list_tests()
     return SuccessResponse(
@@ -143,7 +143,10 @@ async def create_ab_test(
 
 
 @router.get("/health/ab-tests/{test_id}/report", response_model=SuccessResponse)
-async def ab_test_report(test_id: str):
+async def ab_test_report(
+    test_id: str,
+    _: AuthUser | None = Depends(require_management_user),
+):
     """获取 A/B 测试对比报告"""
     report = ab_test_registry.get_report(test_id)
     if not report.get("variants"):

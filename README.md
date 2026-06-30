@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 553 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 556 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -177,7 +177,7 @@ python -m evaluation.security_audit_exporter --write-report
 ## 运行测试
 
 ```bash
-# 后端测试（553 个）
+# 后端测试（556 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（54 个）
@@ -208,9 +208,9 @@ cd backend && python -m evaluation.security_audit_exporter --write-report
 | GET | `/api/schema` | 数据库 Schema |
 | GET | `/health` | 存活检查 |
 | GET | `/health/readiness` | 就绪检查（验证数据库连接） |
-| GET | `/health/cache` | 缓存统计 |
-| GET | `/health/metrics` | 综合监控指标 |
-| GET | `/health/ab-tests` | A/B 测试列表 |
+| GET | `/health/cache` | 缓存统计（启用认证时需 admin JWT 或 API Key） |
+| GET | `/health/metrics` | 综合监控指标（启用认证时需 admin JWT 或 API Key） |
+| GET | `/health/ab-tests` | A/B 测试列表（启用认证时需 admin JWT 或 API Key） |
 | POST | `/health/ab-tests` | 创建 A/B 测试（启用认证时需 admin JWT 或 API Key） |
 | POST | `/api/auth/demo-login` | 本地演示角色登录（需 `AUTH_DEMO_ENABLED=true`） |
 | POST | `/api/auth/login` | 可选密码登录（默认关闭，需显式配置管理员账号） |
@@ -243,7 +243,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 553 个测试
+│   └── tests/             # 556 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端

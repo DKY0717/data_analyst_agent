@@ -76,6 +76,41 @@ def test_create_ab_test_rejects_non_admin_jwt_when_auth_enabled():
     assert response.status_code == 403
 
 
+def test_monitoring_detail_endpoints_require_credentials_when_auth_enabled():
+    client = TestClient(app)
+
+    # 这些端点不是 liveness/readiness 探针，会暴露缓存、prompt 版本和实验状态。
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        for path in ["/health/cache", "/health/metrics", "/health/ab-tests"]:
+            response = client.get(path)
+            assert response.status_code == 401
+
+
+def test_monitoring_detail_endpoints_reject_non_admin_jwt_when_auth_enabled():
+    client = TestClient(app)
+
+    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        token = create_jwt_token("demo:analyst", ["analyst"])["access_token"]
+        for path in ["/health/cache", "/health/metrics", "/health/ab-tests"]:
+            response = client.get(path, headers={"Authorization": f"Bearer {token}"})
+            assert response.status_code == 403
+
+
+def test_monitoring_detail_endpoints_accept_api_key_when_auth_enabled():
+    import app.security.auth as auth_mod
+
+    client = TestClient(app)
+
+    try:
+        with patch("app.security.auth.API_KEYS_RAW", "sk-monitoring-key"):
+            auth_mod._api_keys = {}
+            for path in ["/health/cache", "/health/metrics", "/health/ab-tests"]:
+                response = client.get(path, headers={"X-API-Key": "sk-monitoring-key"})
+                assert response.status_code == 200
+    finally:
+        auth_mod._api_keys = {}
+
+
 def test_create_ab_test_accepts_admin_jwt_when_auth_enabled():
     client = TestClient(app)
 

@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（553 个）" in readme
-    assert "tests/             # 553 个测试" in readme
+    assert "后端测试（556 个）" in readme
+    assert "tests/             # 556 个测试" in readme
+    assert "后端测试（553 个）" not in readme
     assert "后端测试（552 个）" not in readme
     assert "后端测试（551 个）" not in readme
     assert "后端测试（547 个）" not in readme
@@ -86,6 +87,9 @@ def test_readiness_endpoint_is_documented_and_used_by_docker_healthcheck():
 
     assert "| GET | `/health` | 存活检查 |" in readme
     assert "| GET | `/health/readiness` | 就绪检查（验证数据库连接） |" in readme
+    assert "| GET | `/health/cache` | 缓存统计（启用认证时需 admin JWT 或 API Key） |" in readme
+    assert "| GET | `/health/metrics` | 综合监控指标（启用认证时需 admin JWT 或 API Key） |" in readme
+    assert "| GET | `/health/ab-tests` | A/B 测试列表（启用认证时需 admin JWT 或 API Key） |" in readme
     assert "| POST | `/health/ab-tests` | 创建 A/B 测试（启用认证时需 admin JWT 或 API Key） |" in readme
     assert "http://localhost:8000/health/readiness" in docker_compose
     assert "condition: service_healthy" in docker_compose

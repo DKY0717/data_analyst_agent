@@ -1841,3 +1841,29 @@
 
 - 提交并推送前端 dev proxy 端口一致性改动，等待 GitHub Actions。
 - 继续审计只读监控端点是否需要可配置鉴权，以及 README/AGENTS 是否还有端口或命令漂移。
+
+### 只读监控详情端点鉴权补充
+
+- 继续审计发现 `/health/cache`、`/health/metrics`、`GET /health/ab-tests` 会暴露缓存统计、prompt 版本数量和实验状态，但此前认证开启时仍可匿名访问。
+- 保持 `/health` 和 `/health/readiness` 公开，避免破坏 Docker/K8s 探针。
+- 将只读监控详情端点接入 `require_management_user()`：本地未启用认证时放行；认证开启后要求 admin JWT 或 API Key，普通 analyst/support JWT 返回 403。
+- README API 表同步标注这些监控详情端点在认证开启时需要 admin JWT 或 API Key。
+- 新增测试覆盖：匿名 GET 监控详情返回 401、analyst JWT 返回 403、API Key 返回 200。
+- README 和面试稿后端测试数同步为 `556`。
+
+### 当前验证
+
+- RED：新增监控详情鉴权测试后，匿名和 analyst 访问仍返回 200，证明只读监控详情裸露。
+- GREEN：`pytest backend/tests/test_health.py -q`：10 passed，1 个既有 Starlette/TestClient warning。
+- Focused：`pytest backend/tests/test_health.py backend/tests/test_project_docs_consistency.py backend/tests/test_auth.py -q`：40 passed。
+- 后端全量：`pytest backend/tests -q`：556 passed，1 个既有 Starlette/TestClient warning。
+- 后端收集：`pytest backend/tests --collect-only -q`：556 tests collected。
+- 前端单测：`npm run test`：10 files / 54 passed。
+- 前端构建：`npm run build`：通过，仅保留第三方 `@vueuse/core` PURE 注释 warning。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：333 tracked files 通过。
+
+### 下一步
+
+- 提交并推送只读监控详情鉴权改动，等待 GitHub Actions。
+- 继续审计 README/AGENTS/配置之间是否还有命令、端口、默认值漂移。
