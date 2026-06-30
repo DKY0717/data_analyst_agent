@@ -1867,3 +1867,22 @@
 
 - 提交并推送只读监控详情鉴权改动，等待 GitHub Actions。
 - 继续审计 README/AGENTS/配置之间是否还有命令、端口、默认值漂移。
+
+### Docker/前端代理契约补充
+
+- 继续审计 Docker、Nginx、Vite 和前端 API 客户端的部署链路。
+- 确认前端客户端使用相对 `/api`，Docker Nginx 将 `/api` 和 `/health` 同源代理到 `backend:8000`，不会被收紧后的 CORS 默认白名单误伤。
+- README Docker 快速开始补充该代理约定，说明容器部署走 Nginx 同源代理，本地开发走 Vite `/api` proxy。
+- 新增项目一致性测试锁定：前端 API baseURL、SSE fetch 路径、Vite 默认代理端口、Nginx 代理目标和 Compose `service_healthy` 依赖。
+- README 后端测试数同步为 `557`。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_project_docs_consistency.py::test_frontend_docker_proxy_contract_is_documented_and_locked -q` 曾失败，证明 README 未记录 Docker/前端代理契约。
+- GREEN：`pytest backend/tests/test_project_docs_consistency.py -q`：9 passed。
+- 后端全量：`pytest backend -q`：557 passed，1 个既有 Starlette/TestClient warning。
+
+### 下一步
+
+- 提交并推送 Docker/前端代理契约补充，等待 GitHub Actions。
+- 继续审计剩余 README/AGENTS/配置漂移，优先看 Docker 镜像构建、数据库路径和部署命令是否仍有隐藏不一致。

@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（556 个）" in readme
-    assert "tests/             # 556 个测试" in readme
+    assert "后端测试（557 个）" in readme
+    assert "tests/             # 557 个测试" in readme
+    assert "后端测试（556 个）" not in readme
     assert "后端测试（553 个）" not in readme
     assert "后端测试（552 个）" not in readme
     assert "后端测试（551 个）" not in readme
@@ -24,6 +25,7 @@ def test_readme_backend_test_count_matches_current_claim():
     assert "后端测试（540 个）" not in readme
     assert "后端测试（534 个）" not in readme
     assert "后端测试（527 个）" not in readme
+    assert "tests/             # 556 个测试" not in readme
     assert "tests/             # 484 个测试" not in readme
 
 
@@ -107,3 +109,20 @@ def test_cors_defaults_are_localhost_only_and_documented():
     assert "CORS_ALLOW_ORIGINS: list[str]" in config
     assert 'allow_origins=settings.CORS_ALLOW_ORIGINS' in main
     assert 'allow_origins=["*"]' not in main
+
+
+def test_frontend_docker_proxy_contract_is_documented_and_locked():
+    readme = read_text("README.md")
+    agent_api = read_text("frontend/src/api/agent.js")
+    vite_config = read_text("frontend/vite.config.js")
+    nginx_config = read_text("frontend/nginx.conf")
+    docker_compose = read_text("docker-compose.yml")
+
+    assert "Docker 前端通过 Nginx 将 `/api` 和 `/health` 同源代理到后端容器" in readme
+    assert "baseURL: '/api'" in agent_api
+    assert "fetch('/api/chat/query/stream'" in agent_api
+    assert "process.env.VITE_API_PROXY_TARGET || 'http://localhost:8000'" in vite_config
+    assert "location /api/" in nginx_config
+    assert "location /health" in nginx_config
+    assert "proxy_pass http://backend:8000;" in nginx_config
+    assert "condition: service_healthy" in docker_compose
