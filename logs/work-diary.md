@@ -1613,3 +1613,25 @@
 - `npm run test:e2e -- permission-demo.spec.js`：1 passed。
 - `npm run build`：通过，保留既有 Rollup PURE 注释 warning 和 chunk size warning。
 - `git diff --check`：通过。
+
+---
+
+## 2026-06-30 — v1.5 面试包装文档设计
+
+### 完成的工作
+
+- v1.4 已合并到 `main` 并推送远端。
+- 创建分支 `codex/v1.5-interview-packaging`。
+- 抽查 README、旧版 `docs/interview_guide.md` 和工作日记，确认面试稿仍停留在旧测试数和旧权限能力阶段。
+- 新增设计规格：`docs/superpowers/specs/2026-06-30-v1.5-interview-packaging-design.md`。
+- 设计范围限定为文档包装：更新面试稿、新增简历项目包、README 入口和工作日记，不改运行时代码。
+
+### 当前进度
+
+- ✅ v1.5 设计规格已完成。
+- ⏳ 下一步编写实施计划，然后按计划更新文档。
+
+### 下一步
+
+- 新增 v1.5 实施计划。
+- 更新 `docs/interview_guide.md`、新增 `docs/resume_project_packet.md`，并补充 README 入口。
