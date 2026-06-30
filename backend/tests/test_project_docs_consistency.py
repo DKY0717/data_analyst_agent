@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（541 个）" in readme
-    assert "tests/             # 541 个测试" in readme
+    assert "后端测试（543 个）" in readme
+    assert "tests/             # 543 个测试" in readme
+    assert "后端测试（541 个）" not in readme
     assert "后端测试（540 个）" not in readme
     assert "后端测试（534 个）" not in readme
     assert "后端测试（527 个）" not in readme
@@ -47,8 +48,17 @@ def test_password_login_docs_and_defaults_are_safe():
     env_example = read_text(".env.example")
     config = read_text("backend/app/config.py")
     auth_router = read_text("backend/app/api/auth_router.py")
+    auth = read_text("backend/app/security/auth.py")
 
     assert "AUTH_PASSWORD_LOGIN_ENABLED" in readme
     assert "# AUTH_PASSWORD_LOGIN_ENABLED=false" in env_example
     assert 'AUTH_PASSWORD_LOGIN_ENABLED: bool = _get_bool("AUTH_PASSWORD_LOGIN_ENABLED", False)' in config
     assert 'admin_pass = "admin123"' not in auth_router
+    assert "?api_key=<query_param>" not in auth
+
+
+def test_llm_service_header_matches_openai_compatible_default():
+    llm_service = read_text("backend/app/services/llm_service.py")
+
+    assert "OpenAI-compatible LLM API" in llm_service
+    assert "Qwen API (DashScope)" not in llm_service

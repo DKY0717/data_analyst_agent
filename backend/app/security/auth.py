@@ -113,7 +113,6 @@ async def get_current_user(
     认证方式（按优先级）：
     1. Authorization: Bearer <jwt_token>
     2. X-API-Key: <api_key>
-    3. ?api_key=<query_param>
 
     如果未启用认证（JWT_SECRET 和 API_KEYS 均未配置），返回 None（放行模式）。
     """

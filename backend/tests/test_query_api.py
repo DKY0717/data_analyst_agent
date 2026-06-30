@@ -424,6 +424,24 @@ def test_query_passes_api_key_user_as_analyst_to_agent_graph():
     )
 
 
+def test_query_rejects_api_key_in_query_string():
+    import app.security.auth as auth_mod
+
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+
+    with patch("app.security.auth.API_KEYS_RAW", "sk-test-query-key"), \
+         patch("app.api.query.get_agent_graph", return_value=mock_graph):
+        auth_mod._api_keys = {}
+        response = client.post(
+            "/api/chat/query?api_key=sk-test-query-key",
+            json={"question": "统计订单数"},
+        )
+
+    assert response.status_code == 401
+    mock_graph.run.assert_not_called()
+
+
 def test_query_skips_cache_when_auth_user_present():
     client = TestClient(app)
     mock_graph = AsyncMock()

@@ -1,5 +1,5 @@
 # LLM 服务模块
-# 封装所有与 Qwen API (DashScope) 的交互，提供三个核心功能：
+# 封装 OpenAI-compatible LLM API 交互；QWEN_* 变量名仅为历史兼容，当前默认可接 MiMo/Qwen 等端点。
 # 1. SQL 生成：根据自然语言问题和数据库 Schema 生成 SQL
 # 2. SQL 修复：当 SQL 执行失败时，根据错误信息修复 SQL
 # 3. 答案生成：根据查询结果生成自然语言解释

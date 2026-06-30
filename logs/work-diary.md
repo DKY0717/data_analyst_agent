@@ -1705,3 +1705,5 @@
 - GREEN：`pytest backend/tests/test_rate_limit.py backend/tests/test_auth.py backend/tests/test_query_api.py backend/tests/test_project_docs_consistency.py -q`：47 passed，1 个既有 Starlette/TestClient warning。
 - 继续发现 `/api/auth/login` 原签名会从 query string 接收用户名和密码，存在凭证进入 URL/访问日志的风险；已改为 `PasswordLoginRequest` JSON body，并新增 query string 凭证拒绝测试。
 - GREEN：`pytest backend/tests/test_auth.py::TestPasswordLoginEndpoint -q`：5 passed，1 个既有 Starlette/TestClient warning；后端测试数同步为 `541`。
+- 继续清理认证注释与 LLM 口径：`get_current_user()` 不再承诺 `?api_key=`，新增 API 测试确认 query string API Key 会被拒绝；`llm_service.py` 文件头改为 OpenAI-compatible LLM API 说明。
+- GREEN：`pytest backend/tests/test_query_api.py::test_query_rejects_api_key_in_query_string backend/tests/test_project_docs_consistency.py -q`：6 passed，1 个既有 Starlette/TestClient warning；后端测试数同步为 `543`。
