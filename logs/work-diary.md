@@ -1815,3 +1815,29 @@
 
 - 提交并推送 CORS 默认策略改动，等待 GitHub Actions。
 - 继续审计只读监控端点暴露范围、Vite proxy 端口与 README/AGENTS 的一致性。
+
+### 前端 dev proxy 端口一致性补充
+
+- 发现 README/AGENTS 指引后端运行在 `localhost:8000`，但 `frontend/vite.config.js` 的 `/api` proxy 硬编码到 `localhost:8001`，按文档启动会导致前端 dev 请求打错端口。
+- 修复 Vite proxy：默认 `VITE_API_PROXY_TARGET || http://localhost:8000`，与 README 后端端口一致。
+- E2E 托管后端仍使用 `8001`，因此 `frontend/scripts/run-e2e.mjs` 显式注入 `VITE_API_PROXY_TARGET=http://localhost:8001`，避免与本地 8000 服务冲突。
+- 前端构建配置测试新增断言，锁定默认 proxy 端口和 E2E 覆盖策略。
+- README 和面试稿前端单测数同步为 `54`。
+
+### 当前验证
+
+- RED：`npm run test -- tests/build/bundle-config.test.js` 曾失败，证明 Vite proxy 硬编码 `8001`。
+- GREEN：`npm run test -- tests/build/bundle-config.test.js`：1 file / 3 passed。
+- 后端文档一致性：`pytest backend/tests/test_project_docs_consistency.py -q`：8 passed。
+- 后端全量：`pytest backend/tests -q`：553 passed，1 个既有 Starlette/TestClient warning。
+- 后端收集：`pytest backend/tests --collect-only -q`：553 tests collected。
+- 前端单测：`npm run test`：10 files / 54 passed。
+- 前端构建：`npm run build`：通过，仅保留第三方 `@vueuse/core` PURE 注释 warning。
+- 权限演示 E2E：`npm run test:e2e -- permission-demo.spec.js`：1 passed。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：333 tracked files 通过。
+
+### 下一步
+
+- 提交并推送前端 dev proxy 端口一致性改动，等待 GitHub Actions。
+- 继续审计只读监控端点是否需要可配置鉴权，以及 README/AGENTS 是否还有端口或命令漂移。

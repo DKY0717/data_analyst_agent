@@ -29,8 +29,9 @@ def test_readme_backend_test_count_matches_current_claim():
 def test_readme_frontend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "前端单元测试（53 个）" in readme
-    assert "前端 53 个单元测试" in readme
+    assert "前端单元测试（54 个）" in readme
+    assert "前端 54 个单元测试" in readme
+    assert "前端单元测试（53 个）" not in readme
     assert "前端单元测试（51 个）" not in readme
 
 

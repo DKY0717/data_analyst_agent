@@ -26,4 +26,13 @@ describe('frontend bundle configuration', () => {
     expect(viteConfig).toContain("id.includes('/element-plus/')")
     expect(viteConfig).toContain("id.includes('/xlsx/')")
   })
+
+  it('keeps the dev proxy aligned with documented backend ports', () => {
+    const viteConfig = readProjectFile('vite.config.js')
+    const e2eRunner = readProjectFile('scripts/run-e2e.mjs')
+
+    expect(viteConfig).toContain("process.env.VITE_API_PROXY_TARGET || 'http://localhost:8000'")
+    expect(viteConfig).not.toContain("target: 'http://localhost:8001'")
+    expect(e2eRunner).toContain("VITE_API_PROXY_TARGET: 'http://localhost:8001'")
+  })
 })

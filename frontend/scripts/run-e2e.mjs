@@ -12,6 +12,8 @@ const isWindows = process.platform === 'win32'
 const serverEnv = {
   ...process.env,
   FORCE_COLOR: '1',
+  // E2E 托管后端使用 8001，避免和开发者本地 8000 服务冲突。
+  VITE_API_PROXY_TARGET: 'http://localhost:8001',
 }
 
 const children = []
