@@ -1647,3 +1647,11 @@
 - `docs/interview_guide.md` 关键事实扫描通过。
 - `docs/resume_project_packet.md` 关键章节和权限演示关键词扫描通过。
 - `git diff --check`：通过。
+
+### 最终验证
+
+- v1.4 远端 CI run `28413073994`：success。
+- v1.5 文件存在检查：`docs/interview_guide.md`、`docs/resume_project_packet.md`、设计规格和实施计划均存在。
+- v1.5 文档事实扫描：`527`、`51`、`17`、`65`、`5 条权限`、`row_filter_region_scope`、`block_unauthorized_column`、`security_audit_exporter`、`permission_observability` 均有命中。
+- v1.5 未完成标记扫描：无命中。
+- `git diff --check`：通过。
