@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（557 个）" in readme
-    assert "tests/             # 557 个测试" in readme
+    assert "后端测试（559 个）" in readme
+    assert "tests/             # 559 个测试" in readme
+    assert "后端测试（557 个）" not in readme
     assert "后端测试（556 个）" not in readme
     assert "后端测试（553 个）" not in readme
     assert "后端测试（552 个）" not in readme
@@ -25,6 +26,7 @@ def test_readme_backend_test_count_matches_current_claim():
     assert "后端测试（540 个）" not in readme
     assert "后端测试（534 个）" not in readme
     assert "后端测试（527 个）" not in readme
+    assert "tests/             # 557 个测试" not in readme
     assert "tests/             # 556 个测试" not in readme
     assert "tests/             # 484 个测试" not in readme
 
@@ -126,3 +128,20 @@ def test_frontend_docker_proxy_contract_is_documented_and_locked():
     assert "location /health" in nginx_config
     assert "proxy_pass http://backend:8000;" in nginx_config
     assert "condition: service_healthy" in docker_compose
+
+
+def test_backend_docker_image_bootstraps_persistent_duckdb_demo_database():
+    readme = read_text("README.md")
+    docker_compose = read_text("docker-compose.yml")
+    dockerfile = read_text("backend/Dockerfile")
+
+    assert "Docker 后端启动时会在空 DuckDB 数据卷中自动建表并写入演示数据" in readme
+    assert "context: ." in docker_compose
+    assert "dockerfile: backend/Dockerfile" in docker_compose
+    assert "DATABASE_URL=duckdb:////app/data/database.duckdb" in docker_compose
+    assert "WORKDIR /app/backend" in dockerfile
+    assert "COPY backend/requirements.txt ./backend/requirements.txt" in dockerfile
+    assert "COPY backend ./backend" in dockerfile
+    assert "COPY database ./database" in dockerfile
+    assert "python -m app.db.demo_bootstrap" in dockerfile
+    assert "python -m uvicorn app.main:app" in dockerfile

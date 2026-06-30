@@ -1886,3 +1886,30 @@
 
 - 提交并推送 Docker/前端代理契约补充，等待 GitHub Actions。
 - 继续审计剩余 README/AGENTS/配置漂移，优先看 Docker 镜像构建、数据库路径和部署命令是否仍有隐藏不一致。
+
+### Docker 后端数据库自举补充
+
+- 继续审计 Docker 推荐启动路径，发现后端镜像原先只以 `./backend` 为构建上下文，容器内没有 `database/init.sql` 和 `database/seed_data.py`，但 README 写的是 `docker-compose up -d` 即可。
+- 进一步发现后端在容器内默认 `BASE_DIR` 可能推导为 `/`，而 Compose 挂载的是 `/app/data`，存在 DuckDB 数据落到非持久化 `/data` 的风险。
+- 新增 `app.db.demo_bootstrap`：仅 DuckDB 后端启用，空数据卷时自动执行 `init.sql` 并复用固定种子脚本；检测到业务表和 orders 数据已存在时跳过，避免重启覆盖持久化数据。
+- 调整后端 Dockerfile：以仓库根作为 build context，复制 `backend/` 和 `database/`，在 `/app/backend` 启动，使项目根稳定为 `/app`。
+- 调整 Compose：backend build context 改为 `.`，Dockerfile 改为 `backend/Dockerfile`，DuckDB URL 指向 `/app/data/database.duckdb`，并设置 `PROJECT_ROOT=/app`。
+- README 补充 Docker 后端会在空 DuckDB 数据卷中自动建表并写入演示数据。
+- 新增测试：功能测试覆盖空库初始化和重复启动跳过；一致性测试锁定 Dockerfile/Compose/README 的数据库自举契约。
+- README 后端测试数同步为 `559`。
+
+### 当前验证
+
+- RED：新增 `test_demo_bootstrap.py` 后曾因 `app.db.demo_bootstrap` 不存在失败；新增 Docker 自举契约测试也锁定原 Dockerfile/Compose 缺少 database 资产和启动初始化。
+- GREEN：`pytest backend/tests/test_demo_bootstrap.py backend/tests/test_project_docs_consistency.py::test_backend_docker_image_bootstraps_persistent_duckdb_demo_database -q`：2 passed。
+- Focused：`pytest backend/tests/test_demo_bootstrap.py backend/tests/test_seed_data.py backend/tests/test_project_docs_consistency.py backend/tests/test_health.py -q`：22 passed，1 个既有 Starlette/TestClient warning。
+- 后端收集：`pytest backend --collect-only -q`：559 tests collected。
+- 后端全量：`python -m pytest backend -q`：559 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：通过。
+- `git ls-files -z | python scripts\check_secrets.py`：333 tracked files 通过。
+- 本机无法执行 Docker 镜像构建验证：`docker` 命令不存在；需依赖静态契约测试、功能测试和后续 CI。
+
+### 下一步
+
+- 提交并推送 Docker 后端数据库自举补充，等待 GitHub Actions。
+- 继续审计部署文档和生产运行边界，优先看 Docker Compose 是否需要数据库初始化健康检查更强的 schema/readiness 语义。

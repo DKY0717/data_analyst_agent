@@ -5,8 +5,8 @@ services:
   # 后端 FastAPI 服务
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     volumes:
@@ -17,7 +17,8 @@ services:
       - QWEN_API_KEY=${QWEN_API_KEY}
       - QWEN_API_URL=${QWEN_API_URL}
       - QWEN_MODEL=${QWEN_MODEL:-mimo-v2.5-pro}
-      - DATABASE_URL=duckdb:///./data/database.duckdb
+      - DATABASE_URL=duckdb:////app/data/database.duckdb
+      - PROJECT_ROOT=/app
       - LOG_LEVEL=INFO
     restart: unless-stopped
     healthcheck:
