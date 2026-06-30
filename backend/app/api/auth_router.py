@@ -51,11 +51,25 @@ async def demo_login(request: DemoLoginRequest):
 
 @router.post("/api/auth/login")
 async def login(username: str, password: str):
-    admin_user = "admin"
-    admin_pass = "admin123"
+    if not settings.AUTH_PASSWORD_LOGIN_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="密码登录未启用")
 
-    if username == admin_user and password == admin_pass:
-        token_data = create_jwt_token(user_id=username, roles=["admin", "user"])
+    if not settings.AUTH_ADMIN_USERNAME or not settings.AUTH_ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="管理员账号未配置，无法启用密码登录",
+        )
+
+    if username == settings.AUTH_ADMIN_USERNAME and password == settings.AUTH_ADMIN_PASSWORD:
+        try:
+            token_data = create_jwt_token(user_id=username, roles=["admin", "user"])
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="JWT_SECRET 未配置，无法启用密码登录",
+                ) from exc
+            raise
         return SuccessResponse(code=200, message="登录成功", data=token_data)
 
     raise HTTPException(

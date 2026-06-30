@@ -44,6 +44,10 @@ class Settings:
     DEBUG: bool = _get_bool("DEBUG", False)
     # 演示登录只服务本地面试展示，默认关闭，避免生产环境暴露角色切换入口。
     AUTH_DEMO_ENABLED: bool = _get_bool("AUTH_DEMO_ENABLED", False)
+    # 密码登录默认关闭；开启时必须通过环境变量显式配置管理员用户名和密码。
+    AUTH_PASSWORD_LOGIN_ENABLED: bool = _get_bool("AUTH_PASSWORD_LOGIN_ENABLED", False)
+    AUTH_ADMIN_USERNAME: str = os.getenv("AUTH_ADMIN_USERNAME", "")
+    AUTH_ADMIN_PASSWORD: str = os.getenv("AUTH_ADMIN_PASSWORD", "")
     DATA_PERMISSION_POLICY_PATH: str = os.getenv("DATA_PERMISSION_POLICY_PATH", "")
 
     # Database Configuration

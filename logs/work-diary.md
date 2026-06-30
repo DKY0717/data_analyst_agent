@@ -1693,3 +1693,13 @@
 - 修复 `SandboxExecutor` 与 `_sandbox_worker.py` 的传参协议，worker 按后端选择 DuckDB 只读连接或 PostgreSQL 参数连接，并保留旧 `db_path` 输入兼容。
 - RED：`pytest backend/tests/test_query_runner.py::test_query_runner_passes_postgresql_settings_to_sandbox -q` 曾证明 PostgreSQL 沙箱误收 DuckDB 路径。
 - GREEN：`pytest backend/tests/test_query_runner.py backend/tests/test_sandbox.py -q`：9 passed。
+
+### 认证与限流安全补充
+
+- 发现 Rate Limit 使用 `Authorization` 头前 16 个字符作为限流键，JWT 前缀高度相似时会导致不同用户共享限流桶，同时暴露凭证片段。
+- 修复 `_get_client_id()`：API Key 与 Authorization 均改为稳定 SHA-256 短哈希，既能区分不同凭证，又不泄露原文。
+- 发现 `/api/auth/login` 保留硬编码 `admin/admin123`，已改为默认关闭的可选密码登录；只有配置 `AUTH_PASSWORD_LOGIN_ENABLED=true`、`AUTH_ADMIN_USERNAME`、`AUTH_ADMIN_PASSWORD` 且 `JWT_SECRET` 可用时才签发 admin token。
+- `.env.example` 和 README 同步密码登录配置说明，默认继续使用 `AUTH_DEMO_ENABLED=false` 和本地 demo-login 作为面试演示路径。
+- 当前真实后端测试收集数更新为 `540 tests collected`，README 和 `docs/interview_guide.md` 已同步。
+- RED：新增认证/限流测试后曾出现 7 个预期失败，覆盖凭证片段泄露、JWT 前缀碰撞和缺失配置项。
+- GREEN：`pytest backend/tests/test_rate_limit.py backend/tests/test_auth.py backend/tests/test_query_api.py backend/tests/test_project_docs_consistency.py -q`：47 passed，1 个既有 Starlette/TestClient warning。
