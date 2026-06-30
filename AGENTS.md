@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 ### Generate Database & Seed Data
 ```bash
-cd backend
+cd data_analyst_agent
 python -m database.seed_data
 ```
 

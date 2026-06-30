@@ -28,3 +28,12 @@ def test_llm_provider_docs_and_defaults_are_consistent():
     assert "OpenAI-compatible LLM API" in agents
     assert "mimo-v2.5-pro" in agents
     assert "defaults to `qwen-turbo`" not in agents
+
+
+def test_setup_docs_use_repeatable_seed_command_from_repo_root():
+    agents = read_text("AGENTS.md")
+    readme = read_text("README.md")
+
+    assert "python -m database.seed_data" in agents
+    assert "cd backend\npython -m database.seed_data" not in agents
+    assert "python ../database/seed_data.py" in readme

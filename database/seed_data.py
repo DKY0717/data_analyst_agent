@@ -134,6 +134,16 @@ PAYMENT_METHODS = ["Alipay", "WeChat Pay", "Credit Card", "Debit Card"]
 PAYMENT_STATUSES_WEIGHTED = ["Paid"] * 7 + ["Failed", "Pending"]
 ORDER_STATUSES_WEIGHTED = ["Completed"] * 6 + ["Cancelled", "Refunded"]
 REFUND_REASONS = ["Quality Issue", "Not as Described", "Wrong Item", "Changed Mind", "Late Delivery", "Damaged in Transit"]
+TABLE_DELETE_ORDER = [
+    "refunds",
+    "payments",
+    "order_items",
+    "orders",
+    "customers",
+    "products",
+    "categories",
+    "regions",
+]
 
 
 def generate_regions():
@@ -269,6 +279,17 @@ def seed_database(connection=None, verbose=True):
                 cur.execute(sql, params)
             else:
                 conn.execute(sql, params)
+
+        def execute_statement(sql):
+            if is_pg:
+                cur = conn.cursor()
+                cur.execute(sql)
+            else:
+                conn.execute(sql)
+
+        # 本地演示和 CI 可能重复运行种子脚本；先按外键依赖清空，保证数据集可重复重建。
+        for table in TABLE_DELETE_ORDER:
+            execute_statement(f"DELETE FROM {table}")
 
         for r in regions:
             execute(f"INSERT INTO regions VALUES ({ph}, {ph}, {ph}, {ph})", r)
