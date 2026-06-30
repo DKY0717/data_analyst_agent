@@ -11,13 +11,22 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（543 个）" in readme
-    assert "tests/             # 543 个测试" in readme
+    assert "后端测试（544 个）" in readme
+    assert "tests/             # 544 个测试" in readme
+    assert "后端测试（543 个）" not in readme
     assert "后端测试（541 个）" not in readme
     assert "后端测试（540 个）" not in readme
     assert "后端测试（534 个）" not in readme
     assert "后端测试（527 个）" not in readme
     assert "tests/             # 484 个测试" not in readme
+
+
+def test_readme_frontend_test_count_matches_current_claim():
+    readme = read_text("README.md")
+
+    assert "前端单元测试（53 个）" in readme
+    assert "前端 53 个单元测试" in readme
+    assert "前端单元测试（51 个）" not in readme
 
 
 def test_llm_provider_docs_and_defaults_are_consistent():

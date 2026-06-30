@@ -1707,3 +1707,13 @@
 - GREEN：`pytest backend/tests/test_auth.py::TestPasswordLoginEndpoint -q`：5 passed，1 个既有 Starlette/TestClient warning；后端测试数同步为 `541`。
 - 继续清理认证注释与 LLM 口径：`get_current_user()` 不再承诺 `?api_key=`，新增 API 测试确认 query string API Key 会被拒绝；`llm_service.py` 文件头改为 OpenAI-compatible LLM API 说明。
 - GREEN：`pytest backend/tests/test_query_api.py::test_query_rejects_api_key_in_query_string backend/tests/test_project_docs_consistency.py -q`：6 passed，1 个既有 Starlette/TestClient warning；后端测试数同步为 `543`。
+
+### 前端生产构建体积补充
+
+- 发现前端生产构建长期保留 chunk size warning：`vendor-element` 约 `923.50 kB`，ECharts 异步 chunk 约 `1,042.31 kB`。
+- `main.js` 改为按需注册当前实际使用的 Element Plus 组件；`AuthBar`、`ResultTable`、`SQLPanel` 的 `ElMessage` 改为子路径导入，避免根路径拉入整包。
+- `ChartPanel` 改为 ECharts modular loader，只注册 bar/line/pie/scatter、grid/legend/tooltip 和 canvas renderer。
+- `vite.config.js` 的 `manualChunks` 简化为只拆 Element Plus 和 xlsx，避免过度 vendor 拆分导致 circular chunk warning。
+- 新增 `frontend/tests/build/bundle-config.test.js`，锁定不再全量注册 Element Plus 插件，并保留重库分包配置。
+- GREEN：`npm run test`：10 files / 53 passed；`npm run build`：通过，所有 JS chunk 均低于 500 kB，仅保留第三方 `@vueuse/core` PURE 注释 warning。
+- 后端一致性测试同步 README 前端/后端测试数，当前收集为 `544 tests collected`。

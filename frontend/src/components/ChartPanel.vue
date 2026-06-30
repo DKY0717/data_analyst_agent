@@ -33,6 +33,7 @@ const props = defineProps({
 
 const chartRef = ref(null)
 let chartInstance = null
+let echartsLoader = null
 const isDark = ref(document.documentElement.getAttribute('data-theme') === 'dark')
 const chartType = ref('auto')
 
@@ -217,6 +218,35 @@ const chartOption = computed(() => {
   }
 })
 
+function loadEcharts() {
+  if (!echartsLoader) {
+    echartsLoader = Promise.all([
+      import('echarts/core'),
+      import('echarts/charts'),
+      import('echarts/components'),
+      import('echarts/renderers'),
+    ]).then(([
+      { init, use },
+      { BarChart, LineChart, PieChart, ScatterChart },
+      { GridComponent, LegendComponent, TooltipComponent },
+      { CanvasRenderer },
+    ]) => {
+      use([
+        BarChart,
+        LineChart,
+        PieChart,
+        ScatterChart,
+        GridComponent,
+        LegendComponent,
+        TooltipComponent,
+        CanvasRenderer,
+      ])
+      return { init }
+    })
+  }
+  return echartsLoader
+}
+
 async function renderChart() {
   await nextTick()
   if (!chartRef.value || !chartOption.value) {
@@ -226,7 +256,7 @@ async function renderChart() {
     return
   }
   if (!chartInstance) {
-    const echarts = await import('echarts')
+    const echarts = await loadEcharts()
     chartInstance = echarts.init(chartRef.value)
   }
   chartInstance.setOption(chartOption.value, true)

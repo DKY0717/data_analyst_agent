@@ -30,7 +30,7 @@
 <script setup>
 import { computed, inject } from 'vue'
 import { CopyDocument } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 
 const hljs = inject('hljs')
 

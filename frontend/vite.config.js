@@ -21,9 +21,16 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-vue': ['vue', 'pinia'],
-          'vendor-element': ['element-plus'],
+        manualChunks(id) {
+          if (id.includes('/element-plus/')) {
+            return 'element-plus'
+          }
+
+          if (id.includes('/xlsx/')) {
+            return 'xlsx'
+          }
+
+          return undefined
         },
       },
     },

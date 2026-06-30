@@ -64,7 +64,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { Download, Document } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 
 const props = defineProps({
   data: {
