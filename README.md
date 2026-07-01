@@ -10,12 +10,13 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 576 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 581 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
 - [面试讲述稿](docs/interview_guide.md)：用于面试前快速复习项目架构、核心追问、演示路径和不足边界。
 - [简历项目包装包](docs/resume_project_packet.md)：用于复制简历 bullet、30/90 秒介绍、STAR 故事、演示清单和证据索引。
+- 面试前可运行 `python scripts/interview_evidence.py --run-id <github_run_id>` 生成本地测试、真实 Qwen workflow 和 `security-audit-*.md/json` artifact 的证据包清单。
 
 ## 核心架构
 
@@ -197,10 +198,16 @@ python -m evaluation.security_audit_exporter --write-report \
 
 手动触发的真实 Qwen workflow 会在真实 NL2SQL、SQL Repair、结果正确性、Grounding、权限评测和 quality gate 之后自动生成严格安全审计报告，并把 `security-audit-*.md/json` 和其它评测报告一起上传为 artifact。这样面试或复盘时可以直接下载同一份远端真实评测证据包，而不是手工拼接本地报告。
 
+面试前可以用轻量证据包脚本生成可复制命令清单。脚本只输出本地/远端证据检查步骤，不联网、不读取 GitHub 登录态：
+
+```bash
+python scripts/interview_evidence.py --run-id <github_run_id>
+```
+
 ## 运行测试
 
 ```bash
-# 后端测试（576 个）
+# 后端测试（581 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（54 个）
@@ -266,7 +273,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 576 个测试
+│   └── tests/             # 581 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
