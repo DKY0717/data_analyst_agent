@@ -2036,3 +2036,27 @@
 
 - 提交并推送前端单元测试 CI 补充，等待 GitHub Actions，重点确认 `Run frontend unit tests` step。
 - 后续建议继续补“前端 E2E 是否进入 CI”的决策：若成本可控，单独加 Playwright E2E CI；若成本偏高，至少在 README/面试材料里明确 E2E 的本地/手动验证边界。
+
+### CI 前端 E2E 测试补充
+
+- 补齐 README 中“17 个 E2E 测试”的真实性边界：基础 CI 新增独立 `frontend-e2e` job，安装前端依赖、安装 Playwright Chromium，并执行 `npm run test:e2e --prefix frontend`。
+- 新增 workflow 契约测试，锁定 `frontend-e2e` job、Playwright Chromium 安装命令、E2E 执行命令和依赖安装顺序。
+- 新增 README 一致性测试，要求文档明确基础 CI 会运行 Playwright 前端 E2E 测试。
+- README 后端测试数同步为 `571`。
+
+### 当前验证
+
+- RED：`python -m pytest backend/tests/test_workflow_files.py::test_base_ci_has_deterministic_pull_request_checks backend/tests/test_workflow_files.py::test_base_ci_runs_frontend_e2e_tests_with_playwright_chromium backend/tests/test_project_docs_consistency.py::test_readme_backend_test_count_matches_current_claim backend/tests/test_project_docs_consistency.py::test_readme_documents_ci_frontend_e2e_tests -q` 曾因缺少 `frontend-e2e` job、README 说明和测试数同步失败。
+- GREEN：同一命令后续 `4 passed`。
+- Frontend E2E：`npm run test:e2e --prefix frontend`：17 passed。
+- Frontend unit：`npm run test --prefix frontend`：10 test files passed，54 tests passed。
+- Focused：`python -m pytest backend/tests/test_workflow_files.py backend/tests/test_project_docs_consistency.py -q`：22 passed。
+- 后端收集：`python -m pytest backend --collect-only -q`：571 tests collected。
+- 后端全量：`python -m pytest backend -q`：571 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+
+### 下一步
+
+- 提交并推送前端 E2E CI 补充，等待 GitHub Actions，重点确认新增 `Frontend E2E tests` job 在 Ubuntu runner 上安装 Chromium 并跑完 17 个 E2E。
+- 若远端通过，基础 CI 已覆盖后端、PostgreSQL、前端单元、前端 E2E、Docker Compose、Docker 镜像和后端容器 readiness；下一步可转向“真实模型评测报告质量门禁/面试材料自动生成”的证据链继续加深。

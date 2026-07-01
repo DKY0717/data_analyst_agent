@@ -158,6 +158,31 @@ jobs:
       - name: Build frontend
         run: npm run build --prefix frontend
 
+  frontend-e2e:
+    name: Frontend E2E tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Install Playwright Chromium
+        run: npm exec --prefix frontend playwright install --with-deps chromium
+
+      - name: Run frontend E2E tests
+        run: npm run test:e2e --prefix frontend
+
   docker-image-builds:
     name: Docker image builds
     runs-on: ubuntu-latest

@@ -11,8 +11,10 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（569 个）" in readme
-    assert "tests/             # 569 个测试" in readme
+    assert "后端测试（571 个）" in readme
+    assert "tests/             # 571 个测试" in readme
+    assert "后端测试（569 个）" not in readme
+    assert "tests/             # 569 个测试" not in readme
     assert "后端测试（567 个）" not in readme
     assert "后端测试（565 个）" not in readme
     assert "后端测试（563 个）" not in readme
@@ -200,3 +202,13 @@ def test_readme_documents_ci_frontend_unit_tests():
     assert "基础 CI 会运行前端单元测试和前端生产构建" in readme
     assert "npm run test --prefix frontend" in ci_workflow
     assert "npm run build --prefix frontend" in ci_workflow
+
+
+def test_readme_documents_ci_frontend_e2e_tests():
+    readme = read_text("README.md")
+    ci_workflow = read_text(".github/workflows/ci.yml")
+
+    assert "基础 CI 会运行 Playwright 前端 E2E 测试" in readme
+    assert "frontend-e2e:" in ci_workflow
+    assert "npm exec --prefix frontend playwright install --with-deps chromium" in ci_workflow
+    assert "npm run test:e2e --prefix frontend" in ci_workflow

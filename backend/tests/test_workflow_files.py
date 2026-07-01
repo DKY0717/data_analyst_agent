@@ -39,6 +39,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
         "backend-tests-pg",
         "docker-image-builds",
         "frontend-build",
+        "frontend-e2e",
         "secret-scan",
     }
     assert "pytest backend/tests -q" in commands
@@ -47,6 +48,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert "python -m evaluation.permission_evaluator --json" in commands
     assert "npm ci" in commands
     assert "npm run test --prefix frontend" in commands
+    assert "npm run test:e2e --prefix frontend" in commands
     assert "npm run build" in commands
     assert "git ls-files -z" in commands
     assert "python -m evaluation.evaluator" not in commands
@@ -126,6 +128,31 @@ def test_base_ci_runs_frontend_unit_tests_before_build():
     assert commands.index("npm run test --prefix frontend") < commands.index(
         "npm run build --prefix frontend"
     )
+
+
+def test_base_ci_runs_frontend_e2e_tests_with_playwright_chromium():
+    _, workflow = load_workflow("ci.yml")
+    job = workflow["jobs"]["frontend-e2e"]
+    steps = job["steps"]
+    commands = "\n".join(str(step.get("run", "")) for step in steps)
+    step_names = [step.get("name") for step in steps]
+
+    assert job["name"] == "Frontend E2E tests"
+    assert job["runs-on"] == "ubuntu-latest"
+    assert any(step.get("uses") == "actions/checkout@v6" for step in steps)
+    assert any(step.get("uses") == "actions/setup-node@v6" for step in steps)
+    assert "Install frontend dependencies" in step_names
+    assert "Install Playwright Chromium" in step_names
+    assert "Run frontend E2E tests" in step_names
+    assert "npm ci --prefix frontend" in commands
+    assert "npm exec --prefix frontend playwright install --with-deps chromium" in commands
+    assert "npm run test:e2e --prefix frontend" in commands
+    assert commands.index("npm ci --prefix frontend") < commands.index(
+        "npm exec --prefix frontend playwright install --with-deps chromium"
+    )
+    assert commands.index(
+        "npm exec --prefix frontend playwright install --with-deps chromium"
+    ) < commands.index("npm run test:e2e --prefix frontend")
 
 
 def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
