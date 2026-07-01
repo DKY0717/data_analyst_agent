@@ -37,6 +37,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert set(workflow["jobs"]) == {
         "backend-tests",
         "backend-tests-pg",
+        "docker-image-builds",
         "frontend-build",
         "secret-scan",
     }
@@ -52,6 +53,25 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert "secrets.QWEN_API_KEY" not in raw
     # 基础 CI 只跑确定性检查；真实模型评测由手动 Real Qwen workflow 承担。
     assert "pull_request_target" not in raw
+
+
+def test_base_ci_builds_docker_images_from_compose_contexts():
+    path, workflow = load_workflow("ci.yml")
+    raw = path.read_text(encoding="utf-8")
+    job = workflow["jobs"]["docker-image-builds"]
+    commands = "\n".join(str(step.get("run", "")) for step in job["steps"])
+
+    assert job["name"] == "Docker image builds"
+    assert job["runs-on"] == "ubuntu-latest"
+    assert any(step.get("uses") == "actions/checkout@v6" for step in job["steps"])
+    # 这里锁定 docker-compose.yml 中的真实 build context，避免镜像构建链路只停留在文档承诺。
+    assert "docker build -f backend/Dockerfile -t data-analyst-agent-backend:ci ." in commands
+    assert (
+        "docker build -f frontend/Dockerfile -t data-analyst-agent-frontend:ci ./frontend"
+        in commands
+    )
+    assert "backend/Dockerfile" in raw
+    assert "frontend/Dockerfile" in raw
 
 
 def test_real_qwen_workflow_is_manual_and_uploads_reports_always():

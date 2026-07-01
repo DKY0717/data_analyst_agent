@@ -155,6 +155,21 @@ jobs:
       - name: Build frontend
         run: npm run build --prefix frontend
 
+  docker-image-builds:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t data-analyst-agent-backend:ci .
+
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile -t data-analyst-agent-frontend:ci ./frontend
+
   secret-scan:
     name: Tracked-file secret scan
     runs-on: ubuntu-latest

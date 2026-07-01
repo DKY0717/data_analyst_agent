@@ -1941,3 +1941,27 @@
 
 - 提交并推送 readiness 深度语义补充，等待 GitHub Actions。
 - 继续审计生产运行边界，下一优先级看 Docker/CI 是否应该真实构建后端镜像，弥补本机无 Docker CLI 的验证缺口。
+
+### CI Docker 镜像构建补充
+
+- 继续补齐本机无 Docker CLI 带来的验证缺口：基础 GitHub Actions 新增 `docker-image-builds` job，分别真实构建后端和前端 Docker 镜像。
+- 后端镜像构建命令锁定为 `docker build -f backend/Dockerfile -t data-analyst-agent-backend:ci .`，对应 Compose 中后端以仓库根为 build context。
+- 前端镜像构建命令锁定为 `docker build -f frontend/Dockerfile -t data-analyst-agent-frontend:ci ./frontend`，对应 Compose 中前端以 `./frontend` 为 build context。
+- 新增 workflow 静态契约测试，要求基础 CI 包含 Docker 镜像构建 job；新增 README 一致性测试，要求文档明确基础 CI 会构建后端和前端 Docker 镜像。
+- README 后端测试数同步为 `563`。
+
+### 当前验证
+
+- RED：`python -m pytest backend/tests/test_workflow_files.py::test_base_ci_builds_docker_images_from_compose_contexts -q` 曾因缺少 `docker-image-builds` job 失败。
+- RED：`python -m pytest backend/tests/test_project_docs_consistency.py::test_readme_documents_ci_docker_image_builds -q` 曾因 README 未记录 CI Docker 镜像构建失败。
+- GREEN：`python -m pytest backend/tests/test_workflow_files.py backend/tests/test_project_docs_consistency.py -q`：14 passed。
+- 后端收集：`python -m pytest backend --collect-only -q`：563 tests collected。
+- 后端全量：`python -m pytest backend -q`：563 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅有 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+- 本机仍无法执行 Docker 镜像构建：`docker --version` 提示命令不存在；真实镜像构建需等待 GitHub Actions 新 job。
+
+### 下一步
+
+- 提交并推送 CI Docker 镜像构建补充，等待 GitHub Actions，重点确认新增 `Docker image builds` job 结果。
+- 继续审计生产运行边界：下一步优先看 Docker Compose 配置是否需要 CI 级 `docker compose config` 或容器启动 smoke test。
