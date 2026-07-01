@@ -75,6 +75,37 @@ class SecurityAuditReportWriter:
                 )
             )
 
+        missing_real_reports = summary.get("missing_real_reports", [])
+        real_report_note = (
+            "已纳入 NL2SQL / Repair / Result Correctness 报告"
+            if summary["real_evaluation_provided"]
+            else f"缺失：{', '.join(missing_real_reports)}"
+        )
+        quality_gate_note = (
+            "已纳入 quality-gate.json"
+            if summary["quality_gate_provided"]
+            else "未提供 quality-gate.json"
+        )
+        lines.extend(
+            [
+                "",
+                "## 输入完整性",
+                "",
+                "| 输入 | 状态 | 说明 |",
+                "|---|---|---|",
+                (
+                    "| 真实评测报告 | "
+                    f"{'已提供' if summary['real_evaluation_provided'] else '未提供'} | "
+                    f"{real_report_note} |"
+                ),
+                (
+                    "| Quality Gate | "
+                    f"{'已提供' if summary['quality_gate_provided'] else '未提供'} | "
+                    f"{quality_gate_note} |"
+                ),
+            ]
+        )
+
         lines.extend(["", "## 关键演示证据", "", "| 证据 | 来源 | 状态 |", "|---|---|---|"])
         for item in report["evidence"]:
             lines.append(

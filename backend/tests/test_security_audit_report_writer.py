@@ -66,6 +66,16 @@ def test_security_audit_writer_writes_json_and_markdown(tmp_path):
     assert "Analyst 订单查询自动注入行级过滤" in markdown
 
 
+def test_security_audit_markdown_surfaces_input_completeness(tmp_path):
+    writer = SecurityAuditReportWriter(output_dir=tmp_path, timestamp="ci")
+
+    markdown = writer.to_markdown(sample_report())
+
+    assert "## 输入完整性" in markdown
+    assert "| 真实评测报告 | 未提供 | 缺失：nl2sql, repair, correctness |" in markdown
+    assert "| Quality Gate | 未提供 | 未提供 quality-gate.json |" in markdown
+
+
 def test_security_audit_markdown_does_not_leak_policy_or_secret_values(tmp_path):
     report = sample_report()
     report["sections"]["data_permission"]["metrics"]["debug_policy_expression"] = (

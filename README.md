@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 573 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 575 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -183,10 +183,22 @@ python -m evaluation.security_audit_exporter --write-report
 
 如果已经有真实评测报告，也可以把 `nl2sql-evaluation-*.json`、`sql-repair-evaluation-*.json`、`result-correctness-evaluation-*.json` 和 `quality-gate.json` 传入同一份审计报告。报告会明确区分“已验证通过”和“未提供真实评测输入”，避免把缺失输入误写成 0 分或通过。
 
+导出的 `security-audit-*.md` 会包含“输入完整性”表，直接列出真实评测报告和 Quality Gate 是否已纳入。默认命令适合面试现场快速展示确定性安全审计；严格交付检查可以加上 `--fail-on-missing-real-reports`，要求真实评测输入齐全，否则命令返回非零退出码：
+
+```bash
+cd backend
+python -m evaluation.security_audit_exporter --write-report \
+  --nl2sql-report evaluation/reports/nl2sql-evaluation-<timestamp>.json \
+  --repair-report evaluation/reports/sql-repair-evaluation-<timestamp>.json \
+  --correctness-report evaluation/reports/result-correctness-evaluation-<timestamp>.json \
+  --quality-gate-report evaluation/reports/quality-gate.json \
+  --fail-on-missing-real-reports
+```
+
 ## 运行测试
 
 ```bash
-# 后端测试（573 个）
+# 后端测试（575 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（54 个）
@@ -252,7 +264,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 573 个测试
+│   └── tests/             # 575 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端

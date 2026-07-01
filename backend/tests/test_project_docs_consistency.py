@@ -11,8 +11,10 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（573 个）" in readme
-    assert "tests/             # 573 个测试" in readme
+    assert "后端测试（575 个）" in readme
+    assert "tests/             # 575 个测试" in readme
+    assert "后端测试（573 个）" not in readme
+    assert "tests/             # 573 个测试" not in readme
     assert "后端测试（571 个）" not in readme
     assert "tests/             # 571 个测试" not in readme
     assert "后端测试（569 个）" not in readme
@@ -216,10 +218,24 @@ def test_readme_documents_ci_frontend_e2e_tests():
     assert "npm run test:e2e --prefix frontend" in ci_workflow
 
 
+def test_security_audit_export_docs_explain_default_and_strict_modes():
+    readme = read_text("README.md")
+    guide = read_text("docs/interview_guide.md")
+    packet = read_text("docs/resume_project_packet.md")
+
+    for document in (readme, guide, packet):
+        assert "未提供真实评测输入" in document
+        assert "--fail-on-missing-real-reports" in document
+
+    assert "输入完整性" in readme
+    assert "严格交付检查" in readme
+    assert "security-audit-*.md" in packet
+
+
 def test_interview_guide_matches_current_project_evidence():
     guide = read_text("docs/interview_guide.md")
 
-    assert "573 个后端测试" in guide
+    assert "575 个后端测试" in guide
     assert "54 个前端单测" in guide
     assert "17 个 E2E" in guide
     assert "前端单元测试" in guide
@@ -227,6 +243,7 @@ def test_interview_guide_matches_current_project_evidence():
     assert "Docker Compose 配置校验" in guide
     assert "Docker 镜像构建" in guide
     assert "后端容器 readiness smoke test" in guide
+    assert "573 个后端测试" not in guide
     assert "556 个后端测试" not in guide
     assert "571 个后端测试" not in guide
 
@@ -234,7 +251,7 @@ def test_interview_guide_matches_current_project_evidence():
 def test_resume_packet_matches_current_project_evidence():
     packet = read_text("docs/resume_project_packet.md")
 
-    assert "573 个后端测试" in packet
+    assert "575 个后端测试" in packet
     assert "54 个前端单测" in packet
     assert "17 个 E2E" in packet
     assert "Playwright 前端 E2E" in packet
@@ -242,5 +259,6 @@ def test_resume_packet_matches_current_project_evidence():
     assert "Docker 镜像构建" in packet
     assert "后端容器 readiness smoke test" in packet
     assert "500+ 自动化测试" in packet
+    assert "573 个后端测试" not in packet
     assert "556 个后端测试" not in packet
     assert "571 个后端测试" not in packet

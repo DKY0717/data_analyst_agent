@@ -2100,3 +2100,27 @@
 
 - 提交并推送面试/简历材料证据同步补强，等待基础 CI。
 - 后续继续审计下一个“看起来强但证据不足”的点，优先考虑真实模型评测 artifact 和安全审计导出材料的最新性。
+
+### 安全审计导出输入完整性补强
+
+- 审计真实评测 artifact 和安全审计导出材料时，发现报告虽然会在 summary 中标记 `real_evaluation_provided` / `quality_gate_provided`，但 Markdown 展示层没有独立的“输入完整性”区块；README、面试稿、简历包也没有同时说明默认演示模式和 `--fail-on-missing-real-reports` 严格交付模式。
+- 新增报告写入器测试，要求 `security-audit-*.md` 明确展示真实评测报告、Quality Gate 的提供状态和缺失项。
+- 新增文档一致性测试，锁定 README、面试稿和简历包装包必须说明“未提供真实评测输入”和严格模式参数，避免把确定性安全审计误包装成真实模型评测已齐全。
+- `SecurityAuditReportWriter` 新增“输入完整性”表；README 增加严格交付检查命令示例；面试稿和简历包同步说明默认导出与严格复核边界。
+- README、面试稿和简历包同步后端测试数为 `575`。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_security_audit_report_writer.py::test_security_audit_markdown_surfaces_input_completeness backend/tests/test_project_docs_consistency.py::test_security_audit_export_docs_explain_default_and_strict_modes backend/tests/test_project_docs_consistency.py::test_readme_backend_test_count_matches_current_claim backend/tests/test_project_docs_consistency.py::test_interview_guide_matches_current_project_evidence backend/tests/test_project_docs_consistency.py::test_resume_packet_matches_current_project_evidence -q` 曾因缺少输入完整性区块、严格模式说明和测试数同步失败。
+- GREEN：同一命令后续 `5 passed`。
+- Focused：`pytest backend/tests/test_security_audit_report_writer.py backend/tests/test_project_docs_consistency.py -q`：21 passed。
+- 后端收集：`pytest backend --collect-only -q`：575 tests collected。
+- 实际导出：`cd backend && python -m evaluation.security_audit_exporter --write-report` 生成 `security-audit-2026-07-01-202933.md/json`，Markdown 含“输入完整性”表。
+- 后端全量：`pytest backend -q`：575 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+
+### 下一步
+
+- 提交并推送安全审计导出输入完整性补强，等待 GitHub Actions。
+- 远端通过后，下一步可继续补“真实模型评测 artifact 的最新性/可复现生成命令”或“面试一键演示脚本”。
