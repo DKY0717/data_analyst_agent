@@ -2013,3 +2013,26 @@
 
 - 提交并推送 backend 容器 readiness smoke test，等待 GitHub Actions，重点确认 `Smoke test backend container readiness` 和 cleanup step。
 - 若远端通过，部署链路已有 compose config、image build、backend container readiness 三层证据；下一步建议转向评测报告/面试证据材料的真实性补强，或继续补 frontend 容器同源代理 smoke test。
+
+### CI 前端单元测试补充
+
+- 继续补强 README 测试声明的真实性：README 写前端有 54 个单元测试，但基础 CI 原先只执行前端生产构建，没有运行 Vitest。
+- 在 `frontend-build` job 中新增 `Run frontend unit tests` step，执行 `npm run test --prefix frontend`，并要求它早于 `npm run build --prefix frontend`。
+- 新增 workflow 契约测试锁定前端单测 step 和执行顺序；新增 README 一致性测试，要求文档明确基础 CI 会运行前端单元测试和前端生产构建。
+- README 后端测试数同步为 `569`。
+
+### 当前验证
+
+- RED：`python -m pytest backend/tests/test_workflow_files.py::test_base_ci_runs_frontend_unit_tests_before_build backend/tests/test_project_docs_consistency.py::test_readme_documents_ci_frontend_unit_tests -q` 曾因缺少前端单测 CI step 和 README 说明失败。
+- GREEN：同一命令后续 `2 passed`。
+- Frontend：`npm run test --prefix frontend`：10 test files passed，54 tests passed。
+- Focused：`python -m pytest backend/tests/test_workflow_files.py backend/tests/test_project_docs_consistency.py -q`：20 passed。
+- 后端收集：`python -m pytest backend --collect-only -q`：569 tests collected。
+- 后端全量：`python -m pytest backend -q`：569 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+
+### 下一步
+
+- 提交并推送前端单元测试 CI 补充，等待 GitHub Actions，重点确认 `Run frontend unit tests` step。
+- 后续建议继续补“前端 E2E 是否进入 CI”的决策：若成本可控，单独加 Playwright E2E CI；若成本偏高，至少在 README/面试材料里明确 E2E 的本地/手动验证边界。

@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（567 个）" in readme
-    assert "tests/             # 567 个测试" in readme
+    assert "后端测试（569 个）" in readme
+    assert "tests/             # 569 个测试" in readme
+    assert "后端测试（567 个）" not in readme
     assert "后端测试（565 个）" not in readme
     assert "后端测试（563 个）" not in readme
     assert "后端测试（561 个）" not in readme
@@ -30,6 +31,7 @@ def test_readme_backend_test_count_matches_current_claim():
     assert "后端测试（540 个）" not in readme
     assert "后端测试（534 个）" not in readme
     assert "后端测试（527 个）" not in readme
+    assert "tests/             # 567 个测试" not in readme
     assert "tests/             # 565 个测试" not in readme
     assert "tests/             # 563 个测试" not in readme
     assert "tests/             # 561 个测试" not in readme
@@ -189,3 +191,12 @@ def test_readme_documents_ci_backend_container_smoke_test():
     assert "docker compose -f docker-compose.yml up -d backend" in ci_workflow
     assert "curl --fail --silent http://localhost:8000/health/readiness" in ci_workflow
     assert "docker compose -f docker-compose.yml down -v" in ci_workflow
+
+
+def test_readme_documents_ci_frontend_unit_tests():
+    readme = read_text("README.md")
+    ci_workflow = read_text(".github/workflows/ci.yml")
+
+    assert "基础 CI 会运行前端单元测试和前端生产构建" in readme
+    assert "npm run test --prefix frontend" in ci_workflow
+    assert "npm run build --prefix frontend" in ci_workflow

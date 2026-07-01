@@ -46,6 +46,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert "python -m evaluation.intent_grounding_evaluator" in commands
     assert "python -m evaluation.permission_evaluator --json" in commands
     assert "npm ci" in commands
+    assert "npm run test --prefix frontend" in commands
     assert "npm run build" in commands
     assert "git ls-files -z" in commands
     assert "python -m evaluation.evaluator" not in commands
@@ -110,6 +111,20 @@ def test_base_ci_smoke_tests_backend_container_readiness():
     assert cleanup_step["run"] == "docker compose -f docker-compose.yml down -v"
     assert commands.index("docker build -f frontend/Dockerfile") < commands.index(
         "docker compose -f docker-compose.yml up -d backend"
+    )
+
+
+def test_base_ci_runs_frontend_unit_tests_before_build():
+    _, workflow = load_workflow("ci.yml")
+    job = workflow["jobs"]["frontend-build"]
+    commands = "\n".join(str(step.get("run", "")) for step in job["steps"])
+    step_names = [step.get("name") for step in job["steps"]]
+
+    assert job["name"] == "Frontend production build"
+    assert "Run frontend unit tests" in step_names
+    assert "npm run test --prefix frontend" in commands
+    assert commands.index("npm run test --prefix frontend") < commands.index(
+        "npm run build --prefix frontend"
     )
 
 

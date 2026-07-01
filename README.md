@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 567 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 569 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -115,6 +115,7 @@ docker-compose up -d
 Docker 前端通过 Nginx 将 `/api` 和 `/health` 同源代理到后端容器；本地开发时 Vite 将 `/api` 代理到 `http://localhost:8000`。
 Docker 后端启动时会在空 DuckDB 数据卷中自动建表并写入演示数据；已存在数据时会跳过初始化，避免重启覆盖持久化数据。
 `/health/readiness` 不只检查数据库连接，还会验证核心业务表和关键演示数据，避免空库或 seed 失败时误报可用。
+基础 CI 会运行前端单元测试和前端生产构建，避免前端测试数量只停留在 README 声明。
 基础 CI 会校验 Docker Compose 编排配置，提前发现服务、环境变量和健康检查配置漂移。
 基础 CI 会真实构建后端和前端 Docker 镜像，防止 Dockerfile、构建上下文或前端 Nginx 代理配置漂移。
 基础 CI 会启动后端容器并请求 `/health/readiness` 做 smoke test，验证容器启动、空 DuckDB 数据卷自举和 readiness 链路。
@@ -184,7 +185,7 @@ python -m evaluation.security_audit_exporter --write-report
 ## 运行测试
 
 ```bash
-# 后端测试（567 个）
+# 后端测试（569 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（54 个）
@@ -250,7 +251,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 567 个测试
+│   └── tests/             # 569 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
