@@ -2078,3 +2078,25 @@
 ### 下一步
 
 - 提交并推送 E2E CI 后端依赖修复，等待新的 GitHub Actions run，重点确认 `Frontend E2E tests` 不再因缺少 `uvicorn` 失败。
+
+### 面试/简历材料证据同步补强
+
+- 继续自查“文档包装是否与真实证据一致”：发现 `docs/interview_guide.md` 仍写 `556 个后端测试`，`docs/resume_project_packet.md` 也没有同步最近补上的前端单测、Playwright E2E、Docker Compose 配置校验、Docker 镜像构建和后端容器 readiness smoke test。
+- 新增文档一致性测试，锁定面试稿和简历包装包必须包含当前测试数与 CI/部署证据，避免后续再次出现 README 已更新但面试材料过期。
+- README、面试稿和简历包装包同步为：后端 `573` 个测试、前端 `54` 个单元测试、`17` 个 E2E。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_project_docs_consistency.py::test_readme_backend_test_count_matches_current_claim backend/tests/test_project_docs_consistency.py::test_interview_guide_matches_current_project_evidence backend/tests/test_project_docs_consistency.py::test_resume_packet_matches_current_project_evidence -q` 曾因 README 测试数、面试稿旧 `556` 和简历包缺少 CI/部署证据失败。
+- GREEN：同一命令后续 `3 passed`。
+- Focused：`pytest backend/tests/test_project_docs_consistency.py -q`：17 passed。
+- 后端收集：`pytest backend --collect-only -q`：573 tests collected。
+- 后端全量：`pytest backend -q`：573 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+- 调试记录：第一次将文档测试和后端 collect 并行运行时，两个 pytest 进程争用同一个临时 DuckDB，触发 WinError 32；已改为串行运行，collect 正常通过。
+
+### 下一步
+
+- 提交并推送面试/简历材料证据同步补强，等待基础 CI。
+- 后续继续审计下一个“看起来强但证据不足”的点，优先考虑真实模型评测 artifact 和安全审计导出材料的最新性。
