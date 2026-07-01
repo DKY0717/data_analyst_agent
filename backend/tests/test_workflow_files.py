@@ -74,6 +74,20 @@ def test_base_ci_builds_docker_images_from_compose_contexts():
     assert "frontend/Dockerfile" in raw
 
 
+def test_base_ci_validates_docker_compose_configuration():
+    _, workflow = load_workflow("ci.yml")
+    job = workflow["jobs"]["docker-image-builds"]
+    steps = job["steps"]
+    commands = "\n".join(str(step.get("run", "")) for step in steps)
+    step_names = [step.get("name") for step in steps]
+
+    assert "Validate Docker Compose configuration" in step_names
+    assert "docker compose -f docker-compose.yml config" in commands
+    assert commands.index("docker compose -f docker-compose.yml config") < commands.index(
+        "docker build -f backend/Dockerfile"
+    )
+
+
 def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     path, workflow = load_workflow("real-qwen-evaluation.yml")
     raw = path.read_text(encoding="utf-8")

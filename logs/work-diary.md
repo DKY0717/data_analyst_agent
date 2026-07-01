@@ -1965,3 +1965,26 @@
 
 - 提交并推送 CI Docker 镜像构建补充，等待 GitHub Actions，重点确认新增 `Docker image builds` job 结果。
 - 继续审计生产运行边界：下一步优先看 Docker Compose 配置是否需要 CI 级 `docker compose config` 或容器启动 smoke test。
+
+### CI Docker Compose 配置校验补充
+
+- 在基础 CI 的 `docker-image-builds` job 中加入 `docker compose -f docker-compose.yml config`，放在镜像构建之前，先校验 Compose 语法、服务、环境变量和 healthcheck 编排能被 Docker 解析。
+- 新增 workflow 契约测试，锁定 Compose 配置校验 step 名称、命令，以及它必须早于 backend image build。
+- README Docker 快速开始补充：基础 CI 会校验 Docker Compose 编排配置，并继续真实构建后端和前端 Docker 镜像。
+- README 后端测试数同步为 `565`。
+
+### 当前验证
+
+- RED：`python -m pytest backend/tests/test_workflow_files.py::test_base_ci_validates_docker_compose_configuration backend/tests/test_project_docs_consistency.py::test_readme_documents_ci_docker_compose_config_validation -q` 曾因缺少 workflow step 和 README 说明失败。
+- GREEN：同一命令后续 `2 passed`。
+- Focused：`python -m pytest backend/tests/test_workflow_files.py backend/tests/test_project_docs_consistency.py -q`：16 passed。
+- 后端收集：`python -m pytest backend --collect-only -q`：565 tests collected。
+- 后端全量：`python -m pytest backend -q`：565 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+- 本机仍无法执行 Docker/Compose：`docker --version` 提示命令不存在；真实 `docker compose config` 需等待 GitHub Actions。
+
+### 下一步
+
+- 提交并推送 CI Compose 配置校验补充，等待 GitHub Actions，重点确认 `Validate Docker Compose configuration` step。
+- 继续审计部署链路：如果远端 Compose config 通过，下一步考虑是否值得做容器启动 smoke test，或转向评测/面试证据材料的真实性补强。

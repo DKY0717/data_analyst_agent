@@ -164,6 +164,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Validate Docker Compose configuration
+        run: docker compose -f docker-compose.yml config
+
       - name: Build backend image
         run: docker build -f backend/Dockerfile -t data-analyst-agent-backend:ci .
 

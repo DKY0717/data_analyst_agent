@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（563 个）" in readme
-    assert "tests/             # 563 个测试" in readme
+    assert "后端测试（565 个）" in readme
+    assert "tests/             # 565 个测试" in readme
+    assert "后端测试（563 个）" not in readme
     assert "后端测试（561 个）" not in readme
     assert "后端测试（559 个）" not in readme
     assert "后端测试（557 个）" not in readme
@@ -28,6 +29,7 @@ def test_readme_backend_test_count_matches_current_claim():
     assert "后端测试（540 个）" not in readme
     assert "后端测试（534 个）" not in readme
     assert "后端测试（527 个）" not in readme
+    assert "tests/             # 563 个测试" not in readme
     assert "tests/             # 561 个测试" not in readme
     assert "tests/             # 559 个测试" not in readme
     assert "tests/             # 557 个测试" not in readme
@@ -166,3 +168,11 @@ def test_readme_documents_ci_docker_image_builds():
         "docker build -f frontend/Dockerfile -t data-analyst-agent-frontend:ci ./frontend"
         in ci_workflow
     )
+
+
+def test_readme_documents_ci_docker_compose_config_validation():
+    readme = read_text("README.md")
+    ci_workflow = read_text(".github/workflows/ci.yml")
+
+    assert "基础 CI 会校验 Docker Compose 编排配置" in readme
+    assert "docker compose -f docker-compose.yml config" in ci_workflow
