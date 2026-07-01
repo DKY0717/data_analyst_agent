@@ -119,6 +119,24 @@ jobs:
             --markdown-output "$EVALUATION_REPORT_DIR/quality-gate.md" \
             "${ENFORCE_ARGS[@]}"
 
+      - name: Export strict security audit report
+        if: always()
+        shell: bash
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+        run: |
+          set -euo pipefail
+          NL2SQL_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'nl2sql-evaluation-*.json' | sort | tail -n 1)"
+          REPAIR_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'sql-repair-evaluation-*.json' | sort | tail -n 1)"
+          CORRECTNESS_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'result-correctness-evaluation-*.json' | sort | tail -n 1)"
+          python -m evaluation.security_audit_exporter \
+            --nl2sql-report "$NL2SQL_REPORT" \
+            --repair-report "$REPAIR_REPORT" \
+            --correctness-report "$CORRECTNESS_REPORT" \
+            --quality-gate-report "$EVALUATION_REPORT_DIR/quality-gate.json" \
+            --write-report \
+            --fail-on-missing-real-reports
+
       - name: Publish evaluation summary
         if: always()
         shell: bash
@@ -129,6 +147,14 @@ jobs:
             cat "$EVALUATION_REPORT_DIR/quality-gate.md" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "## 真实 Qwen 评测未生成质量门禁摘要" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          SECURITY_AUDIT_MARKDOWN=""
+          if [[ -d "$EVALUATION_REPORT_DIR" ]]; then
+            SECURITY_AUDIT_MARKDOWN="$(find "$EVALUATION_REPORT_DIR" -name 'security-audit-*.md' | sort | tail -n 1)"
+          fi
+          if [[ -n "$SECURITY_AUDIT_MARKDOWN" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "$SECURITY_AUDIT_MARKDOWN" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload evaluation reports

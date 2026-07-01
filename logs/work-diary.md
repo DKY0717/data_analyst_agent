@@ -2124,3 +2124,28 @@
 
 - 提交并推送安全审计导出输入完整性补强，等待 GitHub Actions。
 - 远端通过后，下一步可继续补“真实模型评测 artifact 的最新性/可复现生成命令”或“面试一键演示脚本”。
+
+### 真实 Qwen workflow 安全审计 artifact 补强
+
+- 继续审计真实模型评测证据链：发现 `.github/workflows/real-qwen-evaluation.yml` 已经运行真实 NL2SQL、SQL Repair、结果正确性、Grounding、权限评测和 quality gate，但 artifact 中缺少“带真实评测输入的安全审计总报告”。
+- 在 Real Qwen workflow 的 quality gate 后新增 `Export strict security audit report` step，复用真实评测 JSON 与 `quality-gate.json`，运行 `python -m evaluation.security_audit_exporter --write-report --fail-on-missing-real-reports`。
+- `Publish evaluation summary` 会在存在 `security-audit-*.md` 时追加到 GitHub Step Summary；报告目录不存在时安全跳过，避免早期失败时制造额外噪音。
+- 扩展 workflow 契约测试，锁定真实 workflow 必须运行严格安全审计导出、传入 `--quality-gate-report` 和 `--fail-on-missing-real-reports`，且顺序必须在 quality gate 之后。
+- 新增文档一致性测试，要求 README、面试稿和简历包装包说明真实 Qwen workflow 会产出 `security-audit-*.md/json` artifact。
+- README、面试稿和简历包装包同步后端测试数为 `576`。中途曾误估为 `577`，用 `pytest backend --collect-only -q | Select-String "tests collected"` 重新核实为 `576 tests collected` 后修正。
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_workflow_files.py::test_real_qwen_workflow_is_manual_and_uploads_reports_always backend/tests/test_project_docs_consistency.py::test_real_qwen_workflow_docs_include_strict_security_audit_artifact backend/tests/test_project_docs_consistency.py::test_readme_backend_test_count_matches_current_claim backend/tests/test_project_docs_consistency.py::test_interview_guide_matches_current_project_evidence backend/tests/test_project_docs_consistency.py::test_resume_packet_matches_current_project_evidence -q` 曾因缺少 security audit exporter step、artifact 文档和测试数同步失败。
+- GREEN：同一命令后续 `5 passed`。
+- Focused：`pytest backend/tests/test_workflow_files.py backend/tests/test_project_docs_consistency.py -q`：26 passed。
+- Workflow YAML：`python -c "... yaml.safe_load(...)"` 通过，并确认倒数第三个 step 是 `Export strict security audit report`。
+- 后端收集：`pytest backend --collect-only -q | Select-String "tests collected"`：576 tests collected。一次并行运行 collect 与 focused pytest 时触发临时 DuckDB WinError 32，改串行后通过。
+- 后端全量：`pytest backend -q`：576 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+
+### 下一步
+
+- 提交并推送真实 Qwen workflow 安全审计 artifact 补强，等待 GitHub Actions。
+- 远端通过后，下一步可继续补“真实评测 workflow 触发说明/下载 artifact 的面试脚本”，或转向“面试一键演示脚本”。

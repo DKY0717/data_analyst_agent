@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 575 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 576 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -195,10 +195,12 @@ python -m evaluation.security_audit_exporter --write-report \
   --fail-on-missing-real-reports
 ```
 
+手动触发的真实 Qwen workflow 会在真实 NL2SQL、SQL Repair、结果正确性、Grounding、权限评测和 quality gate 之后自动生成严格安全审计报告，并把 `security-audit-*.md/json` 和其它评测报告一起上传为 artifact。这样面试或复盘时可以直接下载同一份远端真实评测证据包，而不是手工拼接本地报告。
+
 ## 运行测试
 
 ```bash
-# 后端测试（575 个）
+# 后端测试（576 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（54 个）
@@ -264,7 +266,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 575 个测试
+│   └── tests/             # 576 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端

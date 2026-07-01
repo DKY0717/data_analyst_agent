@@ -175,6 +175,7 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
         "python -m evaluation.intent_grounding_evaluator",
         "python -m evaluation.permission_evaluator",
         "python -m evaluation.quality_gate",
+        "python -m evaluation.security_audit_exporter",
     }
     evaluation_steps = [
         step
@@ -204,10 +205,14 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert "python -m evaluation.intent_grounding_evaluator" in commands
     assert "python -m evaluation.permission_evaluator --write-report" in commands
     assert "python -m evaluation.quality_gate" in commands
+    assert "python -m evaluation.security_audit_exporter" in commands
     assert "--correctness-report" in commands
     assert "--intent-grounding-report" in commands
     assert "--permission-report" in commands
+    assert "--quality-gate-report" in commands
+    assert "--fail-on-missing-real-reports" in commands
     assert "PERMISSION_REPORT=" in commands
+    assert "$EVALUATION_REPORT_DIR/quality-gate.json" in commands
     assert "python -m scripts.prepare_evaluation_database" in commands
     assert commands.index("python -m scripts.prepare_evaluation_database") < commands.index(
         "python -m evaluation.evaluator"
@@ -224,6 +229,9 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert commands.index(
         "python -m evaluation.permission_evaluator"
     ) < commands.index("python -m evaluation.quality_gate")
+    assert commands.index("python -m evaluation.quality_gate") < commands.index(
+        "python -m evaluation.security_audit_exporter"
+    )
     # runner.temp 在 job 级 env 尚不可用；报告目录必须等 runner 分配后在 step 级注入。
     assert "EVALUATION_REPORT_DIR" not in job.get("env", {})
     assert all(
