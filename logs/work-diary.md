@@ -2060,3 +2060,21 @@
 
 - 提交并推送前端 E2E CI 补充，等待 GitHub Actions，重点确认新增 `Frontend E2E tests` job 在 Ubuntu runner 上安装 Chromium 并跑完 17 个 E2E。
 - 若远端通过，基础 CI 已覆盖后端、PostgreSQL、前端单元、前端 E2E、Docker Compose、Docker 镜像和后端容器 readiness；下一步可转向“真实模型评测报告质量门禁/面试材料自动生成”的证据链继续加深。
+
+### CI 前端 E2E 首跑修复
+
+- 远端 CI run `28489763221` 中，新增 `Frontend E2E tests` job 首跑失败；其他 job（DuckDB/PostgreSQL 后端、前端 build、Docker、secret scan）均通过。
+- 根因：E2E job 只安装了前端依赖和 Playwright Chromium，但 `frontend/scripts/run-e2e.mjs` 会启动真实后端 `python -m uvicorn app.main:app --port 8001`；Ubuntu runner 没有安装 `backend/requirements.txt`，导致 `/usr/bin/python: No module named uvicorn`，随后等待 `/health` 超时。
+- 修复：在 `frontend-e2e` job 中加入 `actions/setup-python@v6` 和 `pip install -r backend/requirements.txt`，并扩展 workflow 契约测试，锁定 E2E job 必须安装后端依赖且早于 `npm run test:e2e --prefix frontend`。
+
+### 当前验证
+
+- RED：`python -m pytest backend/tests/test_workflow_files.py::test_base_ci_runs_frontend_e2e_tests_with_playwright_chromium -q` 曾因缺少 `actions/setup-python@v6` 失败。
+- GREEN：同一命令后续 `1 passed`。
+- Focused：`python -m pytest backend/tests/test_workflow_files.py backend/tests/test_project_docs_consistency.py -q`：22 passed。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+
+### 下一步
+
+- 提交并推送 E2E CI 后端依赖修复，等待新的 GitHub Actions run，重点确认 `Frontend E2E tests` 不再因缺少 `uvicorn` 失败。

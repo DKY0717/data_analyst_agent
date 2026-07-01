@@ -140,13 +140,19 @@ def test_base_ci_runs_frontend_e2e_tests_with_playwright_chromium():
     assert job["name"] == "Frontend E2E tests"
     assert job["runs-on"] == "ubuntu-latest"
     assert any(step.get("uses") == "actions/checkout@v6" for step in steps)
+    assert any(step.get("uses") == "actions/setup-python@v6" for step in steps)
     assert any(step.get("uses") == "actions/setup-node@v6" for step in steps)
+    assert "Install backend dependencies" in step_names
     assert "Install frontend dependencies" in step_names
     assert "Install Playwright Chromium" in step_names
     assert "Run frontend E2E tests" in step_names
+    assert "pip install -r backend/requirements.txt" in commands
     assert "npm ci --prefix frontend" in commands
     assert "npm exec --prefix frontend playwright install --with-deps chromium" in commands
     assert "npm run test:e2e --prefix frontend" in commands
+    assert commands.index("pip install -r backend/requirements.txt") < commands.index(
+        "npm run test:e2e --prefix frontend"
+    )
     assert commands.index("npm ci --prefix frontend") < commands.index(
         "npm exec --prefix frontend playwright install --with-deps chromium"
     )
