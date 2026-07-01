@@ -2149,3 +2149,27 @@
 
 - 提交并推送真实 Qwen workflow 安全审计 artifact 补强，等待 GitHub Actions。
 - 远端通过后，下一步可继续补“真实评测 workflow 触发说明/下载 artifact 的面试脚本”，或转向“面试一键演示脚本”。
+
+### 面试证据包脚本补强
+
+- 针对“真实评测 workflow 有 artifact，但面试前缺少一条可复制入口”的痛点，新增 `scripts/interview_evidence.py`。
+- 脚本生成 Markdown 证据包清单，覆盖本地后端/前端/E2E 验证、离线安全审计导出、真实 Qwen workflow 查询和 artifact 下载命令；脚本本身不联网、不读取 GitHub 登录态。
+- 新增 `backend/tests/test_interview_evidence_script.py`，验证默认清单、指定 run id、指定 artifact 目录和 `--output` 写文件。
+- 扩展 `backend/tests/test_project_docs_consistency.py`，锁定 README、面试稿和简历包装包必须文档化 `python scripts/interview_evidence.py --run-id <github_run_id>`，并同步后端测试数为 `581`。
+- README、`docs/interview_guide.md`、`docs/resume_project_packet.md` 同步加入证据包入口和最新测试数。
+- Commit hash：`7220a8b`
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_interview_evidence_script.py backend/tests/test_project_docs_consistency.py::test_interview_evidence_script_is_documented backend/tests/test_project_docs_consistency.py::test_readme_backend_test_count_matches_current_claim backend/tests/test_project_docs_consistency.py::test_interview_guide_matches_current_project_evidence backend/tests/test_project_docs_consistency.py::test_resume_packet_matches_current_project_evidence -q` 曾因 `scripts/interview_evidence.py` 不存在而 collection 失败。
+- GREEN：同一 focused 命令后续 `8 passed`。
+- Focused：`pytest backend/tests/test_interview_evidence_script.py backend/tests/test_project_docs_consistency.py -q`：24 passed。
+- 后端收集：`pytest backend --collect-only -q | Select-String "tests collected"`：581 tests collected。
+- 后端全量：`pytest backend -q`：581 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+
+### 下一步
+
+- 提交并推送 work diary 更新，等待基础 CI。
+- 远端通过后，下一步可继续补“面试一键本地演示脚本”或“真实 workflow run id 读取/下载的可选联网辅助命令”。
