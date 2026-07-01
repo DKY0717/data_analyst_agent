@@ -10,12 +10,13 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 581 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 70+ 条评测/回归用例** — 后端 587 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
 
 ## 面试/简历材料
 
 - [面试讲述稿](docs/interview_guide.md)：用于面试前快速复习项目架构、核心追问、演示路径和不足边界。
 - [简历项目包装包](docs/resume_project_packet.md)：用于复制简历 bullet、30/90 秒介绍、STAR 故事、演示清单和证据索引。
+- 面试前可运行 `python scripts/interview_demo_preflight.py --strict` 做面试演示预检，确认演示环境变量、核心文件、本地后端 readiness 和前端页面状态。
 - 面试前可运行 `python scripts/interview_evidence.py --run-id <github_run_id>` 生成本地测试、真实 Qwen workflow 和 `security-audit-*.md/json` artifact 的证据包清单。
 
 ## 核心架构
@@ -148,6 +149,12 @@ AUTH_DEMO_ENABLED=true
 
 前端顶部身份条支持 `admin`、`analyst`、`support` 三种演示身份。普通查询和 SSE 查询都会携带 `Authorization: Bearer <token>`，权限阻断会在安全审计面板中展示身份摘要、authorization 事件、数据权限摘要和阻断规则。
 
+面试前建议先运行面试演示预检。脚本会检查演示环境变量、核心文件、本地后端 readiness 和前端页面状态；`--strict` 模式遇到失败项会返回非零退出码：
+
+```bash
+python scripts/interview_demo_preflight.py --strict
+```
+
 #### 30 秒面试演示路径
 
 1. 在顶部身份条点击 `Analyst`，确认当前身份显示为 `demo:analyst`。
@@ -207,7 +214,7 @@ python scripts/interview_evidence.py --run-id <github_run_id>
 ## 运行测试
 
 ```bash
-# 后端测试（581 个）
+# 后端测试（587 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（54 个）
@@ -273,7 +280,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 581 个测试
+│   └── tests/             # 587 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
