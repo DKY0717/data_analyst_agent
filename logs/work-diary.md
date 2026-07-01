@@ -2173,3 +2173,30 @@
 
 - 提交并推送 work diary 更新，等待基础 CI。
 - 远端通过后，下一步可继续补“面试一键本地演示脚本”或“真实 workflow run id 读取/下载的可选联网辅助命令”。
+
+### 面试演示预检脚本补强
+
+- 针对“证据包能下载材料，但面试现场环境是否准备好仍靠人工记忆”的痛点，新增 `scripts/interview_demo_preflight.py`。
+- 脚本检查核心文件、`.env` / 环境变量中的 `JWT_SECRET` 与 `AUTH_DEMO_ENABLED=true`、本地后端 `/health/readiness`、前端 dev server，并生成 Markdown 预检报告；`--strict` 模式遇到失败项返回非零退出码。
+- 报告只展示 `JWT_SECRET` 是否配置，不输出密钥值；直写 stdout 时使用 UTF-8，避免 Windows 控制台捕获中文乱码。
+- 新增 `backend/tests/test_interview_demo_preflight_script.py`，覆盖 `.env` 读取不泄密、缺失环境/核心文件失败、演示顺序输出、服务不可达失败、strict 输出文件退出码。
+- 扩展文档一致性测试，锁定 README、面试稿和简历包装包必须文档化 `python scripts/interview_demo_preflight.py --strict`。
+- README、`docs/interview_guide.md`、`docs/resume_project_packet.md` 同步加入面试演示预检入口，后端测试数更新为 `587`。
+- Commit hash：`ef71afe`
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_interview_demo_preflight_script.py backend/tests/test_project_docs_consistency.py::test_interview_demo_preflight_script_is_documented -q` 曾因 `scripts/interview_demo_preflight.py` 不存在而 collection 失败。
+- RED：`pytest backend/tests/test_interview_demo_preflight_script.py::test_network_checks_fail_when_local_services_are_unreachable -q` 曾因 `evaluate_preflight()` 不支持 `url_checker` 参数失败。
+- GREEN：`pytest backend/tests/test_interview_demo_preflight_script.py backend/tests/test_project_docs_consistency.py -q`：26 passed。
+- 后端收集：`pytest backend --collect-only -q | Select-String "tests collected"`：587 tests collected。
+- 后端全量：`pytest backend -q`：587 passed，1 个既有 Starlette/TestClient warning。
+- 脚本正向 smoke：通过 `module.main(['--no-network', '--strict'], env={'JWT_SECRET':'dev-demo-secret','AUTH_DEMO_ENABLED':'true'})`，退出码 0，报告显示 0 个失败项且未泄露密钥值。
+- 脚本严格失败 smoke：当前未配置演示环境时 `python scripts\interview_demo_preflight.py --no-network --strict` 返回 1，报告明确缺少 `JWT_SECRET` 和 `AUTH_DEMO_ENABLED=true`。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：337 tracked files 通过。
+
+### 下一步
+
+- 提交并推送 work diary 更新，等待基础 CI。
+- 远端通过后，继续审计下一个痛点：可以优先做“真实 workflow run id 自动发现/下载辅助”或“本地演示启动编排脚本”。
