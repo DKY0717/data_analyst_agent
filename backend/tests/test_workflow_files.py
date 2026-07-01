@@ -88,6 +88,31 @@ def test_base_ci_validates_docker_compose_configuration():
     )
 
 
+def test_base_ci_smoke_tests_backend_container_readiness():
+    _, workflow = load_workflow("ci.yml")
+    job = workflow["jobs"]["docker-image-builds"]
+    steps = job["steps"]
+    commands = "\n".join(str(step.get("run", "")) for step in steps)
+    smoke_step = next(
+        step for step in steps if step.get("name") == "Smoke test backend container readiness"
+    )
+    cleanup_step = next(
+        step for step in steps if step.get("name") == "Stop Docker Compose services"
+    )
+
+    assert smoke_step["env"]["QWEN_API_KEY"] == "replace-me"
+    assert smoke_step["env"]["QWEN_API_URL"] == "http://127.0.0.1:9/v1/chat/completions"
+    assert smoke_step["env"]["QWEN_MODEL"] == "mimo-v2.5-pro"
+    assert "docker compose -f docker-compose.yml up -d backend" in smoke_step["run"]
+    assert "curl --fail --silent http://localhost:8000/health/readiness" in smoke_step["run"]
+    assert "docker compose -f docker-compose.yml logs backend" in smoke_step["run"]
+    assert cleanup_step["if"] == "always()"
+    assert cleanup_step["run"] == "docker compose -f docker-compose.yml down -v"
+    assert commands.index("docker build -f frontend/Dockerfile") < commands.index(
+        "docker compose -f docker-compose.yml up -d backend"
+    )
+
+
 def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     path, workflow = load_workflow("real-qwen-evaluation.yml")
     raw = path.read_text(encoding="utf-8")

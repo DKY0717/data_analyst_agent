@@ -1988,3 +1988,28 @@
 
 - 提交并推送 CI Compose 配置校验补充，等待 GitHub Actions，重点确认 `Validate Docker Compose configuration` step。
 - 继续审计部署链路：如果远端 Compose config 通过，下一步考虑是否值得做容器启动 smoke test，或转向评测/面试证据材料的真实性补强。
+
+### CI 后端容器 readiness smoke test 补充
+
+- 在基础 CI 的 `docker-image-builds` job 中新增 backend-only smoke test：使用 Docker Compose 启动后端容器，轮询 `http://localhost:8000/health/readiness`，验证容器启动、空 DuckDB 数据卷自举和 readiness 深度语义。
+- smoke test 不调用真实 LLM；CI 给 `QWEN_API_KEY` 传入 secret scan 允许的 `replace-me` 占位值，同时设置不可达 `QWEN_API_URL` 和默认模型，避免真实密钥依赖。
+- smoke test 失败时会输出 `docker compose ps` 和 backend 日志；无论成功失败都执行 `docker compose -f docker-compose.yml down -v` 清理容器和卷。
+- 新增 workflow 契约测试，锁定 smoke step、占位 env、readiness curl、失败日志和 always cleanup；新增 README 一致性测试记录该部署验证能力。
+- README 后端测试数同步为 `567`。
+
+### 当前验证
+
+- RED：`python -m pytest backend/tests/test_workflow_files.py::test_base_ci_smoke_tests_backend_container_readiness backend/tests/test_project_docs_consistency.py::test_readme_documents_ci_backend_container_smoke_test -q` 曾因缺少 workflow step 和 README 说明失败。
+- GREEN：同一命令后续 `2 passed`。
+- Focused：`python -m pytest backend/tests/test_workflow_files.py backend/tests/test_project_docs_consistency.py -q`：18 passed。
+- 后端收集：`python -m pytest backend --collect-only -q`：567 tests collected。
+- 后端全量：`python -m pytest backend -q`：567 passed，1 个既有 Starlette/TestClient warning。
+- `git diff --check`：退出码 0，仅 Windows 换行提示。
+- `git ls-files -z | python scripts\check_secrets.py`：335 tracked files 通过。
+- 调试记录：第一次给 `QWEN_API_KEY` 使用非白名单占位值时触发 secret scan 的 `hardcoded_qwen_api_key`；根因是密钥扫描规则只允许空值、环境变量引用和固定占位值。已改为允许占位 `replace-me`，没有添加扫描豁免。
+- 本机仍无法执行 Docker/Compose：`docker --version` 提示命令不存在；真实容器启动 smoke test 需等待 GitHub Actions。
+
+### 下一步
+
+- 提交并推送 backend 容器 readiness smoke test，等待 GitHub Actions，重点确认 `Smoke test backend container readiness` 和 cleanup step。
+- 若远端通过，部署链路已有 compose config、image build、backend container readiness 三层证据；下一步建议转向评测报告/面试证据材料的真实性补强，或继续补 frontend 容器同源代理 smoke test。

@@ -173,6 +173,27 @@ jobs:
       - name: Build frontend image
         run: docker build -f frontend/Dockerfile -t data-analyst-agent-frontend:ci ./frontend
 
+      - name: Smoke test backend container readiness
+        env:
+          QWEN_API_KEY: replace-me
+          QWEN_API_URL: http://127.0.0.1:9/v1/chat/completions
+          QWEN_MODEL: mimo-v2.5-pro
+        run: |
+          docker compose -f docker-compose.yml up -d backend
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:8000/health/readiness; then
+              exit 0
+            fi
+            docker compose -f docker-compose.yml ps
+            sleep 2
+          done
+          docker compose -f docker-compose.yml logs backend
+          exit 1
+
+      - name: Stop Docker Compose services
+        if: always()
+        run: docker compose -f docker-compose.yml down -v
+
   secret-scan:
     name: Tracked-file secret scan
     runs-on: ubuntu-latest

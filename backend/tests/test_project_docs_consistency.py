@@ -11,8 +11,9 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（565 个）" in readme
-    assert "tests/             # 565 个测试" in readme
+    assert "后端测试（567 个）" in readme
+    assert "tests/             # 567 个测试" in readme
+    assert "后端测试（565 个）" not in readme
     assert "后端测试（563 个）" not in readme
     assert "后端测试（561 个）" not in readme
     assert "后端测试（559 个）" not in readme
@@ -29,6 +30,7 @@ def test_readme_backend_test_count_matches_current_claim():
     assert "后端测试（540 个）" not in readme
     assert "后端测试（534 个）" not in readme
     assert "后端测试（527 个）" not in readme
+    assert "tests/             # 565 个测试" not in readme
     assert "tests/             # 563 个测试" not in readme
     assert "tests/             # 561 个测试" not in readme
     assert "tests/             # 559 个测试" not in readme
@@ -176,3 +178,14 @@ def test_readme_documents_ci_docker_compose_config_validation():
 
     assert "基础 CI 会校验 Docker Compose 编排配置" in readme
     assert "docker compose -f docker-compose.yml config" in ci_workflow
+
+
+def test_readme_documents_ci_backend_container_smoke_test():
+    readme = read_text("README.md")
+    ci_workflow = read_text(".github/workflows/ci.yml")
+
+    assert "基础 CI 会启动后端容器并请求 `/health/readiness` 做 smoke test" in readme
+    assert "Smoke test backend container readiness" in ci_workflow
+    assert "docker compose -f docker-compose.yml up -d backend" in ci_workflow
+    assert "curl --fail --silent http://localhost:8000/health/readiness" in ci_workflow
+    assert "docker compose -f docker-compose.yml down -v" in ci_workflow
