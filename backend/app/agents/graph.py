@@ -197,7 +197,10 @@ class AgentGraph:
         # 规则层：快速、确定性，提取年份、Top-N、显式业务别名
         rule_intent = self.rule_parser.parse(question)
 
-        # LLM 层：补充复杂、隐式和多意图场景（独立追踪，不污染主 llm_calls）
+        # 恢复请求级轨迹；LangGraph 节点切换后仍要保留意图解析的调用指标。
+        start_trace(state.get("llm_calls") or [])
+
+        # LLM 层：补充复杂、隐式和多意图场景，失败时降级但仍保留失败调用记录。
         llm_intent = None
         try:
             llm_intent = await self.llm_parser.parse(question)
@@ -213,6 +216,7 @@ class AgentGraph:
         return {
             "status": "completed",
             "analysis_intent": merged.model_dump(),
+            "llm_calls": get_calls(),
             "audit_events": self._append_audit_event(
                 state,
                 "intent",

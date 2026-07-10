@@ -1,9 +1,12 @@
 # OpenTelemetry 分布式追踪模块
 # 提供请求级别的全链路追踪，覆盖 Agent 工作流每个节点
 
+import hashlib
 import os
 from typing import Optional
 
+import sqlglot
+from sqlglot import exp
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
@@ -125,18 +128,53 @@ def trace_node(node_name: str):
 def _record_result_attributes(span, result):
     """从节点返回值中提取关键属性记录到 span"""
     if isinstance(result, dict):
-        if "generated_sql" in result:
-            span.set_attribute("sql.generated", result["generated_sql"][:200])
-        if "validated_sql" in result:
-            span.set_attribute("sql.validated", result["validated_sql"][:200])
+        sql = result.get("validated_sql") or result.get("generated_sql")
+        if isinstance(sql, str) and sql.strip():
+            _record_sql_metadata(span, sql)
         if "is_sql_safe" in result:
             span.set_attribute("sql.safe", result["is_sql_safe"])
         if "execution_success" in result:
             span.set_attribute("execution.success", result["execution_success"])
         if "retry_count" in result:
             span.set_attribute("retry.count", result["retry_count"])
-        if "error" in result.get("query_result", {}):
-            span.set_attribute("error.type", result["query_result"].get("error_type", ""))
+        query_result = result.get("query_result") or {}
+        if "error" in query_result:
+            span.set_attribute("error.type", query_result.get("error_type", ""))
+
+
+def _record_sql_metadata(span, sql: str) -> None:
+    """记录去字面量后的 SQL 指纹和结构信息，不把查询原文写入追踪系统。"""
+    statement_type = "UNKNOWN"
+    tables: list[str] = []
+    fingerprint_source = sql
+
+    try:
+        parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        statement_type = parsed.key.upper()
+        cte_names = {
+            cte.alias_or_name.lower()
+            for cte in parsed.find_all(exp.CTE)
+            if cte.alias_or_name
+        }
+        tables = sorted({
+            table.name.lower()
+            for table in parsed.find_all(exp.Table)
+            if table.name and table.name.lower() not in cte_names
+        })
+
+        # 指纹按查询结构聚合：先抹去字符串和数字字面量，再进行稳定序列化。
+        normalized = parsed.copy().transform(
+            lambda node: exp.Placeholder() if isinstance(node, exp.Literal) else node
+        )
+        fingerprint_source = normalized.sql(dialect="duckdb", normalize=True)
+    except Exception:
+        # 解析失败时也不输出 SQL；仅保留不可逆摘要用于关联同一异常查询。
+        pass
+
+    fingerprint = hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()[:16]
+    span.set_attribute("sql.hash", fingerprint)
+    span.set_attribute("sql.statement_type", statement_type)
+    span.set_attribute("sql.tables", ",".join(tables))
 
 
 def add_span_attributes(attributes: dict) -> None:

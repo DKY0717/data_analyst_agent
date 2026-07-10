@@ -5,10 +5,10 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.agents.graph import AgentGraph
-from app.analysis_intent.models import AnalysisIntent
+from app.analysis_intent.models import AnalysisIntent, IntentSlot
 from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
 from app.security.data_permission import DataPermissionResult
-from app.services.llm_observability import record_call
+from app.services.llm_observability import record_call, start_trace
 
 
 # ---- 测试用 fixtures ----
@@ -117,6 +117,26 @@ class TestAgentGraphHappyPath:
             explanation="统计订单数",
         )
 
+        async def parse_with_metrics(*args):
+            record_call(
+                {
+                    "stage": "parse_analysis_intent",
+                    "model": "qwen-plus",
+                    "input_tokens": 60,
+                    "output_tokens": 10,
+                    "total_tokens": 70,
+                    "latency_ms": 200,
+                    "attempt_count": 1,
+                    "estimated_cost": None,
+                    "success": True,
+                    "error_type": None,
+                }
+            )
+            return AnalysisIntent(
+                metrics=[IntentSlot(concept="order_count", confidence=0.95)],
+                overall_confidence=0.95,
+            )
+
         async def generate_with_metrics(*args):
             record_call(
                 {
@@ -157,7 +177,12 @@ class TestAgentGraphHappyPath:
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.query_runner") as mock_runner, \
              patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
-             patch("app.agents.graph.answer_generator") as mock_answer:
+             patch("app.agents.graph.answer_generator") as mock_answer, \
+             patch.object(
+                 graph.llm_parser,
+                 "parse",
+                 new=AsyncMock(side_effect=parse_with_metrics),
+             ):
             mock_loader.get_full_schema.return_value = mock_schema
             mock_intent_guard.validate.return_value = {
                 "is_safe": True,
@@ -177,9 +202,13 @@ class TestAgentGraphHappyPath:
 
             result = await graph.run("统计订单数")
 
-        assert len(result["llm_calls"]) == 2
-        assert result["audit_report"]["llm_observability"]["call_count"] == 2
-        assert result["audit_report"]["llm_observability"]["total_tokens"] == 230
+        assert [call["stage"] for call in result["llm_calls"]] == [
+            "parse_analysis_intent",
+            "generate_sql",
+            "generate_answer",
+        ]
+        assert result["audit_report"]["llm_observability"]["call_count"] == 3
+        assert result["audit_report"]["llm_observability"]["total_tokens"] == 300
 
 
 class TestAgentGraphValidationFailure:
@@ -797,6 +826,60 @@ class TestAgentGraphClarification:
         assert "grounding" not in result["analysis_intent"]
         assert "clarification" not in result["analysis_intent"]
         assert result["status"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_parse_intent_preserves_failed_llm_call_when_falling_back_to_rules(self):
+        """LLM 意图解析失败也必须进入请求轨迹，便于解释降级原因。"""
+        graph = AgentGraph()
+        rule_intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="order_count", confidence=0.9)],
+            overall_confidence=0.9,
+        )
+
+        async def fail_with_metrics(*args):
+            record_call(
+                {
+                    "stage": "parse_analysis_intent",
+                    "model": "qwen-plus",
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "latency_ms": 50,
+                    "attempt_count": 1,
+                    "estimated_cost": None,
+                    "success": False,
+                    "error_type": "TimeoutError",
+                }
+            )
+            raise TimeoutError("intent parser timeout")
+
+        start_trace()
+        with patch.object(graph, "rule_parser") as mock_rule, \
+             patch.object(
+                 graph.llm_parser,
+                 "parse",
+                 new=AsyncMock(side_effect=fail_with_metrics),
+             ):
+            mock_rule.parse.return_value = rule_intent
+            result = await graph._parse_intent(
+                {"question": "统计订单数", "audit_events": []}
+            )
+
+        assert result["analysis_intent"]["metrics"][0]["concept"] == "order_count"
+        assert result["llm_calls"] == [
+            {
+                "stage": "parse_analysis_intent",
+                "model": "qwen-plus",
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "latency_ms": 50,
+                "attempt_count": 1,
+                "estimated_cost": None,
+                "success": False,
+                "error_type": "TimeoutError",
+            }
+        ]
 
     def test_ground_schema_adds_grounding_without_deciding_clarification(self):
         graph = AgentGraph()
