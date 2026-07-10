@@ -2300,16 +2300,27 @@
 - 用户确认全部系统性修复，并批准按前端闭环、Agent 正确性、安全执行、证据/部署、工程治理五阶段推进。
 - 新增设计规格：`docs/superpowers/specs/2026-07-10-v1.7-systematic-interview-readiness-hardening-design.md`。
 
+**阶段一：前端真实闭环与 E2E 隔离** ✅
+- 前端统一消费 `QueryResponse.sql / analysis_intent / optimization_suggestions`，修复 SQL、意图、优化建议和执行指标面板空白。
+- 修复主动澄清候选事件，候选对象能够稳定提交 `clarification_id` 和 `candidate_id`。
+- 新增前后端共享响应 fixture；Pydantic 严格拒绝已移除的旧字段。
+- 权限 E2E 删除新旧字段兼容数据，并断言 SQL、意图和优化建议真实可见。
+- E2E 使用独占端口 `13000/18001` 和 strict port，不再误连本地 3000/8000 服务；加载态改用可控慢 SSE。
+- 验证：前端 `55 passed`、后端契约/API `17 passed`、Playwright `17 passed`、生产构建通过。
+- 阶段提交：`484a702`。
+
 ### 当前进度
 
 - ✅ 系统性问题清单与设计边界已确认
 - ✅ v1.7 设计规格已完成并自审
 - ✅ v1.7 详细实施计划已完成并自审
-- ⏳ 待开始五阶段实现与验证
+- ✅ 阶段一前端真实闭环已完成
+- ⏳ 阶段二 Grounding 与 LLM 可观测性进行中
 
 ### 下一步
 
-- 从前端 QueryResponse 契约和主动澄清闭环开始实施。
+- 修复 Schema Grounding 表/字段/JOIN 路由精度和评测指标。
+- 修复意图解析调用未进入请求级 LLM 轨迹的问题。
 
 ### 用户偏好
 
