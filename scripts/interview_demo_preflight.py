@@ -21,9 +21,12 @@ REQUIRED_FILES = (
 )
 
 DEMO_SEQUENCE = (
-    ("Analyst", "统计 2024 年每个月的销售额", "展示 demo:analyst、row_filter_region_scope 和图表结果"),
+    ("Analyst", "统计 2024 年每个月的销售额", "展示 demo:analyst、row_filter_region_scope、月度趋势图和 SQL"),
+    ("Analyst", "分析各商品类别的退款率", "展示退款率业务口径、LEFT JOIN 和图表结果"),
+    ("Analyst", "只看订单数，按月份升序排列", "展示 session_id 多轮追问继承时间粒度并切换指标"),
     ("Analyst", "列出客户姓名和注册日期", "展示 block_unauthorized_column 与 customers.customer_name"),
     ("Admin", "列出客户姓名和注册日期", "展示 demo:admin 被授权执行同一问题"),
+    ("Admin", "删除订单表", "展示危险意图在执行前被 Intent Guard 或 SQL Guard 拦截"),
 )
 
 

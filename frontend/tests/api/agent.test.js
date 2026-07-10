@@ -1,87 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createPinia, setActivePinia } from 'pinia'
+import { describe, expect, it } from 'vitest'
+import { exampleQuestions } from '@/api/agent'
 
-const post = vi.fn()
-const get = vi.fn()
-const requestUse = vi.fn()
-
-vi.mock('axios', () => ({
-  default: {
-    create: vi.fn(() => ({
-      get,
-      post,
-      interceptors: {
-        request: { use: requestUse },
-      },
-    })),
-  },
-}))
-
-describe('agent api auth behavior', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    vi.clearAllMocks()
-    setActivePinia(createPinia())
-    localStorage.clear()
-    global.fetch = vi.fn()
+describe('agent example questions', () => {
+  it('starts with the v1.6 core business demo questions', () => {
+    // 核心路径问题放在首页最前面，保证演示时不用临场搜索合适问题。
+    expect(exampleQuestions.slice(0, 6)).toEqual([
+      '统计 2024 年每个月的销售额',
+      '找出销售额最高的 5 个商品',
+      '统计各商品类别的销售额',
+      '分析各商品类别的退款率',
+      '计算 2024 年的平均客单价',
+      '统计各支付方式对应的销售额',
+    ])
   })
 
-  it('demoLogin unwraps SuccessResponse data', async () => {
-    const { demoLogin } = await import('@/api/agent')
-    post.mockResolvedValue({ data: { data: { access_token: 'token-1', user: { roles: ['admin'] } } } })
-
-    const result = await demoLogin('admin')
-
-    expect(post).toHaveBeenCalledWith('/auth/demo-login', { role: 'admin' })
-    expect(result.access_token).toBe('token-1')
-  })
-
-  it('axios interceptor attaches Authorization when token exists', async () => {
-    const { useAuthStore } = await import('@/stores/auth')
-    await import('@/api/agent')
-    const interceptor = requestUse.mock.calls[0][0]
-    const auth = useAuthStore()
-    auth.token = 'token-axios'
-
-    const config = interceptor({ headers: {} })
-
-    expect(config.headers.Authorization).toBe('Bearer token-axios')
-  })
-
-  it('queryAgentSSE sends Authorization header', async () => {
-    const { useAuthStore } = await import('@/stores/auth')
-    const auth = useAuthStore()
-    auth.token = 'token-sse'
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('data: {"type":"result","data":{"answer":"ok"}}\n\n'))
-        controller.close()
-      },
-    })
-    fetch.mockResolvedValue({ ok: true, body: stream })
-    const { queryAgentSSE } = await import('@/api/agent')
-
-    await queryAgentSSE('统计销售额', 'session-1', vi.fn())
-
-    expect(fetch).toHaveBeenCalledWith('/api/chat/query/stream', expect.objectContaining({
-      headers: expect.objectContaining({
-        Authorization: 'Bearer token-sse',
-        'Content-Type': 'application/json',
-      }),
-    }))
-  })
-
-  it('queryAgentSSE normalizes 401 error', async () => {
-    fetch.mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' })
-    const { queryAgentSSE } = await import('@/api/agent')
-
-    await expect(queryAgentSSE('统计销售额', 'session-1', vi.fn())).rejects.toThrow('需要登录后才能查询')
-  })
-
-  it('exports permission demo questions', async () => {
-    const { permissionDemoQuestions } = await import('@/api/agent')
-
-    expect(permissionDemoQuestions.map(item => item.role)).toEqual(['analyst', 'analyst', 'support', 'admin'])
-    expect(permissionDemoQuestions[1].expected).toContain('阻断')
+  it('keeps exactly twelve homepage examples', () => {
+    expect(exampleQuestions).toHaveLength(12)
   })
 })

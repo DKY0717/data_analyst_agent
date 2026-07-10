@@ -64,9 +64,14 @@ def test_build_preflight_report_includes_demo_sequence_and_commands(tmp_path):
     assert "cd backend && uvicorn app.main:app --reload" in markdown
     assert "cd frontend && npm run dev" in markdown
     assert "统计 2024 年每个月的销售额" in markdown
+    assert "分析各商品类别的退款率" in markdown
+    assert "只看订单数，按月份升序排列" in markdown
     assert "列出客户姓名和注册日期" in markdown
+    assert "删除订单表" in markdown
     assert "demo:analyst" in markdown
     assert "demo:admin" in markdown
+    assert "row_filter_region_scope" in markdown
+    assert "block_unauthorized_column" in markdown
 
 
 def test_network_checks_fail_when_local_services_are_unreachable(tmp_path):
