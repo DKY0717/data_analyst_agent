@@ -75,6 +75,12 @@ class IntentGroundingEvaluationRunner:
         ]
         actual_candidate_ids = self._candidate_ids(grounding)
         actual_route_tables = grounding.get("schema_route", {}).get("selected_tables", [])
+        actual_join_edges = [
+            list(edge)
+            for edge in grounding.get("schema_route", {}).get("join_edges", [])
+        ]
+        expected_route_tables = case.get("expected_route_tables", [])
+        expected_join_edges = case.get("expected_join_edges", [])
         actual_option_ids = [
             option.candidate_id for option in clarification.options
         ] if clarification else []
@@ -92,8 +98,11 @@ class IntentGroundingEvaluationRunner:
             "grounding_candidates_matched": self._contains_all(
                 actual_candidate_ids, case.get("expected_candidate_ids", [])
             ),
-            "route_tables_matched": self._contains_all(
-                actual_route_tables, case.get("expected_route_tables", [])
+            "route_tables_matched": self._set_match(
+                actual_route_tables, expected_route_tables
+            ),
+            "route_join_edges_matched": self._edge_set_match(
+                actual_join_edges, expected_join_edges
             ),
             "clarification_decision_matched": (
                 clarification_required is bool(case.get("expected_clarification_required", False))
@@ -114,6 +123,13 @@ class IntentGroundingEvaluationRunner:
             "actual_ranking": ranking,
             "actual_candidate_ids": actual_candidate_ids,
             "actual_route_tables": actual_route_tables,
+            "actual_join_edges": actual_join_edges,
+            "route_table_precision": self._set_precision(
+                actual_route_tables, expected_route_tables
+            ),
+            "route_table_recall": self._set_recall(
+                actual_route_tables, expected_route_tables
+            ),
             "clarification_required": clarification_required,
             "clarification_option_ids": actual_option_ids,
             **checks,
@@ -138,9 +154,14 @@ class IntentGroundingEvaluationRunner:
                 sum(item["grounding_candidates_matched"] for item in results),
                 total,
             ),
-            "route_table_recall_rate": self._rate(
-                sum(item["route_tables_matched"] for item in results),
-                total,
+            "route_table_recall_rate": self._average(
+                [item["route_table_recall"] for item in results]
+            ),
+            "route_table_precision": self._average(
+                [item["route_table_precision"] for item in results]
+            ),
+            "join_edge_accuracy": self._rate(
+                sum(item["route_join_edges_matched"] for item in results), total
             ),
             "clarification_decision_accuracy": self._rate(
                 sum(item["clarification_decision_matched"] for item in results),
@@ -179,6 +200,31 @@ class IntentGroundingEvaluationRunner:
         return set(expected).issubset(set(actual))
 
     @staticmethod
+    def _edge_set_match(actual: List[List[str]], expected: List[List[str]]) -> bool:
+        """JOIN 边忽略方向比较，但不允许额外或缺失路径。"""
+        normalize = lambda edges: {
+            frozenset((str(edge[0]), str(edge[1])))
+            for edge in edges
+            if isinstance(edge, (list, tuple)) and len(edge) == 2
+        }
+        return normalize(actual) == normalize(expected)
+
+    @staticmethod
+    def _set_precision(actual: List[str], expected: List[str]) -> float:
+        actual_set = set(actual)
+        expected_set = set(expected)
+        if not actual_set:
+            return 1.0 if not expected_set else 0.0
+        return len(actual_set & expected_set) / len(actual_set)
+
+    @staticmethod
+    def _set_recall(actual: List[str], expected: List[str]) -> float:
+        expected_set = set(expected)
+        if not expected_set:
+            return 1.0
+        return len(set(actual) & expected_set) / len(expected_set)
+
+    @staticmethod
     def _filters_match(actual: List[Dict[str, Any]], expected: List[Dict[str, Any]]) -> bool:
         normalized_actual = {
             (item.get("concept"), item.get("operator"), repr(item.get("value")))
@@ -199,6 +245,10 @@ class IntentGroundingEvaluationRunner:
     @staticmethod
     def _rate(numerator: int, denominator: int) -> float:
         return numerator / denominator if denominator else 0.0
+
+    @staticmethod
+    def _average(values: List[float]) -> float:
+        return sum(values) / len(values) if values else 0.0
 
 
 def main(argv: List[str] | None = None) -> int:

@@ -24,6 +24,10 @@ def test_evaluate_case_checks_slots_grounding_route_and_clarification():
         ],
         "expected_candidate_ids": ["sales_by_order_total", "region_name"],
         "expected_route_tables": ["orders", "customers", "regions"],
+        "expected_join_edges": [
+            ["orders.customer_id", "customers.customer_id"],
+            ["customers.region_id", "regions.region_id"],
+        ],
         "expected_clarification_required": False,
     }
 
@@ -34,6 +38,7 @@ def test_evaluate_case_checks_slots_grounding_route_and_clarification():
     assert result["filters_matched"] is True
     assert result["grounding_candidates_matched"] is True
     assert result["route_tables_matched"] is True
+    assert result["route_join_edges_matched"] is True
     assert result["clarification_decision_matched"] is True
     assert result["passed"] is True
 
@@ -72,6 +77,8 @@ def test_summary_reports_all_layer_metrics():
     assert summary["slot_match_rate"] == 1.0
     assert summary["grounding_candidate_hit_rate"] == 1.0
     assert summary["route_table_recall_rate"] == 1.0
+    assert summary["route_table_precision"] == 1.0
+    assert summary["join_edge_accuracy"] == 1.0
     assert summary["clarification_decision_accuracy"] == 1.0
     assert summary["all_expectations_met_rate"] == 1.0
     assert summary["passed"] is True

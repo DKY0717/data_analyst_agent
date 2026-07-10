@@ -93,3 +93,17 @@ def test_semantic_items_expose_stable_candidate_ids():
     assert metric["candidate_id"] == "sales_by_order_total"
     assert metric["dimension_overrides"]["category"]["candidate_id"] == "sales_by_item_amount"
     assert dimension["candidate_id"] == "region_name"
+
+
+def test_semantic_layer_exposes_global_physical_join_graph():
+    """Grounding 必须能读取独立于单个指标/维度的完整物理 JOIN 图。"""
+    loader = SemanticLoader()
+
+    joins = loader.get_joins()
+
+    assert {tuple(sorted((edge["left"], edge["right"]))) for edge in joins} >= {
+        tuple(sorted(("orders.customer_id", "customers.customer_id"))),
+        tuple(sorted(("customers.region_id", "regions.region_id"))),
+        tuple(sorted(("order_items.product_id", "products.product_id"))),
+        tuple(sorted(("products.category_id", "categories.category_id"))),
+    }

@@ -43,6 +43,8 @@ class IntentGroundingReportWriter:
             f"- 槽位整体匹配率：{self._format_rate(summary['slot_match_rate'])}",
             f"- Grounding 候选命中率：{self._format_rate(summary['grounding_candidate_hit_rate'])}",
             f"- 路由表召回率：{self._format_rate(summary['route_table_recall_rate'])}",
+            f"- 路由表精确率：{self._format_rate(summary['route_table_precision'])}",
+            f"- JOIN 边准确率：{self._format_rate(summary['join_edge_accuracy'])}",
             f"- 澄清决策准确率：{self._format_rate(summary['clarification_decision_accuracy'])}",
             f"- 澄清候选命中率：{self._format_rate(summary['clarification_option_hit_rate'])}",
             f"- 全部预期满足率：{self._format_rate(summary['all_expectations_met_rate'])}",
@@ -50,8 +52,8 @@ class IntentGroundingReportWriter:
             "",
             "## Case 明细",
             "",
-            "| Case | 分类 | 槽位 | 候选 | 路由 | 澄清决策 | 澄清候选 | 结果 |",
-            "|---|---|---|---|---|---|---|---|",
+            "| Case | 分类 | 槽位 | 候选 | 路由表 | JOIN 边 | 澄清决策 | 澄清候选 | 结果 |",
+            "|---|---|---|---|---|---|---|---|---|",
         ]
 
         for item in report["results"]:
@@ -63,12 +65,13 @@ class IntentGroundingReportWriter:
             )
             lines.append(
                 "| {case_id} | {category} | {slot} | {candidate} | {route} | "
-                "{clarification} | {options} | {passed} |".format(
+                "{joins} | {clarification} | {options} | {passed} |".format(
                     case_id=item["case_id"],
                     category=item["category"],
                     slot=self._format_bool(slot_ok),
                     candidate=self._format_bool(item["grounding_candidates_matched"]),
                     route=self._format_bool(item["route_tables_matched"]),
+                    joins=self._format_bool(item["route_join_edges_matched"]),
                     clarification=self._format_bool(item["clarification_decision_matched"]),
                     options=self._format_bool(item["clarification_options_matched"]),
                     passed=self._format_bool(item["passed"]),
@@ -88,6 +91,7 @@ class IntentGroundingReportWriter:
                     f"- 实际维度：{', '.join(item['actual_dimensions']) or '无'}",
                     f"- 实际候选：{', '.join(item['actual_candidate_ids']) or '无'}",
                     f"- 实际路由表：{', '.join(item['actual_route_tables']) or '无'}",
+                    f"- 实际 JOIN 边：{'; '.join(' = '.join(edge) for edge in item['actual_join_edges']) or '无'}",
                     f"- 是否澄清：{self._format_bool(item['clarification_required'])}",
                     "",
                 ]
