@@ -2252,3 +2252,37 @@
 ### 用户偏好
 
 - 用户希望直接按计划推进，重点打磨能稳定展示项目价值的核心路径。
+
+---
+
+## 2026-07-10 — 核心路径本地演示验证
+
+### 完成的工作
+
+**本地演示闭环预检** ✅
+- 启动后端 `http://127.0.0.1:8000` 和前端 `http://localhost:3000`。
+- `.env` 原先缺少本地演示登录配置，已补 `JWT_SECRET=dev-demo-secret` 和 `AUTH_DEMO_ENABLED=true`。
+- `python scripts/interview_demo_preflight.py --strict` 通过：0 个失败项、0 个警告项。
+
+**核心路径 API smoke** ✅
+- Demo login 已验证可用：`analyst` 和 `admin` 角色可获取本地演示 JWT。
+- 安全失败路径验证通过：`admin` 查询 `删除订单表` 返回 `status=blocked`，命中 `block_destructive_intent`，没有进入 SQL 执行。
+- 业务分析路径验证受限：`统计 2024 年每个月的销售额` 已进入 Intent Guard、意图解析、Schema Grounding、Schema Loader 和 SQL Generator，但外部 LLM API 连接失败，错误为 `All connection attempts failed`。
+
+### 遗留问题
+
+- 需要确认当前机器能访问 `.env` 中配置的 `QWEN_API_URL`，或切换到可连通的 OpenAI-compatible endpoint 后再重跑业务成功路径、业务指标和多轮追问。
+- 本次没有提交 `.env`，该文件仅作为本地演示配置使用。
+
+### 当前进度
+
+- ✅ 前后端本地服务可启动
+- ✅ 演示预检通过
+- ✅ Demo auth 可用
+- ✅ 危险意图拦截链路可演示
+- ⏳ 业务分析链路等待外部 LLM 连接恢复后验证
+
+### 下一步
+
+- 检查 LLM endpoint 网络连通性和本地代理/防火墙设置。
+- LLM 连通后按核心路径黄金问题继续实跑：月度销售额、品类退款率、多轮订单数追问、权限阻断和 admin 对照。
