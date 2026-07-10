@@ -13,6 +13,7 @@ def main():
     sql = input_data["sql"]
     connection_config = input_data.get("connection_config", input_data.get("db_path"))
     backend = input_data["backend"]
+    timeout = int(input_data.get("timeout") or 30)
 
     start_time = time.time()
 
@@ -21,6 +22,11 @@ def main():
             import psycopg2
             conn = psycopg2.connect(**connection_config)
             cur = conn.cursor()
+            # 服务端事务级超时和父进程强杀共同构成双层边界。
+            cur.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                (f"{timeout}s",),
+            )
             cur.execute(sql)
             columns = [desc[0] for desc in cur.description] if cur.description else []
             rows = [list(row) for row in cur.fetchall()]

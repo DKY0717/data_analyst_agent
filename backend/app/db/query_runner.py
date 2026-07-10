@@ -7,7 +7,6 @@ from typing import Dict, Any
 
 from ..config import settings
 from ..utils.logger import logger
-from ..utils.exceptions import SQLExecutionError
 from .connection import db_connection
 from .sandbox import sandbox_executor
 
@@ -33,7 +32,15 @@ class QueryRunner:
     def _execute_sandbox(self, sql: str) -> Dict[str, Any]:
         """沙箱模式：在子进程中执行"""
         connection_config = self._sandbox_connection_config()
-        return sandbox_executor.execute(sql, connection_config, db_connection.backend)
+        result = sandbox_executor.execute(
+            sql,
+            connection_config,
+            db_connection.backend,
+            timeout=self.timeout,
+            include_diagnostics=True,
+        )
+        result["execution_mode"] = "sandbox"
+        return result
 
     def _sandbox_connection_config(self) -> str | dict[str, Any]:
         """按数据库后端生成沙箱子进程可用的连接配置。"""
@@ -56,6 +63,11 @@ class QueryRunner:
             with db_connection.get_session() as conn:
                 if db_connection.backend == "postgresql":
                     cur = conn.cursor()
+                    # set_config(..., true) 仅作用于当前事务，避免污染连接或其他请求。
+                    cur.execute(
+                        "SELECT set_config('statement_timeout', %s, true)",
+                        (f"{self.timeout}s",),
+                    )
                     cur.execute(sql)
                     columns = [desc[0] for desc in cur.description] if cur.description else []
                     rows = [list(row) for row in cur.fetchall()]
@@ -73,6 +85,7 @@ class QueryRunner:
                     "rows": rows,
                     "execution_time_ms": execution_time_ms,
                     "row_count": len(rows),
+                    "execution_mode": "direct",
                 }
 
         except Exception as e:
@@ -80,15 +93,17 @@ class QueryRunner:
             error_msg = str(e)
             error_type = type(e).__name__
 
-            logger.error(f"查询执行失败: {error_type}: {error_msg}，耗时 {execution_time_ms}ms")
+            logger.error("查询执行失败: %s，耗时 %sms", error_type, execution_time_ms)
 
             return {
                 "success": False,
                 "columns": [],
                 "rows": [],
                 "execution_time_ms": execution_time_ms,
-                "error": error_msg,
+                "error": "查询执行失败",
+                "diagnostic_error": error_msg,
                 "error_type": error_type,
+                "execution_mode": "direct",
             }
 
 

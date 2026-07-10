@@ -278,7 +278,7 @@ def test_analyst_order_query_returns_authorized_sql_with_row_filter(monkeypatch)
     normalized = normalize_sql(result.authorized_sql)
     assert result.is_allowed is True
     assert result.authorized_sql != sql
-    assert "customer_id in (select customer_id from customers where region_id in (1, 2))" in normalized
+    assert "orders.customer_id in (select customer_id from customers where region_id in (1, 2))" in normalized
     assert result.row_filters_applied == [{"table": "orders", "rule_id": "row_filter_region_scope"}]
     assert result.audit_events[0]["rule_id"] == "row_filter_applied"
     assert result.audit_events[0]["details"]["authorized_sql_changed"] is True
@@ -309,6 +309,27 @@ def test_row_filter_uses_table_alias(monkeypatch):
     normalized = normalize_sql(result.authorized_sql)
     assert result.is_allowed is True
     assert "o.customer_id in (select customer_id from customers where region_id in (1, 2))" in normalized
+
+
+def test_row_filter_applies_to_every_alias_in_self_join(monkeypatch):
+    """同一受限表出现多次时，每个读取别名都必须受到行过滤约束。"""
+    monkeypatch.delenv("DATA_PERMISSION_POLICY_PATH", raising=False)
+    guard = DataPermissionGuard()
+
+    result = guard.authorize(
+        (
+            "SELECT left_o.order_id, right_o.order_id "
+            "FROM orders left_o JOIN orders right_o "
+            "ON left_o.customer_id = right_o.customer_id LIMIT 1000"
+        ),
+        user(["analyst"]),
+        ecommerce_schema(),
+    )
+
+    normalized = normalize_sql(result.authorized_sql)
+    assert result.is_allowed is True
+    assert "left_o.customer_id in (select customer_id from customers" in normalized
+    assert "right_o.customer_id in (select customer_id from customers" in normalized
 
 
 def test_row_filter_audit_does_not_dump_expression(monkeypatch):

@@ -5,6 +5,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import List
+from ..config import settings
 from ..models.schemas import SuccessResponse
 from ..services.query_cache import query_cache
 from ..services.prompt_registry import prompt_registry
@@ -135,6 +136,11 @@ async def readiness_check():
         message="success",
         data={
             "status": "ready",
+            "sql_execution": {
+                "mode": "sandbox" if settings.SANDBOX_MODE else "direct",
+                "timeout_seconds": settings.SQL_TIMEOUT,
+                "isolated": settings.SANDBOX_MODE,
+            },
             "database": {
                 "ok": True,
                 "backend": db_connection.backend,

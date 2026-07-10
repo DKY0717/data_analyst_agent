@@ -5,6 +5,7 @@ from pathlib import Path
 import duckdb
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
 from app.security.auth import create_jwt_token
 
@@ -38,6 +39,11 @@ def test_readiness_checks_database():
     assert payload["status"] == "ready"
     assert payload["database"]["ok"] is True
     assert payload["database"]["backend"] in {"duckdb", "postgresql"}
+    assert payload["sql_execution"] == {
+        "mode": "sandbox" if settings.SANDBOX_MODE else "direct",
+        "timeout_seconds": settings.SQL_TIMEOUT,
+        "isolated": settings.SANDBOX_MODE,
+    }
 
 
 def test_readiness_failure_hides_database_error(monkeypatch):

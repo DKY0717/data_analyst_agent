@@ -408,7 +408,7 @@ class AgentGraph:
         return {
             "execution_success": result["success"],
             "query_result": result,
-            "execution_error": result.get("error"),
+            "execution_error": result.get("diagnostic_error") or result.get("error"),
             "execution_error_type": result.get("error_type"),
             "audit_events": self._append_audit_event(
                 state,
@@ -420,6 +420,7 @@ class AgentGraph:
                     "execution_time_ms": result.get("execution_time_ms", 0),
                     "row_count": result.get("row_count", len(result.get("rows", []))),
                     "error_type": result.get("error_type"),
+                    "execution_mode": result.get("execution_mode", "unknown"),
                 },
             ),
         }

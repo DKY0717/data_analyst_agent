@@ -520,6 +520,37 @@ class TestAgentGraphExecutionFailure:
     """测试 SQL 执行失败后的修复流程"""
 
     @pytest.mark.asyncio
+    async def test_execute_node_keeps_diagnostic_internal_and_audit_message_generic(self):
+        """Repair 可用详细诊断，但对外审计事件不能复制数据库错误原文。"""
+        graph = AgentGraph()
+        diagnostic = "Catalog Error: secret_table does not exist"
+
+        with patch("app.agents.graph.query_runner") as mock_runner:
+            mock_runner.execute.return_value = {
+                "success": False,
+                "columns": [],
+                "rows": [],
+                "execution_time_ms": 3,
+                "error": "查询执行失败",
+                "diagnostic_error": diagnostic,
+                "error_type": "CatalogException",
+                "execution_mode": "sandbox",
+            }
+
+            result = await graph._execute_sql(
+                {
+                    "question": "查询订单",
+                    "validated_sql": "SELECT * FROM orders LIMIT 1000",
+                    "audit_events": [],
+                }
+            )
+
+        assert result["execution_error"] == diagnostic
+        assert result["audit_events"][0]["message"] == "查询执行失败"
+        assert result["audit_events"][0]["details"]["execution_mode"] == "sandbox"
+        assert diagnostic not in repr(result["audit_events"])
+
+    @pytest.mark.asyncio
     async def test_execute_fail_then_repair_success(self):
         """校验通过 → 执行失败 → 修复 → 校验 → 执行成功"""
         graph = AgentGraph()
