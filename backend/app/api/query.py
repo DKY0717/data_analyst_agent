@@ -4,6 +4,7 @@
 
 import json
 import asyncio
+from contextlib import suppress
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -16,6 +17,32 @@ from ..security.rate_limit import limiter, RATE_LIMIT_QUERY
 from ..utils.logger import logger
 
 router = APIRouter()
+SSE_HEARTBEAT_SECONDS = 15.0
+
+
+async def _wait_for_stream_event(
+    progress_queue: asyncio.Queue,
+    task: asyncio.Task,
+    request: Request,
+    heartbeat_seconds: float = SSE_HEARTBEAT_SECONDS,
+) -> dict[str, Any] | None:
+    """等待进度事件；空闲时发送心跳，并识别客户端主动断开。"""
+    try:
+        return await asyncio.wait_for(progress_queue.get(), timeout=heartbeat_seconds)
+    except asyncio.TimeoutError:
+        if task.done():
+            return None
+        if await request.is_disconnected():
+            return {"type": "disconnect"}
+        return {"type": "heartbeat"}
+
+
+async def _cancel_pipeline_task(task: asyncio.Task) -> None:
+    """取消并等待 Agent task 收尾，避免断开连接后后台继续消耗模型额度。"""
+    if not task.done():
+        task.cancel()
+    with suppress(asyncio.CancelledError):
+        await task
 
 
 def _auth_user_payload(user: AuthUser | None) -> dict[str, Any] | None:
@@ -153,18 +180,19 @@ async def query_stream(
                 on_progress=on_progress_callback,
             )
             await progress_queue.put({"type": "done", "result": result})
-        except Exception as e:
-            await progress_queue.put({"type": "error", "message": str(e)})
+        except Exception:
+            # 不把模型、SQL 或数据库异常原文放入 SSE 队列。
+            await progress_queue.put({"type": "error", "message": "查询处理失败"})
 
     async def event_generator():
         task = asyncio.create_task(run_pipeline())
         try:
             while True:
-                try:
-                    event = await asyncio.wait_for(progress_queue.get(), timeout=0.1)
-                except asyncio.TimeoutError:
-                    if task.done():
-                        break
+                event = await _wait_for_stream_event(progress_queue, task, request)
+                if event is None or event.get("type") == "disconnect":
+                    break
+                if event.get("type") == "heartbeat":
+                    yield ": heartbeat\n\n"
                     continue
 
                 if event.get("type") == "done":
@@ -200,8 +228,7 @@ async def query_stream(
                 else:
                     yield f"data: {json.dumps({'type': 'progress', 'stage': event['stage'], 'progress': event['progress']}, ensure_ascii=False)}\n\n"
         finally:
-            if not task.done():
-                task.cancel()
+            await _cancel_pipeline_task(task)
 
     return StreamingResponse(
         event_generator(),
