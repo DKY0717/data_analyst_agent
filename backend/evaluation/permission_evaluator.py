@@ -117,6 +117,16 @@ def default_cases() -> list[PermissionEvaluationCase]:
             expect_authorized_sql_changed=False,
         ),
         PermissionEvaluationCase(
+            case_id="admin_customer_name_allowed",
+            description="admin 可以读取客户姓名和注册日期。",
+            roles=["admin"],
+            sql="SELECT customer_name, register_date FROM customers LIMIT 1000",
+            expected_allowed=True,
+            expected_blocked_rule=None,
+            expect_row_filter=False,
+            expect_authorized_sql_changed=False,
+        ),
+        PermissionEvaluationCase(
             case_id="support_payments_blocked",
             description="support 不能访问 payments 表。",
             roles=["support"],

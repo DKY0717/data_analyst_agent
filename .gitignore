@@ -39,3 +39,6 @@ frontend/test-results/
 backend/evaluation/reports/*.json
 backend/evaluation/reports/*.md
 !backend/evaluation/reports/.gitkeep
+
+# Backend tests and executable evaluators share generated databases/reports here.
+backend/tests/.tmp/

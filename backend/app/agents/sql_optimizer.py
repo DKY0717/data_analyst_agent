@@ -15,8 +15,15 @@ from ..utils.logger import logger
 class SQLOptimizer:
     """轻量 SQL 优化器：基于 AST、查询结果和 DuckDB EXPLAIN 生成规则化建议"""
 
-    def __init__(self, max_rows: int = None):
+    def __init__(
+        self,
+        max_rows: int = None,
+        query_runner_service=None,
+        sql_guard_service=None,
+    ):
         self.max_rows = max_rows or settings.SQL_MAX_ROWS
+        self._query_runner = query_runner_service
+        self._sql_guard = sql_guard_service
 
     def optimize(self, sql: str, query_result: Dict[str, Any]) -> List[str]:
         """生成 SQL 优化建议
@@ -72,13 +79,15 @@ class SQLOptimizer:
     def _load_explain_plan(self, sql: str) -> str:
         """通过 SQL Guard 校验后的 EXPLAIN 获取 DuckDB 执行计划"""
         explain_sql = f"EXPLAIN {sql}"
-        guard_result = sql_guard.validate(explain_sql)
+        guard_service = self._sql_guard or sql_guard
+        runner_service = self._query_runner or query_runner
+        guard_result = guard_service.validate(explain_sql)
         if not guard_result["is_safe"]:
             logger.warning(f"EXPLAIN SQL 未通过安全校验: {guard_result['reason']}")
             return ""
 
         # EXPLAIN 也走 QueryRunner，统一复用执行错误捕获和结构化返回格式。
-        result = query_runner.execute(guard_result["sanitized_sql"])
+        result = runner_service.execute(guard_result["sanitized_sql"])
         if not result.get("success"):
             logger.warning(f"EXPLAIN 执行失败: {result.get('error')}")
             return ""

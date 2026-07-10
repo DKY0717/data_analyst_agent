@@ -202,6 +202,27 @@ def test_multi_table_ambiguous_unqualified_column_fails_closed():
     assert "order_id" in result.reason
 
 
+def test_projection_alias_in_order_by_is_not_treated_as_physical_column():
+    """聚合别名已由底层表达式完成权限检查，ORDER BY 引用不应再次误判。"""
+    guard = DataPermissionGuard()
+
+    result = guard.authorize(
+        (
+            "SELECT p.product_name, "
+            "SUM(oi.quantity * oi.unit_price) AS sales_amount "
+            "FROM order_items oi JOIN products p ON oi.product_id = p.product_id "
+            "GROUP BY p.product_name ORDER BY sales_amount DESC LIMIT 5"
+        ),
+        user(["analyst"]),
+        ecommerce_schema(),
+    )
+
+    assert result.is_allowed is True
+    assert "order_items.quantity" in result.referenced_columns
+    assert "order_items.unit_price" in result.referenced_columns
+    assert all(not column.endswith(".sales_amount") for column in result.referenced_columns)
+
+
 def test_single_table_unqualified_column_is_resolved_to_that_table():
     guard = DataPermissionGuard()
 

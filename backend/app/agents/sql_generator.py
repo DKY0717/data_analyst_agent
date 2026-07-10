@@ -16,6 +16,15 @@ from ..utils.exceptions import LLMError
 class SQLGenerator:
     """SQL 生成 Agent，负责自然语言 → SQL 的转换"""
 
+    def __init__(self, client=None):
+        # 允许评测注入确定性 Fake LLM；生产默认仍使用统一 OpenAI-compatible client。
+        self._client = client
+
+    @property
+    def client(self):
+        """未注入时动态读取全局 client，保留现有运行时替换和测试能力。"""
+        return self._client or llm_client
+
     async def generate(
         self,
         question: str,
@@ -46,7 +55,12 @@ class SQLGenerator:
 
         try:
             # 调用 LLM 生成 SQL，返回结构化 JSON
-            result = await llm_client.generate_sql(question, schema_str, conversation_context, intent_str)
+            result = await self.client.generate_sql(
+                question,
+                schema_str,
+                conversation_context,
+                intent_str,
+            )
 
             # 从生成的 SQL 中提取使用的列名（LLM 返回的 tables 不含 columns）
             columns = self._extract_columns(result.get("sql", ""))

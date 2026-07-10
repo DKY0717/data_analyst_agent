@@ -262,6 +262,8 @@ class DataPermissionGuard:
             self._append_unique(referenced_columns, f"{table}.{ALL_COLUMNS}")
 
         for column in parsed.find_all(exp.Column):
+            if self._is_projection_alias_reference(column):
+                continue
             table_name = self._resolve_column_table(
                 column,
                 referenced_tables,
@@ -277,6 +279,23 @@ class DataPermissionGuard:
             self._append_unique(referenced_columns, f"{table_name}.{column.name.lower()}")
 
         return referenced_columns, None
+
+    def _is_projection_alias_reference(self, column: exp.Column) -> bool:
+        """ORDER/GROUP/HAVING 中的投影别名不是新的物理字段引用。"""
+        if column.table:
+            return False
+        clause_types = (exp.Order, exp.Group, exp.Having, exp.Qualify)
+        if not any(column.find_ancestor(clause_type) for clause_type in clause_types):
+            return False
+        select_scope = column.find_ancestor(exp.Select)
+        if select_scope is None:
+            return False
+        aliases = {
+            expression.alias.lower()
+            for expression in select_scope.expressions
+            if expression.alias
+        }
+        return column.name.lower() in aliases
 
     def _is_count_star(self, star: exp.Star) -> bool:
         """COUNT(*) 不暴露具体列，不能像 SELECT * 一样按字段泄露处理。"""

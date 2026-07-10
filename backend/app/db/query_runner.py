@@ -19,9 +19,20 @@ class QueryRunner:
     - false: 直接模式，在主进程中执行（开发调试）
     """
 
-    def __init__(self, timeout: int = None, sandbox: bool | None = None):
+    def __init__(
+        self,
+        timeout: int = None,
+        sandbox: bool | None = None,
+        connection=None,
+    ):
         self.timeout = timeout or settings.SQL_TIMEOUT
         self.sandbox = settings.SANDBOX_MODE if sandbox is None else sandbox
+        self._connection = connection
+
+    @property
+    def connection(self):
+        """默认动态读取全局连接，保留现有 mock 和运行时后端切换能力。"""
+        return self._connection or db_connection
 
     def execute(self, sql: str) -> Dict[str, Any]:
         """执行SQL查询"""
@@ -35,7 +46,7 @@ class QueryRunner:
         result = sandbox_executor.execute(
             sql,
             connection_config,
-            db_connection.backend,
+            self.connection.backend,
             timeout=self.timeout,
             include_diagnostics=True,
         )
@@ -44,7 +55,7 @@ class QueryRunner:
 
     def _sandbox_connection_config(self) -> str | dict[str, Any]:
         """按数据库后端生成沙箱子进程可用的连接配置。"""
-        if db_connection.backend == "postgresql":
+        if self.connection.backend == "postgresql":
             # PostgreSQL 沙箱必须拿到 PG 连接参数，不能复用 DuckDB 的本地文件路径。
             return {
                 "host": settings.PG_HOST,
@@ -53,15 +64,16 @@ class QueryRunner:
                 "password": settings.PG_PASSWORD,
                 "dbname": settings.PG_DATABASE,
             }
-        return str(settings.DATA_DIR / "database.duckdb")
+        custom_path = getattr(self.connection, "db_path", None)
+        return str(custom_path or settings.DATA_DIR / "database.duckdb")
 
     def _execute_direct(self, sql: str) -> Dict[str, Any]:
         """直接模式：在主进程中执行"""
         start_time = time.time()
 
         try:
-            with db_connection.get_session() as conn:
-                if db_connection.backend == "postgresql":
+            with self.connection.get_session() as conn:
+                if self.connection.backend == "postgresql":
                     cur = conn.cursor()
                     # set_config(..., true) 仅作用于当前事务，避免污染连接或其他请求。
                     cur.execute(

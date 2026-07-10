@@ -12,8 +12,14 @@ from ..utils.exceptions import SchemaLoadError
 class SchemaLoader:
     """数据库Schema加载器（双后端支持）"""
 
-    def __init__(self):
-        self.db = db_connection
+    def __init__(self, db=None):
+        # Core-path 等确定性评测可注入隔离连接；生产使用全局数据库连接。
+        self._db = db
+
+    @property
+    def db(self):
+        """未注入时动态读取全局连接，保留运行时后端切换和测试替换能力。"""
+        return self._db or db_connection
 
     @property
     def _is_pg(self) -> bool:

@@ -230,6 +230,13 @@ class SQLiteSessionStore:
             conn.execute("DELETE FROM pending_clarifications")
         conn.commit()
 
+    def close(self) -> None:
+        """关闭当前线程连接，便于隔离评测可靠清理临时目录。"""
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._local.conn = None
+
 
 # 全局实例（替换内存版 session_store）
 session_store = SQLiteSessionStore()
