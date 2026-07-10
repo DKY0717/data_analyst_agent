@@ -2335,6 +2335,15 @@
 - 验证：安全执行相关联合回归 `143 passed`；Compose YAML 解析通过并确认 `SANDBOX_MODE=true`。本机无 Docker CLI，容器 config/build 留给后续 CI 门禁验证。
 - 阶段提交：`9e83a9b`。
 
+**阶段四 A：可执行核心路径回归** ✅
+- 核心路径由 14 条静态关联清单升级为 15 条可执行场景，新增缺失指标主动澄清覆盖。
+- Runner 只在外部模型边界注入确定性 Fake LLM，真实运行 LangGraph、Intent/SQL Guard、Grounding、Permission、Optimizer 和隔离 DuckDB。
+- 业务 SQL fixture 复用既有 golden result / permission 资产；多轮场景真实写入并读取隔离 SQLite 会话上下文。
+- 报告输出 case pack 版本、执行模式、逐 case 状态、阻断规则、surface 完整性和失败阶段，不保存完整结果行。
+- Runner 暴露并修复 `ORDER BY` 投影别名被权限 Guard 误判为裸物理字段的问题。
+- 验证：15/15 核心路径通过、surface 完整率 100%、源数据库哈希不变；联合回归 `112 passed`，CLI 报告写入验证通过。
+- 阶段提交：`fae9fb9`。
+
 ### 当前进度
 
 - ✅ 系统性问题清单与设计边界已确认
@@ -2344,12 +2353,13 @@
 - ✅ 阶段二 A Grounding 精确路由已完成
 - ✅ 阶段二 B LLM 可观测性与 SQL 追踪隐私已完成
 - ✅ 阶段三 SQL 安全、权限与超时硬化已完成
-- ⏳ 阶段四可执行核心路径与真实模型证据进行中
+- ✅ 阶段四 A 可执行核心路径回归已完成
+- ⏳ 阶段四 B 真实模型工作流与证据元数据进行中
 
 ### 下一步
 
-- 把核心路径从静态结构检查升级为确定性可执行场景回归。
 - 对齐真实模型工作流、Provider 元数据与失败诊断证据。
+- 为 SSE 取消、心跳和部署超时边界补齐真实回归。
 
 ### 用户偏好
 
