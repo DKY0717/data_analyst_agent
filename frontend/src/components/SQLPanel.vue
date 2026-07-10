@@ -43,10 +43,6 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
-  optimizations: {
-    type: Array,
-    default: () => [],
-  },
 })
 
 const statusType = computed(() => {

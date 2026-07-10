@@ -23,6 +23,17 @@ const router = useRouter()
 const permissionQuestionLabels = computed(() => permissionDemoQuestions.map((item) => (
   `${item.role.toUpperCase()} - ${item.question} (${item.expected})`
 )))
+const executionMetrics = computed(() => {
+  const result = store.result
+  if (!result) return null
+
+  // QueryResponse 顶层保存执行数据，审计报告只补充 LLM 调用汇总。
+  return {
+    row_count: Array.isArray(result.rows) ? result.rows.length : 0,
+    total_latency_ms: result.execution_time_ms ?? 0,
+    llm_call_count: result.audit_report?.llm_observability?.call_count ?? 0,
+  }
+})
 
 function handleSelect(q) {
   store.question = q
@@ -45,6 +56,11 @@ function handleSubmit() {
 
 function handleFavorite(item) {
   store.toggleFavorite(item)
+}
+
+function handleClarification(option) {
+  // 保持候选对象原样传递，Store 负责拼装后端澄清契约。
+  store.submitClarification(option)
 }
 
 onMounted(() => {
@@ -134,7 +150,7 @@ watch(() => store.result, (r) => {
           :loading="store.loading"
           :error="store.error"
           :answer="store.result?.answer"
-          :execution-metrics="store.result?.audit_report?.execution_metrics"
+          :execution-metrics="executionMetrics"
           :loading-stage="store.loadingStage"
         />
         <ChartPanel :data="store.result" />
@@ -143,18 +159,16 @@ watch(() => store.result, (r) => {
 
       <aside class="right-column">
         <IntentPanel
-          :intent="store.result?.intent_parsed"
+          :intent="store.result?.analysis_intent"
           :loading="store.loading"
           :clarification="store.result?.clarification"
-          @clarify="({ candidate, text }) => store.submitClarification({ candidate, text })"
+          @clarify="handleClarification"
         />
         <SQLPanel
-          :sql="store.result?.optimized_sql ?? store.result?.generated_sql"
-          :changed="store.result?.optimized_sql && store.result?.optimized_sql !== store.result?.generated_sql"
-          :optimizations="store.result?.optimizations"
+          :sql="store.result?.sql"
         />
         <AuditPanel :report="store.result?.audit_report" />
-        <OptimizationPanel :report="store.result?.audit_report" />
+        <OptimizationPanel :result="store.result" />
       </aside>
     </main>
   </div>

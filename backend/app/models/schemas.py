@@ -1,7 +1,7 @@
 # Pydantic模型定义模块
 # 定义请求和响应的数据模型
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Optional, List, Dict
 
 # 请求模型
@@ -102,6 +102,8 @@ class AuditReport(BaseModel):
 
 class QueryResponse(BaseModel):
     """查询响应模型"""
+    model_config = ConfigDict(extra="forbid")
+
     question: str  # 用户问题
     session_id: Optional[str] = None  # 多轮分析会话ID
     status: str = "completed"  # completed / blocked / clarification_required / clarification_expired

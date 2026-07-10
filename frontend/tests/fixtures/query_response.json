@@ -1,0 +1,38 @@
+{
+  "question": "统计销售额",
+  "session_id": "contract-session",
+  "status": "completed",
+  "intent_is_safe": true,
+  "intent_rule_id": null,
+  "intent_category": null,
+  "sql": "SELECT SUM(total_amount) AS sales_amount FROM orders LIMIT 1000",
+  "is_sql_safe": true,
+  "columns": ["sales_amount"],
+  "rows": [[128000]],
+  "answer": "销售额为 128000。",
+  "execution_time_ms": 18,
+  "retry_count": 1,
+  "optimization_suggestions": ["避免 SELECT *"],
+  "analysis_intent": {
+    "overall_confidence": 0.95,
+    "metrics": [{"concept": "sales_amount", "evidence": "销售额"}],
+    "dimensions": [],
+    "filters": []
+  },
+  "clarification": {
+    "clarification_id": "clarify_metric",
+    "options": [{"candidate_id": "metric_sales", "label": "销售额"}]
+  },
+  "audit_report": {
+    "question": "统计销售额",
+    "final_sql": "SELECT SUM(total_amount) AS sales_amount FROM orders LIMIT 1000",
+    "is_sql_safe": true,
+    "execution_success": true,
+    "retry_count": 1,
+    "limit_injected": false,
+    "blocked_rules": [],
+    "llm_observability": {"call_count": 2},
+    "permission_observability": {"permission_checked": true, "allowed": true},
+    "events": []
+  }
+}

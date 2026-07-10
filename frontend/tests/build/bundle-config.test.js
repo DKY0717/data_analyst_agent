@@ -33,6 +33,14 @@ describe('frontend bundle configuration', () => {
 
     expect(viteConfig).toContain("process.env.VITE_API_PROXY_TARGET || 'http://localhost:8000'")
     expect(viteConfig).not.toContain("target: 'http://localhost:8001'")
-    expect(e2eRunner).toContain("VITE_API_PROXY_TARGET: 'http://localhost:8001'")
+    expect(e2eRunner).toContain('E2E_BACKEND_PORT')
+    expect(e2eRunner).toContain('E2E_FRONTEND_PORT')
+    expect(e2eRunner).toContain("'--strictPort'")
+    expect(e2eRunner).toContain('E2E_BASE_URL')
+    expect(viteConfig).toContain('process.env.VITE_DEV_PORT')
+
+    const playwrightConfig = readProjectFile('playwright.config.js')
+    expect(playwrightConfig).toContain('process.env.E2E_BASE_URL || `http://localhost:${frontendPort}`')
+    expect(playwrightConfig).toContain('VITE_API_PROXY_TARGET: `http://127.0.0.1:${backendPort}`')
   })
 })
