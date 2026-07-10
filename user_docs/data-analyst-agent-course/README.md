@@ -2,7 +2,7 @@
 
 > 这是一套面向初学者的中文项目课程。我们会从数据库、HTTP 和 Python 基础出发，逐步理解并复现自然语言分析、SQL 生成、安全校验、Agent 工作流、权限治理、前端工作台、自动化测试和部署。
 >
-> **课程状态：建设中（0/19）**
+> **课程状态：建设中（3/19）**
 >
 > **教学基线：** `4d71b3ce84cffe175fffaffa252a9072d6e79d18`
 >
@@ -48,9 +48,9 @@
 
 | 部分 | 章节 | 核心问题 | 当前状态 |
 |---|---|---|---|
-| 第一部分：基础准备 | 第1章 认识 Data Analyst Agent | 项目解决什么问题，完整链路是什么 | 编写中 |
-|  | 第2章 开发环境与必备 Python 基础 | 如何准备并理解项目运行环境 | 编写中 |
-|  | 第3章 数据库、SQL 与电商业务模型 | 八张业务表如何支撑分析问题 | 编写中 |
+| 第一部分：基础准备 | [第1章 认识 Data Analyst Agent](part01-foundations/chapter01-project-overview.md) | 项目解决什么问题，完整链路是什么 | 已完成 |
+|  | [第2章 开发环境与必备 Python 基础](part01-foundations/chapter02-development-environment-and-python.md) | 如何准备并理解项目运行环境 | 已完成 |
+|  | [第3章 数据库、SQL 与电商业务模型](part01-foundations/chapter03-database-sql-and-domain-model.md) | 八张业务表如何支撑分析问题 | 已完成 |
 | 第二部分：最小可用系统 | 第4章 初始化数据库与加载 Schema | 程序如何认识数据库 | 编写中 |
 |  | 第5章 搭建 FastAPI 后端 | HTTP 请求如何进入 Python 业务逻辑 | 编写中 |
 |  | 第6章 接入 OpenAI-compatible 大模型 | 如何安全、稳定地调用 LLM | 编写中 |
@@ -145,4 +145,3 @@ docker compose up -d --build
 > 第一版课程对应教学基线提交 `4d71b3c`。项目后续优化时，先更新 `CODE-MAP.md` 中受影响的源码和测试，再修订对应章节，最后在 `CHANGELOG.md` 中记录行为变化和验证结果。
 >
 > 如果课程文字与当前代码冲突，应以当前代码、测试和实际运行证据为准，并把差异记录为需要修订的文档问题。
-
