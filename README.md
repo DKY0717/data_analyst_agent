@@ -10,7 +10,7 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 70+ 条评测/回归用例** — 后端 587 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例和 5 条数据权限回归评测覆盖核心安全链路。
+**500+ 测试 + 80+ 条评测/回归/核心路径用例** — 后端 595 个测试、前端 54 个单元测试、17 个 E2E 测试、65 条结构化评测用例、5 条数据权限回归评测和 14 条核心路径黄金问题覆盖核心安全链路。
 
 ## 面试/简历材料
 
@@ -18,6 +18,14 @@
 - [简历项目包装包](docs/resume_project_packet.md)：用于复制简历 bullet、30/90 秒介绍、STAR 故事、演示清单和证据索引。
 - 面试前可运行 `python scripts/interview_demo_preflight.py --strict` 做面试演示预检，确认演示环境变量、核心文件、本地后端 readiness 和前端页面状态。
 - 面试前可运行 `python scripts/interview_evidence.py --run-id <github_run_id>` 生成本地测试、真实 Qwen workflow 和 `security-audit-*.md/json` artifact 的证据包清单。
+
+### 核心路径黄金问题
+
+v1.6 将面试和回归最常用的问题收敛到 `backend/evaluation/cases/core_path_cases.yaml`。这份核心路径黄金问题包复用已有 NL2SQL、结果正确性和权限评测 case，覆盖业务成功路径、业务指标、多轮追问、权限治理和安全失败演示。修改前端推荐问题或面试演示脚本后，可以运行：
+
+```bash
+pytest backend/tests/test_core_path_cases.py -q
+```
 
 ## 核心架构
 
@@ -214,7 +222,7 @@ python scripts/interview_evidence.py --run-id <github_run_id>
 ## 运行测试
 
 ```bash
-# 后端测试（587 个）
+# 后端测试（595 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（54 个）
@@ -280,7 +288,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 587 个测试
+│   └── tests/             # 595 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
