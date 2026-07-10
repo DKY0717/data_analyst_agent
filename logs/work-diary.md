@@ -2216,7 +2216,8 @@
 **v1.6 核心路径打磨实现** ✅
 - 新增核心路径黄金问题包、加载器和回归测试。
 - 前端推荐问题、面试演示预检和文档入口已对齐核心路径。
-- 后端测试数从 587 更新为 595。
+- 后端测试数从 587 更新为 596。
+- 最终验证时发现当前前端 Vitest 实际为 51 个单测，已把 README、面试稿和简历包从旧的 54 个修正为 51 个。
 - 阶段提交：`b172b78`、`b327f33`、`f14898e`。
 
 ### 遗留问题
@@ -2230,12 +2231,23 @@
 - ✅ v1.6 设计规格已创建
 - ✅ v1.6 实施计划已创建
 - ✅ 核心路径配置、加载器、测试、前端推荐问题和演示预检已完成
-- ⏳ 文档一致性和最终验证进行中
+- ✅ 文档一致性和最终验证已完成
+
+### 当前验证
+
+- RED：`pytest backend/tests/test_core_path_cases.py -q` 曾因 `evaluation.core_path` 不存在失败。
+- GREEN：`pytest backend/tests/test_interview_demo_preflight_script.py backend/tests/test_core_path_cases.py -q`：13 passed。
+- Focused：`pytest backend/tests/test_core_path_cases.py backend/tests/test_interview_demo_preflight_script.py backend/tests/test_project_docs_consistency.py -q`：35 passed。
+- 文档一致性：`pytest backend/tests/test_project_docs_consistency.py -q`：22 passed。
+- 后端收集：`pytest backend --collect-only -q | Select-String "tests collected"`：596 tests collected。
+- 前端单测：`cd frontend && npm run test`：10 test files passed，51 tests passed。
+- `git diff --check`：退出码 0，仅 Windows LF/CRLF 提示。
+- 注意：一次并行运行后端收集和 focused pytest 时，两个进程争用 `backend/tests/.tmp/data/database.duckdb` 触发 WinError 32；已改为串行运行并通过。
 
 ### 下一步
 
-- 运行 focused 测试、前端单测、后端收集和 `git diff --check`。
-- 提交文档同步结果。
+- 提交最终文档同步和验证记录。
+- 后续可推送 `codex/core-path-polish` 并开 PR，或合并回 `main`。
 
 ### 用户偏好
 

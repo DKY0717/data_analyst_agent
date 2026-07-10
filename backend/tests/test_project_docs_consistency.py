@@ -11,8 +11,10 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（595 个）" in readme
-    assert "tests/             # 595 个测试" in readme
+    assert "后端测试（596 个）" in readme
+    assert "tests/             # 596 个测试" in readme
+    assert "后端测试（595 个）" not in readme
+    assert "tests/             # 595 个测试" not in readme
     assert "后端测试（587 个）" not in readme
     assert "tests/             # 587 个测试" not in readme
     assert "后端测试（586 个）" not in readme
@@ -62,10 +64,11 @@ def test_readme_backend_test_count_matches_current_claim():
 def test_readme_frontend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "前端单元测试（54 个）" in readme
-    assert "前端 54 个单元测试" in readme
+    assert "前端单元测试（51 个）" in readme
+    assert "前端 51 个单元测试" in readme
+    assert "前端单元测试（54 个）" not in readme
+    assert "前端 54 个单元测试" not in readme
     assert "前端单元测试（53 个）" not in readme
-    assert "前端单元测试（51 个）" not in readme
 
 
 def test_llm_provider_docs_and_defaults_are_consistent():
@@ -309,8 +312,8 @@ def test_core_path_polish_docs_are_documented():
 def test_interview_guide_matches_current_project_evidence():
     guide = read_text("docs/interview_guide.md")
 
-    assert "595 个后端测试" in guide
-    assert "54 个前端单测" in guide
+    assert "596 个后端测试" in guide
+    assert "51 个前端单测" in guide
     assert "17 个 E2E" in guide
     assert "前端单元测试" in guide
     assert "Playwright 前端 E2E" in guide
@@ -318,6 +321,8 @@ def test_interview_guide_matches_current_project_evidence():
     assert "Docker 镜像构建" in guide
     assert "后端容器 readiness smoke test" in guide
     assert "14 条核心路径黄金问题" in guide
+    assert "595 个后端测试" not in guide
+    assert "54 个前端单测" not in guide
     assert "587 个后端测试" not in guide
     assert "586 个后端测试" not in guide
     assert "581 个后端测试" not in guide
@@ -332,8 +337,8 @@ def test_interview_guide_matches_current_project_evidence():
 def test_resume_packet_matches_current_project_evidence():
     packet = read_text("docs/resume_project_packet.md")
 
-    assert "595 个后端测试" in packet
-    assert "54 个前端单测" in packet
+    assert "596 个后端测试" in packet
+    assert "51 个前端单测" in packet
     assert "17 个 E2E" in packet
     assert "Playwright 前端 E2E" in packet
     assert "Docker Compose 配置校验" in packet
@@ -341,6 +346,8 @@ def test_resume_packet_matches_current_project_evidence():
     assert "后端容器 readiness smoke test" in packet
     assert "14 条核心路径黄金问题" in packet
     assert "500+ 自动化测试" in packet
+    assert "595 个后端测试" not in packet
+    assert "54 个前端单测" not in packet
     assert "587 个后端测试" not in packet
     assert "586 个后端测试" not in packet
     assert "581 个后端测试" not in packet
