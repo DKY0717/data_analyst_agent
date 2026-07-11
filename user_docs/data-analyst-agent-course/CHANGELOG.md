@@ -64,3 +64,39 @@
 | 第10章 | `backend/tests/test_semantic_loader.py`、`backend/tests/test_metadata_catalog.py` |
 
 > 课程进度更新为 10/19。第 8～10 章的描述以当前 v1.7 安全和 Grounding 实现为准，后续如果语义配置或策略规则变化，需要同步更新对应章节。
+
+### 完成第三部分下半段：LangGraph、修复与多轮分析
+
+> 已完成第 11～12 章，覆盖 `AgentState`、12 个工作流节点、条件边、安全终止、SQL Repair、错误分类、优化建议、LLM 修复回流、会话摘要、SQLite 持久化和澄清恢复。
+
+| 章节 | 主要验证 |
+|---|---|
+| 第11章 | `backend/tests/test_agent_graph.py` |
+| 第12章 | `backend/tests/test_sql_repair.py`、`backend/tests/test_sql_optimizer.py`、`backend/tests/test_conversation_context.py`、`backend/tests/test_session_store.py` |
+
+> 课程进度更新为 12/19。修复和多轮章节明确区分了网络重试、SQL 业务重试和用户重新提问，也明确修复 SQL 必须重新通过 Guard 与权限检查。
+
+### 完成第四部分：产品化能力
+
+> 已完成第 13～15 章，覆盖 JWT/API Key、角色权限、YAML 策略、字段和行级过滤、审计报告、SSE 心跳与取消、查询缓存、LLM Token/成本观测、Prompt 版本、A/B 记录，以及 Vue 三栏工作台、Pinia、Axios、ECharts、表格导出和权限演示。
+
+| 章节 | 主要验证 |
+|---|---|
+| 第13章 | `backend/tests/test_auth.py`、`backend/tests/test_data_permission_guard.py` |
+| 第14章 | `backend/tests/test_query_cache.py`、`backend/tests/test_llm_observability.py` |
+| 第15章 | `frontend/tests/`、`npm run build --prefix frontend` |
+
+> 课程进度更新为 15/19。前端章节强调组件只负责展示和交互，认证、权限和安全判定仍以服务器端结果为准。
+
+### 完成第五部分：质量、部署与毕业设计
+
+> 已完成第 16～19 章，覆盖自动化测试分层、NL2SQL 评测集与质量门禁、Docker Compose/Nginx/CI 交付，以及从干净环境复现项目、定位风险和规划后续演进的方法。至此五个部分、十九章正文全部完成。
+
+| 章节 | 主要验证 |
+|---|---|
+| 第16章 | `backend/tests/test_learning_course_docs.py`、后端单元测试、前端 Vitest |
+| 第17章 | `backend/tests/test_evaluator.py`、`backend/tests/test_quality_gate.py` |
+| 第18章 | `docker-compose.yml`、`nginx.conf`、`.github/workflows/ci.yml` |
+| 第19章 | 文档契约、目录链接、源码路径和从零复现检查 |
+
+> 课程进度更新为 19/19。第一版课程正文已完成；后续项目代码变更时，应按照第 19 章的维护清单同步更新章节和验证证据。

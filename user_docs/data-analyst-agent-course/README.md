@@ -2,11 +2,11 @@
 
 > 这是一套面向初学者的中文项目课程。我们会从数据库、HTTP 和 Python 基础出发，逐步理解并复现自然语言分析、SQL 生成、安全校验、Agent 工作流、权限治理、前端工作台、自动化测试和部署。
 >
-> **课程状态：建设中（10/19）**
+> **课程状态：已完成（19/19）**
 >
 > **教学基线：** `4d71b3ce84cffe175fffaffa252a9072d6e79d18`
 >
-> **最后核对日期：** 2026-07-10
+> **最后核对日期：** 2026-07-11
 
 ## 1. 为什么要做这套课程
 
@@ -58,15 +58,15 @@
 | 第三部分：完整 Agent 工作流 | [第8章 SQL 安全防护](part03-agent-workflow/chapter08-sql-safety.md) | 如何阻止危险意图和危险 SQL | 已完成 |
 |  | [第9章 结构化分析意图](part03-agent-workflow/chapter09-analysis-intent.md) | 如何识别指标、维度和筛选条件 | 已完成 |
 |  | [第10章 语义层、Grounding 与澄清](part03-agent-workflow/chapter10-semantic-grounding-clarification.md) | 业务概念如何落到真实表字段 | 已完成 |
-|  | 第11章 LangGraph 工作流 | 节点、状态和分支如何协作 | 编写中 |
-|  | 第12章 修复、优化与多轮分析 | 系统如何从失败中恢复并继承上下文 | 编写中 |
-| 第四部分：完整产品 | 第13章 认证、权限与安全审计 | 谁可以查询什么数据 | 编写中 |
-|  | 第14章 SSE、缓存与可观测性 | 如何改善体验并观察系统成本 | 编写中 |
-|  | 第15章 Vue 数据分析工作台 | 后端能力如何成为可交互产品 | 编写中 |
-| 第五部分：质量与毕业设计 | 第16章 自动化测试 | 如何证明关键代码没有回归 | 编写中 |
-|  | 第17章 评测体系与质量门禁 | 如何衡量 NL2SQL 是否可靠 | 编写中 |
-|  | 第18章 Docker、Nginx 与 CI | 如何交付和持续验证项目 | 编写中 |
-|  | 第19章 完整复现与项目复盘 | 如何独立走通项目并继续优化 | 编写中 |
+|  | [第11章 LangGraph 工作流](part03-agent-workflow/chapter11-langgraph-workflow.md) | 节点、状态和分支如何协作 | 已完成 |
+|  | [第12章 修复、优化与多轮分析](part03-agent-workflow/chapter12-repair-optimization-multiturn.md) | 系统如何从失败中恢复并继承上下文 | 已完成 |
+| 第四部分：完整产品 | [第13章 认证、权限与安全审计](part04-productization/chapter13-auth-permission-audit.md) | 谁可以查询什么数据 | 已完成 |
+|  | [第14章 SSE、缓存与可观测性](part04-productization/chapter14-sse-cache-observability.md) | 如何改善体验并观察系统成本 | 已完成 |
+|  | [第15章 Vue 数据分析工作台](part04-productization/chapter15-vue-workbench.md) | 后端能力如何成为可交互产品 | 已完成 |
+| 第五部分：质量与毕业设计 | [第16章 自动化测试](part05-quality-and-graduation/chapter16-automated-testing.md) | 如何证明关键代码没有回归 | 已完成 |
+|  | [第17章 评测体系与质量门禁](part05-quality-and-graduation/chapter17-evaluation-and-quality-gate.md) | 如何衡量 NL2SQL 是否可靠 | 已完成 |
+|  | [第18章 Docker、Nginx 与 CI](part05-quality-and-graduation/chapter18-docker-nginx-ci.md) | 如何交付和持续验证项目 | 已完成 |
+|  | [第19章 完整复现与项目复盘](part05-quality-and-graduation/chapter19-reproduction-and-roadmap.md) | 如何独立走通项目并继续优化 | 已完成 |
 
 ## 5. 每章怎么学习
 

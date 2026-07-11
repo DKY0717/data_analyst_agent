@@ -17,3 +17,16 @@
   - [第8章 SQL 安全防护](part03-agent-workflow/chapter08-sql-safety.md)
   - [第9章 结构化分析意图](part03-agent-workflow/chapter09-analysis-intent.md)
   - [第10章 语义层、Grounding 与澄清](part03-agent-workflow/chapter10-semantic-grounding-clarification.md)
+  - [第11章 LangGraph 工作流](part03-agent-workflow/chapter11-langgraph-workflow.md)
+  - [第12章 修复、优化与多轮分析](part03-agent-workflow/chapter12-repair-optimization-multiturn.md)
+
+- 第四部分：完整产品
+  - [第13章 认证、权限与安全审计](part04-productization/chapter13-auth-permission-audit.md)
+  - [第14章 SSE、缓存与可观测性](part04-productization/chapter14-sse-cache-observability.md)
+  - [第15章 Vue 数据分析工作台](part04-productization/chapter15-vue-workbench.md)
+
+- 第五部分：质量与毕业设计
+  - [第16章 自动化测试](part05-quality-and-graduation/chapter16-automated-testing.md)
+  - [第17章 评测体系与质量门禁](part05-quality-and-graduation/chapter17-evaluation-and-quality-gate.md)
+  - [第18章 Docker、Nginx 与 CI](part05-quality-and-graduation/chapter18-docker-nginx-ci.md)
+  - [第19章 完整复现与项目复盘](part05-quality-and-graduation/chapter19-reproduction-and-roadmap.md)
