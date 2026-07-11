@@ -1,6 +1,6 @@
 # 第十五章 开发 Vue 数据分析工作台
 
-> 本章对应教学基线 `4d71b3c`。本章最后核对日期为 2026-07-11。
+> 本章对应项目版本 `v1.7`。本章最后核对日期为 2026-07-11。
 
 ## 15.1 本章目标
 
@@ -157,7 +157,7 @@ Home.vue
 
 ## 15.9 图表和表格的边界
 
-> `ChartPanel` 根据列类型和数据形状选择图表，`ResultTable` 负责表格分页、CSV/Excel 导出和空结果展示。图表是结果的可视化，不应该改变原始行数据或重新计算业务指标；指标计算应由 SQL 和语义层完成。
+> `ChartPanel` 根据列类型和数据形状选择图表，`ResultTable` 负责表格分页、CSV/Excel 导出和空结果展示。当前 v1.7 的 Excel 导出使用 `frontend/src/utils/spreadsheet.js` 生成 SpreadsheetML 文本单元格，而不是把用户可控结果交给公式解释器；这是一条前端输出安全边界。图表是结果的可视化，不应该改变原始行数据或重新计算业务指标；指标计算应由 SQL 和语义层完成。
 >
 > 空结果、单列结果、日期字符串和数值字符串都可能出现。组件需要先检查数据形状，再决定是否显示图表，而不是假设每个查询都返回两列数值。
 
@@ -191,6 +191,8 @@ function handleClarification(option) {
 | `frontend/src/components/AnswerPanel.vue` | 答案和指标 | 加载、错误和文本展示 |
 | `frontend/src/components/ChartPanel.vue` | 图表 | 列行到 ECharts |
 | `frontend/src/components/ResultTable.vue` | 结果表格 | 分页和导出 |
+| `frontend/src/utils/spreadsheet.js` | Excel XML 导出 | XML 转义和公式注入防护 |
+| `frontend/tests/utils/spreadsheet.test.js` | 导出安全测试 | 文本单元格和特殊字符 |
 | `frontend/src/components/AuditPanel.vue` | 安全审计 | 权限和规则证据 |
 
 ## 15.13 动手验证
@@ -200,6 +202,12 @@ function handleClarification(option) {
 ```bash
 npm run test --prefix frontend
 npm run build --prefix frontend
+```
+
+> 如果要专门验证导出边界，可运行：
+
+```bash
+npm run test --prefix frontend -- spreadsheet
 ```
 
 > 如果需要运行浏览器端到端测试：

@@ -1,6 +1,6 @@
 # 第十八章 Docker、Nginx 与持续集成
 
-> 本章对应教学基线 `4d71b3c`。本章最后核对日期为 2026-07-11。
+> 本章对应项目版本 `v1.7`。本章最后核对日期为 2026-07-11。
 
 ## 18.1 本章目标
 
@@ -90,6 +90,15 @@ SANDBOX_MODE=true
 
 > `.github/workflows/ci.yml` 面向 Pull Request 和 Push，运行确定性后端测试、前端单测、生产构建、Secret Scan、Compose 配置校验、Docker 构建和 readiness smoke test。普通 CI 不向任意 PR 注入真实 LLM Secret，避免测试成本和凭据泄露。
 
+### 18.8.1 v1.7 的工程门禁
+
+> 当前普通 CI 还执行 Ruff、ESLint、后端 75% 覆盖率门槛、PostgreSQL `upgrade → downgrade → upgrade` 迁移往返、Python/Node 依赖审计和 secure Compose 解析。它们分别约束代码风格、测试盲区、数据库可回滚性、依赖风险和部署配置边界。
+
+```text
+代码检查 → 测试/覆盖率 → 迁移往返 → 依赖审计
+    → demo/secure Compose → 镜像构建 → readiness smoke
+```
+
 ```text
 Pull Request / Push
   ↓
@@ -124,6 +133,10 @@ git ls-files -z | python scripts/check_secrets.py
 | `frontend/Dockerfile` | 前端构建和运行镜像 | 多阶段构建、静态资源 |
 | `frontend/nginx.conf` | 静态服务和 API 代理 | 同源、路由回退、后端地址 |
 | `docker-compose.yml` | 服务和卷编排 | 环境、健康检查、持久化 |
+| `docker-compose.secure.yml` | secure 配置叠加 | 强认证、CORS、模型和沙箱 |
+| `backend/alembic/` | PostgreSQL 迁移 | upgrade/downgrade 往返 |
+| `backend/requirements-dev.txt`、`pyproject.toml` | 后端开发门禁 | Ruff、覆盖率和测试工具 |
+| `frontend/eslint.config.js` | 前端静态检查 | ESLint 规则和忽略范围 |
 | `.github/workflows/ci.yml` | 普通确定性 CI | 测试、构建、Secret Scan |
 | `.github/workflows/real-qwen-evaluation.yml` | 手动真实模型评测 | Secret、报告和 artifact |
 | `scripts/check_secrets.py` | 跟踪文件密钥扫描 | 只输出安全摘要 |
@@ -134,6 +147,14 @@ git ls-files -z | python scripts/check_secrets.py
 
 ```bash
 pytest backend/tests/test_workflow_files.py -q
+pytest backend/tests/test_migrations.py -q
+```
+
+> 也可以只检查两个 Compose profile 的解析，不启动服务：
+
+```bash
+docker compose -f docker-compose.yml config
+docker compose -f docker-compose.yml -f docker-compose.secure.yml config
 ```
 
 > 若本机装有 Docker，再执行：

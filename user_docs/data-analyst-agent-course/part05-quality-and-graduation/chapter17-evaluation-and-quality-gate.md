@@ -1,6 +1,6 @@
 # 第十七章 NL2SQL 评测体系与质量门禁
 
-> 本章对应教学基线 `4d71b3c`。本章最后核对日期为 2026-07-11。
+> 本章对应项目版本 `v1.7`。本章最后核对日期为 2026-07-11。
 
 ## 17.1 本章目标
 
@@ -117,25 +117,45 @@ Security Audit / CI artifact
 
 > JSON 适合机器读取和下一次比较，Markdown 适合人阅读和面试展示。真实模型报告还应记录 provider、model、代码 HEAD、运行模式和报告生成时间，避免把旧模型的结果误归因于当前代码。
 
-## 17.11 代码地图
+## 17.11 可执行核心路径
+
+> 结构化评测主要验证单一指标或模块；`backend/evaluation/core_path_runner.py` 额外验证一条完整的用户路径。它只把外部 LLM 替换成确定性 Fake LLM，仍然运行真实 AgentGraph、Grounding、Intent/SQL Guard、权限改写、优化器、隔离 DuckDB 和 SQLite 多轮会话。当前核心路径包有 15 条场景，结果包含状态、阻断规则、缺失 surface 和表面完整率。
+
+```bash
+cd backend
+python -m evaluation.core_path_runner
+```
+
+> 看到 `llm_mode=deterministic_fixture` 不代表“只测了假流程”；应同时检查报告中的 `agent_graph=real`、`database_mode=isolated_duckdb_copy` 和 `surface_completeness_rate`。这类证据适合本地回归和面试演示，不替代真实模型质量报告。
+
+## 17.12 代码地图
 
 | 文件或目录 | 作用 | 阅读重点 |
 |---|---|---|
 | `backend/evaluation/evaluator.py` | NL2SQL 批量评测 | case 执行和指标汇总 |
 | `backend/evaluation/cases/` | 固定评测输入 | 业务、安全、修复和黄金结果 |
 | `backend/evaluation/quality_gate.py` | 质量门禁 | 指标来源、阈值和退出码 |
+| `backend/evaluation/core_path_runner.py` | 核心路径回归 | Fake LLM 边界与真实 Agent 执行 |
 | `backend/evaluation/result_correctness_evaluator.py` | 结果正确性 | 预期与实际比较 |
 | `backend/evaluation/intent_grounding_evaluator.py` | 意图与路由 | 槽位、候选和路径 |
 | `backend/evaluation/permission_evaluator.py` | 权限回归 | 角色、规则和 SQL 改写 |
 | `backend/tests/test_evaluator.py` | 评测运行器测试 | 汇总和边界 |
 | `backend/tests/test_quality_gate.py` | 门禁测试 | 缺字段、阈值和退出码 |
+| `backend/tests/test_core_path_cases.py` | 核心路径资产契约 | 场景、surface 和关联 case |
 
-## 17.12 动手验证
+## 17.13 动手验证
 
 > 先运行确定性评测相关测试：
 
 ```bash
 pytest backend/tests/test_evaluator.py backend/tests/test_quality_gate.py backend/tests/test_core_path_cases.py -q
+```
+
+> 若已初始化 DuckDB，再运行完整核心路径：
+
+```bash
+cd backend
+python -m evaluation.core_path_runner
 ```
 
 > 可以运行离线权限评测，不调用 LLM：
@@ -147,7 +167,7 @@ python -m evaluation.permission_evaluator --json
 
 > 真实模型评测需要有效 API Key、可访问端点和费用预算。运行后应保存 JSON/Markdown 报告，并核对模型、代码 HEAD 和 case pack 版本。
 
-## 17.13 常见错误
+## 17.14 常见错误
 
 ### 把生成成功当成结果正确
 
@@ -165,11 +185,11 @@ python -m evaluation.permission_evaluator --json
 
 > 模型、网络、Prompt 和数据都可能变化。需要固定 case、多次运行、保存元数据并结合确定性回归。
 
-## 17.14 本章小结
+## 17.15 本章小结
 
 > 评测把“系统看起来能用”转成可复核的行为证据：NL2SQL 看执行，黄金基准看结果，Intent Grounding 看中间理解，权限评测看授权边界，Quality Gate 把要求写成机器条件。指标必须和样本、模型和运行模式一起解释。
 
-## 17.15 练习
+## 17.16 练习
 
 1. 为一个安全 case 写出它的 `safety_expected` 和正确阻断阶段。
 2. 解释为什么同一个问题可以同时出现在 NL2SQL 和黄金结果 case 中。
@@ -177,6 +197,6 @@ python -m evaluation.permission_evaluator --json
 4. 对比 `execution_success_rate` 和 `result_correctness_rate` 的分母和含义。
 5. 说明为什么权限评测可以在不调用 LLM 的情况下证明部分安全行为。
 
-## 17.16 下一章衔接
+## 17.17 下一章衔接
 
 > 测试和评测已经能回答“当前代码是否满足预期”，但还需要把后端、前端和代理配置打包成可交付环境。下一章会学习 Docker、Nginx、Compose 和 GitHub Actions。

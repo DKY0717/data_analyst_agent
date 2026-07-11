@@ -1,6 +1,6 @@
 # 第十六章 后端、前端与端到端测试
 
-> 本章对应教学基线 `4d71b3c`。本章最后核对日期为 2026-07-11。
+> 本章对应项目版本 `v1.7`。本章最后核对日期为 2026-07-11。
 
 ## 16.1 本章目标
 
@@ -124,6 +124,14 @@ npm run build --prefix frontend
 ```
 
 > 环境具备 Playwright 浏览器时再运行 E2E。不要把 E2E 因本机没有浏览器而失败，误写成业务逻辑失败；应记录实际环境条件。
+
+> v1.7 还把“测试通过”与“质量门槛”连接起来：后端 CI 使用 `backend/requirements-dev.txt` 安装 Ruff、pytest-cov 等工具，执行 Ruff、后端覆盖率门槛和 PostgreSQL 迁移测试；前端 CI 执行 ESLint、Vitest 和生产构建。Lint 和覆盖率不是业务正确性的替代品，但能阻止明显的静态问题和测试盲区直接进入交付。
+
+```bash
+python -m ruff check backend/app backend/evaluation database scripts backend/alembic
+pytest backend/tests -q --cov=backend/app --cov=backend/evaluation --cov-fail-under=75
+npm run lint --prefix frontend
+```
 
 ## 16.12 常见错误
 

@@ -1,6 +1,6 @@
 # 第十三章 身份认证、数据权限与安全审计
 
-> 本章对应教学基线 `4d71b3c`。本章最后核对日期为 2026-07-11。
+> 本章对应项目版本 `v1.7`。本章最后核对日期为 2026-07-11。
 
 ## 13.1 本章目标
 
@@ -46,6 +46,16 @@
 > 当没有配置 `JWT_SECRET` 和 `API_KEYS` 时，`get_current_user()` 返回 `None`，这是本地开发放行模式。启用 `AUTH_DEMO_ENABLED=true` 后，前端可以用 `admin`、`analyst` 和 `support` 演示角色获取本地 Token。
 >
 > 免认证模式适合开发，不应被描述成生产安全配置。生产或 secure profile 应配置足够长度的 Secret/API Key，并关闭演示登录入口。
+
+### 13.3.4 demo 与 secure profile
+
+> `DEPLOYMENT_PROFILE=demo` 允许本地演示使用默认便利配置；`docker-compose.secure.yml` 是叠加式生产配置，强制 JWT/API Key、CORS、LLM 配置和沙箱，并关闭 Demo Auth。secure profile 缺少强配置、重新打开 Demo Auth 或关闭沙箱时，应用 readiness 会返回 503，而不是把不安全配置报告为可用。
+
+```text
+docker-compose.yml                  → demo 基础配置
+docker-compose.yml + secure overlay → secure 交付配置
+缺少强配置 / 沙箱关闭              → /health/readiness = 503
+```
 
 ## 13.4 FastAPI 认证依赖
 
@@ -168,6 +178,7 @@ Data Permission Guard
 | `backend/app/security/data_permissions.yaml` | 当前角色策略 | admin、analyst、support |
 | `backend/app/security/data_permission.py` | 表列授权和行级改写 | AST、别名、拒绝路径 |
 | `backend/app/agents/audit.py` | 构建审计报告 | 事件、阻断规则和隐私 |
+| `docker-compose.secure.yml` | secure 部署叠加层 | 强 Secret、CORS、模型和沙箱边界 |
 | `backend/tests/test_auth.py` | 认证测试 | Token、API Key、免认证 |
 | `backend/tests/test_data_permission_guard.py` | 权限测试 | 表列权限、行过滤和拒绝 |
 

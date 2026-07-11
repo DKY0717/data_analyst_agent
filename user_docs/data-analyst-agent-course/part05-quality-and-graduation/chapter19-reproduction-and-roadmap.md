@@ -1,6 +1,6 @@
 # 第十九章 完整复现、项目复盘与继续优化
 
-> 本章对应教学基线 `4d71b3c`。本章最后核对日期为 2026-07-11。
+> 本章对应项目版本 `v1.7`。本章最后核对日期为 2026-07-11。
 
 ## 19.1 本章目标
 
@@ -145,6 +145,21 @@ pytest backend/tests/test_core_path_cases.py -q
 cd backend
 python -m evaluation.permission_evaluator --json
 python -m evaluation.security_audit_exporter --write-report
+```
+
+> v1.7 的核心路径回归会用 Fake LLM 替换外部模型，但保留真实 Agent、Guard、权限、隔离 DuckDB 和 SQLite 会话。它适合在没有 API Key 时证明系统编排没有被改坏：
+
+```bash
+cd backend
+python -m evaluation.core_path_runner
+```
+
+> 生产数据库另有迁移往返证据；DuckDB 不使用 Alembic：
+
+```bash
+python -m alembic -c backend/alembic.ini upgrade head
+python -m alembic -c backend/alembic.ini downgrade base
+python -m alembic -c backend/alembic.ini upgrade head
 ```
 
 > 这些命令覆盖后端回归、前端单测、浏览器、核心路径、权限评测和安全审计导出。E2E、Docker 和真实模型步骤可能需要额外环境，应记录实际是否执行以及失败原因。

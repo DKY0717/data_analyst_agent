@@ -1,6 +1,6 @@
 # 第四章 初始化数据库与加载 Schema
 
-> 本章对应教学基线 `4d71b3c`。本章最后核对日期为 2026-07-11。
+> 本章对应项目版本 `v1.7`。本章最后核对日期为 2026-07-11。
 
 ## 4.1 本章目标
 
@@ -161,6 +161,19 @@ SchemaLoader 查询 information_schema
 format_physical_schema 转为 Prompt 文本
 ```
 
+### 4.8.1 v1.7 的数据库生命周期边界
+
+> 当前版本不再把“两个数据库都能运行”混同为“同一套迁移脚本适用于两个方言”。PostgreSQL 是生产结构，由 `backend/alembic/` 管理；DuckDB 是本地演示和确定性评测数据库，由 `database/init.sql` 与固定种子脚本重建。Alembic 环境会显式拒绝 DuckDB，避免迁移证据不足时静默误报成功。
+
+```bash
+# 仅在 PostgreSQL 环境执行迁移往返
+python -m alembic -c backend/alembic.ini upgrade head
+python -m alembic -c backend/alembic.ini downgrade base
+python -m alembic -c backend/alembic.ini upgrade head
+```
+
+> 学习时先观察 `20260711_0001_initial_schema.py` 如何覆盖八张业务表，再运行 `backend/tests/test_migrations.py`。DuckDB 仍使用本章前面的初始化脚本，不要对它执行 PostgreSQL Alembic 命令。
+
 ## 4.9 代码地图
 
 | 文件 | 作用 | 阅读重点 |
@@ -169,7 +182,9 @@ format_physical_schema 转为 Prompt 文本
 | `backend/app/db/schema_loader.py` | 读取表和约束 | `information_schema`、方言适配 |
 | `backend/app/utils/schema_formatter.py` | 格式化物理 Schema | 稳定文本输出 |
 | `backend/app/db/demo_bootstrap.py` | Docker 演示库自举 | 首次初始化与幂等判断 |
+| `backend/alembic/versions/20260711_0001_initial_schema.py` | PostgreSQL 初始迁移 | 生产结构和可回滚边界 |
 | `backend/tests/test_schema_loader.py` | Schema 行为测试 | 隔离连接、表结构和约束 |
+| `backend/tests/test_migrations.py` | 迁移契约测试 | 单 revision、八张表和 DuckDB 边界 |
 
 ## 4.10 动手验证
 
@@ -177,6 +192,7 @@ format_physical_schema 转为 Prompt 文本
 
 ```bash
 pytest backend/tests/test_schema_loader.py -q
+pytest backend/tests/test_migrations.py -q
 ```
 
 > 预期结果是该测试文件全部通过。若出现数据库文件被占用，先确认没有并行运行多个会修改同一测试数据库的 pytest 进程，再串行重试。

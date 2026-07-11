@@ -4,7 +4,7 @@
 >
 > **课程状态：已完成（19/19）**
 >
-> **教学基线：** `4d71b3ce84cffe175fffaffa252a9072d6e79d18`
+> **教学基线：** `v1.7`（2026-07-11，以当前源码、测试和开发说明为准）
 >
 > **最后核对日期：** 2026-07-11
 
@@ -116,6 +116,21 @@ npm run dev
 docker compose up -d --build
 ```
 
+### 6.4 v1.7 交付验证
+
+> 当前版本把“能运行”进一步拆成可复核的证据：PostgreSQL 走 Alembic 往返迁移，DuckDB 由固定脚本重建；普通 CI 还会执行 Ruff、ESLint、覆盖率、依赖审计、Secret Scan、demo/secure Compose 校验和 readiness smoke。真实模型报告必须绑定当前 HEAD、Provider、模型和 case 版本。
+
+```bash
+# PostgreSQL 迁移往返
+python -m alembic -c backend/alembic.ini upgrade head
+python -m alembic -c backend/alembic.ini downgrade base
+python -m alembic -c backend/alembic.ini upgrade head
+
+# 可执行核心路径（Fake LLM + 真实 Agent/Guard/权限/数据库）
+cd backend
+python -m evaluation.core_path_runner
+```
+
 ## 7. LLM 费用与安全提示
 
 > 真实模型调用可能产生费用。课程会优先提供确定性测试，只有在验证真实模型行为时才要求配置 API Key。
@@ -142,6 +157,6 @@ docker compose up -d --build
 
 ## 10. 版本维护
 
-> 第一版课程对应教学基线提交 `4d71b3c`。项目后续优化时，先更新 `CODE-MAP.md` 中受影响的源码和测试，再修订对应章节，最后在 `CHANGELOG.md` 中记录行为变化和验证结果。
+> 当前课程对应项目 v1.7。项目后续优化时，先更新 `CODE-MAP.md` 中受影响的源码和测试，再修订对应章节，最后在 `CHANGELOG.md` 中记录行为变化和验证结果。若涉及部署或数据库生命周期，必须同时核对 demo/secure Compose、Alembic 边界和 CI 门禁。
 >
 > 如果课程文字与当前代码冲突，应以当前代码、测试和实际运行证据为准，并把差异记录为需要修订的文档问题。
