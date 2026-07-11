@@ -12,3 +12,8 @@
   - [第5章 搭建 FastAPI 后端](part02-minimum-system/chapter05-fastapi-backend.md)
   - [第6章 接入 OpenAI-compatible 大模型](part02-minimum-system/chapter06-openai-compatible-llm.md)
   - [第7章 第一条自然语言转 SQL 链路](part02-minimum-system/chapter07-first-nl2sql-pipeline.md)
+
+- 第三部分：完整 Agent 工作流
+  - [第8章 SQL 安全防护](part03-agent-workflow/chapter08-sql-safety.md)
+  - [第9章 结构化分析意图](part03-agent-workflow/chapter09-analysis-intent.md)
+  - [第10章 语义层、Grounding 与澄清](part03-agent-workflow/chapter10-semantic-grounding-clarification.md)

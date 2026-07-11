@@ -52,3 +52,15 @@
 | 第7章 | `backend/tests/test_sql_generator.py`、`backend/tests/test_query_runner.py` |
 
 > 课程进度更新为 7/19。真实 LLM 的端到端调用仍受 API Key、端点连通性和费用影响，正文只把确定性测试作为无费用验收证据。
+
+### 完成第三部分上半段：安全、意图与 Grounding
+
+> 已完成第 8～10 章，覆盖 Intent Guard、SQLGlot AST 安全校验、LIMIT 与沙箱、结构化分析意图、规则/LLM 双路解析、语义配置、元数据目录、JOIN 路由和主动澄清。正文明确区分了模型输出、业务概念和物理 SQL 的边界。
+
+| 章节 | 主要验证 |
+|---|---|
+| 第8章 | `backend/tests/test_intent_guard.py`、`backend/tests/test_sql_guard.py` |
+| 第9章 | `backend/tests/test_analysis_intent_integration.py` |
+| 第10章 | `backend/tests/test_semantic_loader.py`、`backend/tests/test_metadata_catalog.py` |
+
+> 课程进度更新为 10/19。第 8～10 章的描述以当前 v1.7 安全和 Grounding 实现为准，后续如果语义配置或策略规则变化，需要同步更新对应章节。

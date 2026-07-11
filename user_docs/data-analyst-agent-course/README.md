@@ -2,7 +2,7 @@
 
 > 这是一套面向初学者的中文项目课程。我们会从数据库、HTTP 和 Python 基础出发，逐步理解并复现自然语言分析、SQL 生成、安全校验、Agent 工作流、权限治理、前端工作台、自动化测试和部署。
 >
-> **课程状态：建设中（7/19）**
+> **课程状态：建设中（10/19）**
 >
 > **教学基线：** `4d71b3ce84cffe175fffaffa252a9072d6e79d18`
 >
@@ -55,9 +55,9 @@
 |  | [第5章 搭建 FastAPI 后端](part02-minimum-system/chapter05-fastapi-backend.md) | HTTP 请求如何进入 Python 业务逻辑 | 已完成 |
 |  | [第6章 接入 OpenAI-compatible 大模型](part02-minimum-system/chapter06-openai-compatible-llm.md) | 如何安全、稳定地调用 LLM | 已完成 |
 |  | [第7章 第一条自然语言转 SQL 链路](part02-minimum-system/chapter07-first-nl2sql-pipeline.md) | 如何完成最小 NL2SQL 闭环 | 已完成 |
-| 第三部分：完整 Agent 工作流 | 第8章 SQL 安全防护 | 如何阻止危险意图和危险 SQL | 编写中 |
-|  | 第9章 结构化分析意图 | 如何识别指标、维度和筛选条件 | 编写中 |
-|  | 第10章 语义层、Grounding 与澄清 | 业务概念如何落到真实表字段 | 编写中 |
+| 第三部分：完整 Agent 工作流 | [第8章 SQL 安全防护](part03-agent-workflow/chapter08-sql-safety.md) | 如何阻止危险意图和危险 SQL | 已完成 |
+|  | [第9章 结构化分析意图](part03-agent-workflow/chapter09-analysis-intent.md) | 如何识别指标、维度和筛选条件 | 已完成 |
+|  | [第10章 语义层、Grounding 与澄清](part03-agent-workflow/chapter10-semantic-grounding-clarification.md) | 业务概念如何落到真实表字段 | 已完成 |
 |  | 第11章 LangGraph 工作流 | 节点、状态和分支如何协作 | 编写中 |
 |  | 第12章 修复、优化与多轮分析 | 系统如何从失败中恢复并继承上下文 | 编写中 |
 | 第四部分：完整产品 | 第13章 认证、权限与安全审计 | 谁可以查询什么数据 | 编写中 |
