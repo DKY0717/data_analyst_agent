@@ -2,7 +2,7 @@
 
 > 这是一套面向初学者的中文项目课程。我们会从数据库、HTTP 和 Python 基础出发，逐步理解并复现自然语言分析、SQL 生成、安全校验、Agent 工作流、权限治理、前端工作台、自动化测试和部署。
 >
-> **课程状态：建设中（3/19）**
+> **课程状态：建设中（7/19）**
 >
 > **教学基线：** `4d71b3ce84cffe175fffaffa252a9072d6e79d18`
 >
@@ -51,10 +51,10 @@
 | 第一部分：基础准备 | [第1章 认识 Data Analyst Agent](part01-foundations/chapter01-project-overview.md) | 项目解决什么问题，完整链路是什么 | 已完成 |
 |  | [第2章 开发环境与必备 Python 基础](part01-foundations/chapter02-development-environment-and-python.md) | 如何准备并理解项目运行环境 | 已完成 |
 |  | [第3章 数据库、SQL 与电商业务模型](part01-foundations/chapter03-database-sql-and-domain-model.md) | 八张业务表如何支撑分析问题 | 已完成 |
-| 第二部分：最小可用系统 | 第4章 初始化数据库与加载 Schema | 程序如何认识数据库 | 编写中 |
-|  | 第5章 搭建 FastAPI 后端 | HTTP 请求如何进入 Python 业务逻辑 | 编写中 |
-|  | 第6章 接入 OpenAI-compatible 大模型 | 如何安全、稳定地调用 LLM | 编写中 |
-|  | 第7章 第一条自然语言转 SQL 链路 | 如何完成最小 NL2SQL 闭环 | 编写中 |
+| 第二部分：最小可用系统 | [第4章 初始化数据库与加载 Schema](part02-minimum-system/chapter04-database-init-and-schema.md) | 程序如何认识数据库 | 已完成 |
+|  | [第5章 搭建 FastAPI 后端](part02-minimum-system/chapter05-fastapi-backend.md) | HTTP 请求如何进入 Python 业务逻辑 | 已完成 |
+|  | [第6章 接入 OpenAI-compatible 大模型](part02-minimum-system/chapter06-openai-compatible-llm.md) | 如何安全、稳定地调用 LLM | 已完成 |
+|  | [第7章 第一条自然语言转 SQL 链路](part02-minimum-system/chapter07-first-nl2sql-pipeline.md) | 如何完成最小 NL2SQL 闭环 | 已完成 |
 | 第三部分：完整 Agent 工作流 | 第8章 SQL 安全防护 | 如何阻止危险意图和危险 SQL | 编写中 |
 |  | 第9章 结构化分析意图 | 如何识别指标、维度和筛选条件 | 编写中 |
 |  | 第10章 语义层、Grounding 与澄清 | 业务概念如何落到真实表字段 | 编写中 |

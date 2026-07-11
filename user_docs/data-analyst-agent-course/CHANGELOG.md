@@ -37,3 +37,18 @@
 > 3. 使用当前代码和测试重新核对章节描述；
 > 4. 运行章节验收命令；
 > 5. 在本日志记录修改原因、范围和验证证据。
+
+## 2026-07-11
+
+### 完成第二部分：构建最小可用系统
+
+> 已完成第 4～7 章，覆盖数据库连接与 Schema 加载、FastAPI 请求边界、OpenAI-compatible LLM 客户端，以及第一条自然语言转 SQL 闭环。四章都绑定当前源码、测试和验收命令，并明确最小链路尚未包含完整安全治理的边界。
+
+| 章节 | 主要验证 |
+|---|---|
+| 第4章 | `backend/tests/test_schema_loader.py`、`/api/schema` |
+| 第5章 | `backend/tests/test_health.py`、FastAPI `/docs` |
+| 第6章 | `backend/tests/test_llm_service.py`、Mock 响应与异常 |
+| 第7章 | `backend/tests/test_sql_generator.py`、`backend/tests/test_query_runner.py` |
+
+> 课程进度更新为 7/19。真实 LLM 的端到端调用仍受 API Key、端点连通性和费用影响，正文只把确定性测试作为无费用验收证据。
