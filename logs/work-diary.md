@@ -2353,6 +2353,15 @@
 - 验证：SSE/运行边界 `40 passed`；真实模型证据与安全部署联合回归 `79 passed`。
 - 阶段提交：`d9aafb1`、`440ab07`、`49aea83`。
 
+**阶段五：数据库迁移、工程质量门禁与材料收口** ✅
+- 合并重复 Alembic 脚手架，新增 PostgreSQL 8 表初始 revision；CI 执行 upgrade → downgrade → upgrade，DuckDB 明确使用 init.sql 重建。
+- 新增 Ruff、ESLint 和 75% 覆盖率门禁；650 项后端测试分组全部通过，合并覆盖率 `80.61%`，前端 `58 passed`、Playwright `17 passed`。
+- Python 依赖升级后 `pip-audit` 从 32 条漏洞降为 0；移除存在风险的 xlsx，升级 Vite/ECharts 后 `npm audit` 为 0。
+- Excel 导出改为无第三方依赖的 SpreadsheetML，所有单元格强制文本并转义 XML，阻断公式注入。
+- 沙箱补齐 Date/Datetime/Decimal JSON 边界；pytest 每进程使用独立 DuckDB，消除共享文件争用。
+- README、面试稿、简历包和 v1.7 开发说明同步为 15 条可执行核心路径、6 条权限评测、650/58/17 测试矩阵及真实模型报告新鲜度边界。
+- 本机无 Docker CLI；Compose config/build/readiness 和 PostgreSQL 在线迁移由 CI 门禁执行，本地已完成 YAML 契约、Alembic 离线 DDL 和 secure profile 回归。
+
 ### 当前进度
 
 - ✅ 系统性问题清单与设计边界已确认
@@ -2364,12 +2373,13 @@
 - ✅ 阶段三 SQL 安全、权限与超时硬化已完成
 - ✅ 阶段四 A 可执行核心路径回归已完成
 - ✅ 阶段四 B 真实模型证据、SSE 运行边界与安全部署已完成
-- ⏳ 阶段五数据库迁移、CI 质量门禁与最终材料收口进行中
+- ✅ 阶段五数据库迁移、CI 质量门禁与最终材料收口已完成
+- ✅ 最终规格符合性、代码质量复核与分组提交已完成
 
 ### 下一步
 
-- 补齐可执行数据库迁移与 migration smoke test。
-- 增加 lint、覆盖率、依赖审计和容器配置质量门禁，最后执行全量审计并同步面试材料。
+- 推送后观察 GitHub Actions 的 PostgreSQL、Docker 和依赖审计门禁结果。
+- 面试前按 `docs/interview_guide.md` 运行 preflight，并更新真实模型 artifact 的 HEAD SHA。
 
 ### 用户偏好
 
