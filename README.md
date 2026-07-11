@@ -6,25 +6,25 @@
 
 **12 节点 LangGraph Agent 工作流** — 不是简单调 API，而是完整的有向图编排：意图解析 → Schema Grounding → 主动澄清 → SQL 生成 → SQL 安全校验 → 数据权限校验 → 执行 → 自动修复 → 优化建议 → 答案生成。
 
-**三层安全治理** — Intent Guard 在 LLM 调用前阻断危险意图（100% 阻断率），SQL Guard 在 AST 层面校验生成的 SQL，Data Permission Guard 在执行前按 YAML 策略检查角色级表/字段权限并注入行级过滤。覆盖破坏性操作、凭据访问、系统表访问、文件读取和敏感字段越权访问。
+**三层安全治理** — Intent Guard 在 LLM 调用前阻断危险意图，SQL Guard 在 AST 层面校验生成的 SQL，Data Permission Guard 在执行前按 YAML 策略检查角色级表/字段权限并注入行级过滤。确定性基准覆盖破坏性操作、凭据访问、系统表访问、文件读取和敏感字段越权访问。
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**500+ 测试 + 80+ 条评测/回归/核心路径用例** — 后端 596 个测试、前端 51 个单元测试、17 个 E2E 测试、65 条结构化评测用例、5 条数据权限回归评测和 14 条核心路径黄金问题覆盖核心安全链路。
+**600+ 后端测试 + 可执行核心路径** — 后端 650 个测试、前端 58 个单元测试、17 个 E2E 测试、65 条结构化评测用例、6 条数据权限回归评测和 15 条可执行核心路径覆盖关键功能与安全链路；当前全量后端覆盖率基线为 80.61%。
 
 ## 面试/简历材料
 
 - [面试讲述稿](docs/interview_guide.md)：用于面试前快速复习项目架构、核心追问、演示路径和不足边界。
 - [简历项目包装包](docs/resume_project_packet.md)：用于复制简历 bullet、30/90 秒介绍、STAR 故事、演示清单和证据索引。
 - 面试前可运行 `python scripts/interview_demo_preflight.py --strict` 做面试演示预检，确认演示环境变量、核心文件、本地后端 readiness 和前端页面状态。
-- 面试前可运行 `python scripts/interview_evidence.py --run-id <github_run_id>` 生成本地测试、真实 Qwen workflow 和 `security-audit-*.md/json` artifact 的证据包清单。
+- 面试前可运行 `python scripts/interview_evidence.py --run-id <github_run_id>` 生成本地测试、真实模型 workflow 和 `security-audit-*.md/json` artifact 的证据包清单。
 
 ### 核心路径黄金问题
 
-v1.6 将面试和回归最常用的问题收敛到 `backend/evaluation/cases/core_path_cases.yaml`。这份核心路径黄金问题包复用已有 NL2SQL、结果正确性和权限评测 case，覆盖业务成功路径、业务指标、多轮追问、权限治理和安全失败演示。修改前端推荐问题或面试演示脚本后，可以运行：
+v1.7 将面试和回归最常用的问题收敛到 `backend/evaluation/cases/core_path_cases.yaml`。Runner 只替换外部模型边界，真实执行 LangGraph、Grounding、Guard、权限、优化器、隔离 DuckDB 和 SQLite 多轮会话，覆盖成功、澄清、权限和安全失败路径。可以运行：
 
 ```bash
-pytest backend/tests/test_core_path_cases.py -q
+cd backend && python -m evaluation.core_path_runner
 ```
 
 ## 核心架构
@@ -78,7 +78,7 @@ flowchart LR
 - LLM 调用可观测性（Token、耗时、成本统计）
 - JWT Token + API Key 双模式认证（未配置密钥时保持本地开发放行）
 - 速率限制（slowapi，默认 30 次/分钟）
-- Alembic 数据库迁移（DuckDB + PostgreSQL 双后端）
+- PostgreSQL Alembic upgrade/downgrade；DuckDB 演示库由固定 init.sql 重建
 - 结构化审计报告（身份摘要、权限可观测性、Guard 命中、LIMIT 注入、修复事件）
 
 ### 前端
@@ -87,7 +87,7 @@ flowchart LR
 - SSE 流式进度条（真实阶段 + 百分比）
 - ECharts 交互式图表（柱状 / 折线 / 饼图 / 散点 + 多列数据支持）
 - Markdown 答案渲染（marked）
-- 表格分页（50 行/页）+ CSV / Excel 导出（xlsx）
+- 表格分页（50 行/页）+ CSV / Excel XML 导出（公式前缀转义 + 文本单元格）
 - 暗色模式切换
 - 查询收藏（localStorage 持久化）
 - 历史记录面板
@@ -97,15 +97,15 @@ flowchart LR
 
 ### 评测体系
 
-| 评测 | 用例数 | 当前指标 |
+| 评测 | 用例数 | 可复核证据 |
 |------|--------|----------|
-| NL2SQL 电商评测 | 32 条 | 执行成功率 100% |
-| 危险意图评测 | 37 条 | 阻断率 100%，误杀率 0% |
-| Intent Guard 提前阻断 | 8 条 | 提前阻断率 100% |
-| SQL Repair 故障注入 | 6 条 | 修复成功率 100% |
-| 结果正确性黄金基准 | 10 条 | 正确率 100% |
-| 分层意图 + Grounding | 7 条 | 六项指标 100% |
-| 数据权限评测 | 5 条 | 权限决策 / 阻断规则 / 行级过滤预期 100% |
+| NL2SQL 电商评测 | 32 条 | 手动真实模型 workflow 产出；以 artifact 的 HEAD SHA 为准 |
+| 危险意图评测 | 37 条 | 确定性 case pack 覆盖阻断与安全对照 |
+| Intent Guard 提前阻断 | 8 条 | 确定性提前阻断回归 |
+| SQL Repair 故障注入 | 6 条 | 手动真实模型 Repair 报告 |
+| 结果正确性黄金基准 | 10 条 | 人工参考 SQL + 确定性结果比较 |
+| 分层意图 + Grounding | 7 条 | 槽位、表路由和 JOIN 边精确评测 |
+| 数据权限评测 | 6 条 | 权限决策、规则、行过滤和 admin 对照 |
 | 结构化评测用例 | 65 条 | 覆盖 11 个类别 |
 
 ## 快速开始
@@ -124,6 +124,24 @@ docker-compose up -d
 
 Docker 前端通过 Nginx 将 `/api` 和 `/health` 同源代理到后端容器；本地开发时 Vite 将 `/api` 代理到 `http://localhost:8000`。
 Docker 后端启动时会在空 DuckDB 数据卷中自动建表并写入演示数据；已存在数据时会跳过初始化，避免重启覆盖持久化数据。
+
+生产式配置使用 secure overlay；缺少强 JWT/API Key、沙箱、CORS 或模型配置时，Compose/readiness 会 fail-closed：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.secure.yml up -d
+```
+
+### PostgreSQL 迁移与质量门禁
+
+Alembic 只管理 PostgreSQL 生产结构，避免把 DuckDB 方言差异伪装成双后端迁移。CI 在临时 PostgreSQL 执行 `upgrade -> downgrade -> upgrade`：
+
+```bash
+python -m alembic -c backend/alembic.ini upgrade head
+python -m alembic -c backend/alembic.ini downgrade base
+python -m alembic -c backend/alembic.ini upgrade head
+```
+
+普通 PR CI 还会执行 Ruff、ESLint、后端 75% 覆盖率门槛、Python/Node 依赖审计、Secret Scan、secure Compose 解析、镜像构建与 readiness smoke。真实模型调用仍放在手动 workflow，并输出 HEAD SHA、Provider、模型、脱敏端点、case 版本和 UTC 时间，避免把旧 artifact 当作当前提交证据。
 `/health/readiness` 不只检查数据库连接，还会验证核心业务表和关键演示数据，避免空库或 seed 失败时误报可用。
 基础 CI 会运行前端单元测试和前端生产构建，避免前端测试数量只停留在 README 声明。
 基础 CI 会运行 Playwright 前端 E2E 测试，覆盖工作台基础交互、响应式布局和权限演示链路。
@@ -151,7 +169,7 @@ npm run dev
 本地演示角色切换需要在 `.env` 中开启：
 
 ```bash
-JWT_SECRET=dev-demo-secret
+JWT_SECRET=dev-demo-secret-change-me-32-bytes
 AUTH_DEMO_ENABLED=true
 ```
 
@@ -186,7 +204,7 @@ cd backend
 python -m evaluation.permission_evaluator --json
 ```
 
-v1.2 起，GitHub Actions 会在基础 CI 中运行 deterministic permission evaluation；手动 Real Qwen 评测工作流也会把权限评测报告纳入 quality gate，确保权限决策、阻断规则、行级过滤和 SQL 改写预期都保持 100%。
+GitHub Actions 会在基础 CI 中运行 deterministic permission evaluation；手动真实模型工作流也会把权限评测报告纳入 quality gate，确保 6 条权限 case 的决策、规则、行级过滤和 SQL 改写没有回退。
 
 ### v1.3 安全审计报告导出
 
@@ -211,7 +229,7 @@ python -m evaluation.security_audit_exporter --write-report \
   --fail-on-missing-real-reports
 ```
 
-手动触发的真实 Qwen workflow 会在真实 NL2SQL、SQL Repair、结果正确性、Grounding、权限评测和 quality gate 之后自动生成严格安全审计报告，并把 `security-audit-*.md/json` 和其它评测报告一起上传为 artifact。这样面试或复盘时可以直接下载同一份远端真实评测证据包，而不是手工拼接本地报告。
+手动触发的真实模型 workflow 会先生成运行元数据和 4 条核心 smoke，再运行完整 NL2SQL、SQL Repair、结果正确性、Grounding、权限评测和 quality gate，最终把 `security-audit-*.md/json` 与其它报告一起上传为 artifact。报告绑定当前 HEAD SHA，面试或复盘时可以确认它确实对应当前代码。
 
 面试前可以用轻量证据包脚本生成可复制命令清单。脚本只输出本地/远端证据检查步骤，不联网、不读取 GitHub 登录态：
 
@@ -222,10 +240,10 @@ python scripts/interview_evidence.py --run-id <github_run_id>
 ## 运行测试
 
 ```bash
-# 后端测试（596 个）
+# 后端测试（650 个）
 cd backend && python -m pytest -q
 
-# 前端单元测试（51 个）
+# 前端单元测试（58 个）
 cd frontend && npm run test
 
 # E2E 测试（17 个）
@@ -287,8 +305,8 @@ data_analyst_agent/
 │   │   ├── models/        # Pydantic 模型
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
-│   ├── migrations/        # Alembic 数据库迁移
-│   └── tests/             # 596 个测试
+│   ├── alembic/           # PostgreSQL Alembic revisions
+│   └── tests/             # 650 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端
@@ -315,7 +333,7 @@ data_analyst_agent/
 | `SQL_MAX_ROWS` | 最大返回行数 | `1000` |
 | `SQL_MAX_RETRIES` | SQL 修复最大重试 | `3` |
 | `SANDBOX_MODE` | SQL 执行子进程沙箱开关 | `false` |
-| `JWT_SECRET` | JWT 签名密钥（可选） | 留空=禁用认证 |
+| `JWT_SECRET` | JWT 签名密钥（可选，启用时至少 32 字符） | 留空=禁用认证 |
 | `API_KEYS` | 逗号分隔的 API Key（可选） | 留空=禁用 |
 | `AUTH_DEMO_ENABLED` | 本地演示角色登录开关 | `false` |
 | `AUTH_PASSWORD_LOGIN_ENABLED` | 密码登录开关 | `false` |

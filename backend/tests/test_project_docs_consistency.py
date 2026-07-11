@@ -11,8 +11,8 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（596 个）" in readme
-    assert "tests/             # 596 个测试" in readme
+    assert "后端测试（650 个）" in readme
+    assert "tests/             # 650 个测试" in readme
     assert "后端测试（595 个）" not in readme
     assert "tests/             # 595 个测试" not in readme
     assert "后端测试（587 个）" not in readme
@@ -64,8 +64,8 @@ def test_readme_backend_test_count_matches_current_claim():
 def test_readme_frontend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "前端单元测试（51 个）" in readme
-    assert "前端 51 个单元测试" in readme
+    assert "前端单元测试（58 个）" in readme
+    assert "前端 58 个单元测试" in readme
     assert "前端单元测试（54 个）" not in readme
     assert "前端 54 个单元测试" not in readme
     assert "前端单元测试（53 个）" not in readme
@@ -247,7 +247,7 @@ def test_security_audit_export_docs_explain_default_and_strict_modes():
     assert "security-audit-*.md" in packet
 
 
-def test_real_qwen_workflow_docs_include_strict_security_audit_artifact():
+def test_real_model_workflow_docs_include_strict_auditable_artifact():
     readme = read_text("README.md")
     guide = read_text("docs/interview_guide.md")
     packet = read_text("docs/resume_project_packet.md")
@@ -256,11 +256,11 @@ def test_real_qwen_workflow_docs_include_strict_security_audit_artifact():
     assert "python -m evaluation.security_audit_exporter" in workflow
     assert "--fail-on-missing-real-reports" in workflow
     assert "security-audit-*.md/json" in readme
-    assert "真实 Qwen workflow" in readme
+    assert "真实模型 workflow" in readme
     assert "security-audit-*.md/json" in guide
-    assert "真实 Qwen workflow" in guide
+    assert "真实模型 workflow" in guide
     assert "security-audit-*.md/json" in packet
-    assert "真实 Qwen workflow" in packet
+    assert "真实模型 workflow" in packet
 
 
 def test_interview_evidence_script_is_documented():
@@ -301,8 +301,8 @@ def test_core_path_polish_docs_are_documented():
 
     for document in (readme, guide, packet):
         assert "core_path_cases.yaml" in document
-        assert "pytest backend/tests/test_core_path_cases.py -q" in document
-        assert "核心路径黄金问题" in document
+        assert "python -m evaluation.core_path_runner" in document
+        assert "核心路径" in document
 
     assert "monthly_sales_demo" in core_cases
     assert "dangerous_delete_demo" in core_cases
@@ -312,15 +312,14 @@ def test_core_path_polish_docs_are_documented():
 def test_interview_guide_matches_current_project_evidence():
     guide = read_text("docs/interview_guide.md")
 
-    assert "596 个后端测试" in guide
-    assert "51 个前端单测" in guide
+    assert "650 个后端测试" in guide
+    assert "58 个前端单测" in guide
     assert "17 个 E2E" in guide
     assert "前端单元测试" in guide
     assert "Playwright 前端 E2E" in guide
-    assert "Docker Compose 配置校验" in guide
-    assert "Docker 镜像构建" in guide
-    assert "后端容器 readiness smoke test" in guide
-    assert "14 条核心路径黄金问题" in guide
+    assert "demo/secure Compose" in guide
+    assert "readiness smoke" in guide
+    assert "15 条可执行核心路径" in guide
     assert "595 个后端测试" not in guide
     assert "54 个前端单测" not in guide
     assert "587 个后端测试" not in guide
@@ -337,15 +336,13 @@ def test_interview_guide_matches_current_project_evidence():
 def test_resume_packet_matches_current_project_evidence():
     packet = read_text("docs/resume_project_packet.md")
 
-    assert "596 个后端测试" in packet
-    assert "51 个前端单测" in packet
+    assert "650 个后端测试" in packet
+    assert "58 个前端单测" in packet
     assert "17 个 E2E" in packet
     assert "Playwright 前端 E2E" in packet
-    assert "Docker Compose 配置校验" in packet
-    assert "Docker 镜像构建" in packet
-    assert "后端容器 readiness smoke test" in packet
-    assert "14 条核心路径黄金问题" in packet
-    assert "500+ 自动化测试" in packet
+    assert "demo/secure Compose" in packet
+    assert "readiness smoke" in packet
+    assert "15 条可执行核心路径" in packet
     assert "595 个后端测试" not in packet
     assert "54 个前端单测" not in packet
     assert "587 个后端测试" not in packet
@@ -357,3 +354,21 @@ def test_resume_packet_matches_current_project_evidence():
     assert "573 个后端测试" not in packet
     assert "556 个后端测试" not in packet
     assert "571 个后端测试" not in packet
+
+
+def test_v17_docs_define_migration_secure_profile_and_quality_boundaries():
+    readme = read_text("README.md")
+    guide = read_text("docs/interview_guide.md")
+    packet = read_text("docs/resume_project_packet.md")
+    development = read_text("docs/data_analyst_agent_开发文档_v_1_7.md")
+
+    assert "Alembic 只管理 PostgreSQL" in readme
+    assert "docker-compose.secure.yml" in readme
+    assert "75% 覆盖率门槛" in readme
+    assert "80.61%" in readme
+    assert "HEAD SHA" in guide
+    assert "DuckDB 用固定脚本重建" in guide
+    assert "Alembic 只管理 PostgreSQL" in packet
+    assert development.count("python -m alembic -c backend/alembic.ini upgrade head") == 2
+    assert "python -m alembic -c backend/alembic.ini downgrade base" in development
+    assert "确定性测试通过不等于真实模型" in development
