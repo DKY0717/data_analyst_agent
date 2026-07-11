@@ -133,7 +133,7 @@ def to_markdown(
     """生成适合 GitHub Step Summary 展示的中文门禁摘要。"""
     status = "通过" if result["passed"] else "未通过"
     lines = [
-        "# 真实 Qwen 评测质量门禁",
+        "# 真实模型评测质量门禁",
         "",
         f"总体结果：**{status}**",
         "",
@@ -206,7 +206,7 @@ def _write_text(path: Path, content: str) -> None:
 
 def main(args: list[str] | None = None) -> int:
     """读取两类评测报告，输出门禁结果并返回适合 CI 的退出码。"""
-    parser = argparse.ArgumentParser(description="检查真实 Qwen 评测质量门禁")
+    parser = argparse.ArgumentParser(description="检查真实模型评测质量门禁")
     parser.add_argument("--nl2sql-report", required=True, type=Path)
     parser.add_argument("--repair-report", required=True, type=Path)
     parser.add_argument("--correctness-report", required=True, type=Path)

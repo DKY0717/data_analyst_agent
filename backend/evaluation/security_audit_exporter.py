@@ -209,7 +209,7 @@ def _collect_risks(
             {
                 "id": "real_evaluation.missing",
                 "severity": "info",
-                "message": f"未提供真实 Qwen 端到端评测报告：{', '.join(missing)}。",
+                "message": f"未提供真实模型端到端评测报告：{', '.join(missing)}。",
             }
         )
     return risks

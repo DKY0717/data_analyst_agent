@@ -24,8 +24,10 @@ def test_build_evidence_checklist_with_run_id_includes_download_command():
 
     assert "gh run view 28518980982 --json status,conclusion,url" in markdown
     assert "gh run download 28518980982" in markdown
-    assert "real-qwen-evaluation-28518980982" in markdown
-    assert "artifacts/real-qwen-evaluation-28518980982" in markdown
+    assert "real-llm-evaluation-28518980982" in markdown
+    assert "artifacts/real-llm-evaluation-28518980982" in markdown
+    assert "run-metadata.md/json" in markdown
+    assert "real-model-smoke.json" in markdown
 
 
 def test_build_evidence_checklist_uses_custom_artifact_dir():

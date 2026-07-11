@@ -45,7 +45,7 @@ def sample_report():
             {
                 "id": "real_evaluation.missing",
                 "severity": "info",
-                "message": "未提供真实 Qwen 端到端评测报告。",
+                "message": "未提供真实模型端到端评测报告。",
             }
         ],
     }

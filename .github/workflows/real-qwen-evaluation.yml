@@ -1,12 +1,23 @@
-name: Real Qwen Evaluation
+name: Real LLM Evaluation
 
 "on":
   workflow_dispatch:
     inputs:
-      qwen_model:
-        description: Qwen model used by the evaluation
+      llm_provider:
+        description: Provider credential and evidence label
         required: true
-        default: qwen-plus
+        default: mimo
+        type: choice
+        options: [mimo, qwen]
+      api_url:
+        description: OpenAI-compatible chat completions endpoint
+        required: true
+        default: https://token-plan-cn.xiaomimimo.com/v1/chat/completions
+        type: string
+      model:
+        description: Model identifier sent to the selected endpoint
+        required: true
+        default: mimo-v2.5-pro
         type: string
       enforce_thresholds:
         description: Fail the workflow when quality thresholds are missed
@@ -18,17 +29,19 @@ permissions:
   contents: read
 
 concurrency:
-  group: real-qwen-evaluation-${{ github.ref }}
+  group: real-llm-evaluation-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  real-qwen-evaluation:
-    name: Real Qwen evaluation and quality gate
+  real-llm-evaluation:
+    name: Real LLM evaluation and quality gate
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       PYTHONPATH: backend
-      QWEN_MODEL: ${{ inputs.qwen_model }}
+      LLM_PROVIDER: ${{ inputs.llm_provider }}
+      QWEN_API_URL: ${{ inputs.api_url }}
+      QWEN_MODEL: ${{ inputs.model }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -42,15 +55,25 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
-      - name: Validate Qwen secret
+      - name: Select and validate provider credential
         shell: bash
         env:
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+          MIMO_API_KEY: ${{ secrets.MIMO_API_KEY }}
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          LEGACY_QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
         run: |
-          if [[ -z "$QWEN_API_KEY" ]]; then
-            echo "QWEN_API_KEY GitHub Secret is required." >&2
+          set -euo pipefail
+          case "${{ inputs.llm_provider }}" in
+            mimo) API_KEY="${MIMO_API_KEY:-${LEGACY_QWEN_API_KEY:-}}" ;;
+            qwen) API_KEY="${DASHSCOPE_API_KEY:-${LEGACY_QWEN_API_KEY:-}}" ;;
+            *) echo "Unsupported provider." >&2; exit 1 ;;
+          esac
+          if [[ -z "$API_KEY" ]]; then
+            echo "Credential for selected provider is required." >&2
             exit 1
           fi
+          echo "::add-mask::$API_KEY"
+          printf 'QWEN_API_KEY=%s\n' "$API_KEY" >> "$GITHUB_ENV"
 
       - name: Install backend dependencies
         run: pip install -r backend/requirements.txt
@@ -58,46 +81,59 @@ jobs:
       - name: Seed evaluation database
         run: python -m scripts.prepare_evaluation_database
 
+      - name: Write evaluation run metadata
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
+          EVALUATION_HEAD_SHA: ${{ github.sha }}
+        run: >-
+          python -m evaluation.run_metadata
+          --json-output "$EVALUATION_REPORT_DIR/run-metadata.json"
+          --markdown-output "$EVALUATION_REPORT_DIR/run-metadata.md"
+
       - name: Run deterministic backend tests
         run: pytest backend/tests -q
 
+      - name: Run real model core smoke
+        env:
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
+        run: >-
+          python -m evaluation.real_model_smoke
+          --output "$EVALUATION_REPORT_DIR/real-model-smoke.json"
+
       - name: Run deterministic intent evaluation
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: python -m evaluation.intent_evaluator
 
       - name: Run real NL2SQL evaluation
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: python -m evaluation.evaluator
 
       - name: Run real SQL Repair evaluation
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: python -m evaluation.repair_evaluator
 
       - name: Run real result correctness evaluation
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: python -m evaluation.result_correctness_evaluator
 
       - name: Run deterministic intent grounding evaluation
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: python -m evaluation.intent_grounding_evaluator
 
       - name: Run deterministic permission evaluation
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: python -m evaluation.permission_evaluator --write-report
 
       - name: Evaluate quality gate
         shell: bash
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: |
           set -euo pipefail
           NL2SQL_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'nl2sql-evaluation-*.json' | sort | tail -n 1)"
@@ -123,7 +159,7 @@ jobs:
         if: always()
         shell: bash
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: |
           set -euo pipefail
           NL2SQL_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'nl2sql-evaluation-*.json' | sort | tail -n 1)"
@@ -141,12 +177,16 @@ jobs:
         if: always()
         shell: bash
         env:
-          EVALUATION_REPORT_DIR: ${{ runner.temp }}/qwen-evaluation
+          EVALUATION_REPORT_DIR: ${{ runner.temp }}/llm-evaluation
         run: |
+          if [[ -f "$EVALUATION_REPORT_DIR/run-metadata.md" ]]; then
+            cat "$EVALUATION_REPORT_DIR/run-metadata.md" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [[ -f "$EVALUATION_REPORT_DIR/quality-gate.md" ]]; then
             cat "$EVALUATION_REPORT_DIR/quality-gate.md" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "## 真实 Qwen 评测未生成质量门禁摘要" >> "$GITHUB_STEP_SUMMARY"
+            echo "## 真实模型评测未生成质量门禁摘要" >> "$GITHUB_STEP_SUMMARY"
           fi
           SECURITY_AUDIT_MARKDOWN=""
           if [[ -d "$EVALUATION_REPORT_DIR" ]]; then
@@ -161,7 +201,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: real-qwen-evaluation-${{ github.run_id }}
-          path: ${{ runner.temp }}/qwen-evaluation
+          name: real-llm-evaluation-${{ github.run_id }}
+          path: ${{ runner.temp }}/llm-evaluation
           if-no-files-found: warn
           retention-days: 14

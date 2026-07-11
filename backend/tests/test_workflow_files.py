@@ -54,7 +54,7 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert "python -m evaluation.evaluator" not in commands
     assert "MIMO_API_KEY" not in raw
     assert "secrets.QWEN_API_KEY" not in raw
-    # 基础 CI 只跑确定性检查；真实模型评测由手动 Real Qwen workflow 承担。
+    # 基础 CI 只跑确定性检查；真实模型评测由手动 workflow 承担。
     assert "pull_request_target" not in raw
 
 
@@ -161,13 +161,15 @@ def test_base_ci_runs_frontend_e2e_tests_with_playwright_chromium():
     ) < commands.index("npm run test:e2e --prefix frontend")
 
 
-def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
+def test_real_llm_workflow_declares_provider_identity_smoke_and_auditable_artifact():
     path, workflow = load_workflow("real-qwen-evaluation.yml")
     raw = path.read_text(encoding="utf-8")
     triggers = workflow_triggers(workflow)
     commands = workflow_commands(workflow)
-    job = workflow["jobs"]["real-qwen-evaluation"]
+    job = workflow["jobs"]["real-llm-evaluation"]
     evaluation_commands = {
+        "python -m evaluation.run_metadata",
+        "python -m evaluation.real_model_smoke",
         "python -m evaluation.intent_evaluator",
         "python -m evaluation.evaluator",
         "python -m evaluation.repair_evaluator",
@@ -190,15 +192,31 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
         for step in job["steps"]
         if str(step.get("uses", "")).startswith("actions/upload-artifact@")
     ]
+    metadata_step = next(
+        step for step in job["steps"] if step.get("name") == "Write evaluation run metadata"
+    )
 
     assert set(triggers) == {"workflow_dispatch"}
     inputs = triggers["workflow_dispatch"]["inputs"]
-    assert {"qwen_model", "enforce_thresholds"} <= set(inputs)
+    assert {"llm_provider", "api_url", "model", "enforce_thresholds"} <= set(inputs)
+    assert inputs["llm_provider"]["options"] == ["mimo", "qwen"]
+    assert inputs["model"]["default"] == "mimo-v2.5-pro"
+    assert inputs["api_url"]["default"].startswith("https://token-plan-cn.xiaomimimo.com/")
+    assert job["env"]["LLM_PROVIDER"] == "${{ inputs.llm_provider }}"
+    assert job["env"]["QWEN_API_URL"] == "${{ inputs.api_url }}"
+    assert job["env"]["QWEN_MODEL"] == "${{ inputs.model }}"
     assert workflow["permissions"]["contents"] == "read"
     assert "secrets.QWEN_API_KEY" in raw
+    assert "secrets.MIMO_API_KEY" in raw
+    assert "secrets.DASHSCOPE_API_KEY" in raw
     assert "QWEN_API_KEY" not in job.get("env", {})
     assert "pull_request_target" not in raw
     assert "python -m evaluation.evaluator" in commands
+    assert "python -m evaluation.run_metadata" in commands
+    assert "python -m evaluation.real_model_smoke" in commands
+    assert metadata_step["env"]["EVALUATION_HEAD_SHA"] == "${{ github.sha }}"
+    assert "run-metadata.json" in raw
+    assert "real-model-smoke.json" in raw
     assert "python -m evaluation.intent_evaluator" in commands
     assert "python -m evaluation.repair_evaluator" in commands
     assert "python -m evaluation.result_correctness_evaluator" in commands
@@ -215,6 +233,9 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert "$EVALUATION_REPORT_DIR/quality-gate.json" in commands
     assert "python -m scripts.prepare_evaluation_database" in commands
     assert commands.index("python -m scripts.prepare_evaluation_database") < commands.index(
+        "python -m evaluation.real_model_smoke"
+    )
+    assert commands.index("python -m evaluation.real_model_smoke") < commands.index(
         "python -m evaluation.evaluator"
     )
     assert commands.index("python -m evaluation.evaluator") < commands.index(
@@ -236,9 +257,11 @@ def test_real_qwen_workflow_is_manual_and_uploads_reports_always():
     assert "EVALUATION_REPORT_DIR" not in job.get("env", {})
     assert all(
         step.get("env", {}).get("EVALUATION_REPORT_DIR")
-        == "${{ runner.temp }}/qwen-evaluation"
+        == "${{ runner.temp }}/llm-evaluation"
         for step in [*evaluation_steps, *summary_steps]
     )
     assert "$GITHUB_STEP_SUMMARY" in commands
     assert len(upload_steps) == 1
     assert upload_steps[0]["if"] == "always()"
+    assert upload_steps[0]["with"]["name"] == "real-llm-evaluation-${{ github.run_id }}"
+    assert upload_steps[0]["with"]["path"] == "${{ runner.temp }}/llm-evaluation"
