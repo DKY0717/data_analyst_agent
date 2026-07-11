@@ -15,7 +15,11 @@ from app.config import settings
 
 config = context.config
 
-if config.config_file_name is not None:
+if (
+    config.config_file_name is not None
+    and config.attributes.get("configure_logger", True)
+):
+    # CLI 默认沿用 Alembic 日志配置；进程内调用可关闭重配置，避免破坏宿主的日志处理器。
     fileConfig(config.config_file_name)
 
 target_metadata = None

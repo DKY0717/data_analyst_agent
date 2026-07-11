@@ -5,6 +5,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.agents.graph import AgentGraph
+from app.analysis_intent.llm_parser import AnalysisIntentLLMParser
 from app.analysis_intent.models import AnalysisIntent, IntentSlot
 from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
 from app.security.data_permission import DataPermissionResult
@@ -50,6 +51,32 @@ def make_query_result_failure():
         "error": "Table 'nonexistent' not found",
         "error_type": "CatalogException"
     }
+
+
+@pytest.fixture(autouse=True)
+def block_unmocked_intent_llm(monkeypatch):
+    """AgentGraph 单测默认禁止真实模型调用，显式 mock 的用例仍可覆盖该边界。"""
+
+    async def fail_fast(_self, _question):
+        # 这些测试验证图编排而非外部模型；遗漏 mock 时必须立即失败降级，不能等待网络重试。
+        raise RuntimeError("intent llm must be mocked in AgentGraph tests")
+
+    monkeypatch.setattr(AnalysisIntentLLMParser, "parse", fail_fast)
+
+
+@pytest.mark.asyncio
+async def test_agent_graph_suite_blocks_unmocked_intent_llm():
+    """回归保护：测试默认路径不能触发 OpenAI-compatible API。"""
+    graph = AgentGraph()
+
+    with patch(
+        "app.analysis_intent.llm_parser.llm_client.parse_analysis_intent",
+        new_callable=AsyncMock,
+    ) as mock_api:
+        with pytest.raises(RuntimeError, match="must be mocked"):
+            await graph.llm_parser.parse("统计销售额")
+
+    mock_api.assert_not_called()
 
 
 # ---- 测试用例 ----

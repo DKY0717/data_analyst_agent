@@ -1,5 +1,6 @@
 """Alembic 初始迁移与双数据库边界契约测试。"""
 
+import logging
 from pathlib import Path
 
 from alembic import command
@@ -49,11 +50,15 @@ def test_initial_revision_covers_all_business_tables(monkeypatch, capsys):
     # 真正调用 Alembic offline runner，证明 revision 能生成 PostgreSQL DDL。
     monkeypatch.setattr(settings, "DATABASE_BACKEND", "postgresql")
     config = Config(str(ALEMBIC_INI))
+    # 程序化调用不能重置 pytest/宿主进程的根日志处理器，否则后续隐私日志断言会失效。
+    root_handlers = list(logging.getLogger().handlers)
+    config.attributes["configure_logger"] = False
     command.upgrade(config, "head", sql=True)
     offline_sql = capsys.readouterr().out
     assert "CREATE TABLE regions" in offline_sql
     assert "CREATE TABLE refunds" in offline_sql
     assert "SERIAL" not in offline_sql
+    assert list(logging.getLogger().handlers) == root_handlers
 
 
 def test_duckdb_migration_boundary_is_explicit():
