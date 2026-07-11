@@ -49,8 +49,8 @@ class AnswerGenerator:
             return answer
 
         except Exception as e:
-            logger.error(f"答案生成异常: {e}")
-            raise LLMError(f"答案生成失败: {e}")
+            logger.error("答案生成异常: %s", type(e).__name__)
+            raise LLMError("答案生成失败") from e
 
 
 # 全局答案生成器实例

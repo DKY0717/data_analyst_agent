@@ -58,7 +58,7 @@ class SQLOptimizer:
         try:
             parsed = sqlglot.parse_one(sql, dialect="duckdb")
         except Exception as e:
-            logger.warning(f"SQL 优化器解析 SQL 失败: {e}")
+            logger.warning("SQL 优化器解析 SQL 失败: %s", type(e).__name__)
             return suggestions
 
         # SELECT * 会放大扫描和网络传输成本，是面试中最容易讲清楚的优化点之一。

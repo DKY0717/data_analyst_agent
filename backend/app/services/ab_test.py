@@ -2,8 +2,6 @@
 # 支持同时运行多个 prompt 版本，自动收集指标并对比效果
 
 import hashlib
-import json
-import random
 import sqlite3
 import threading
 import time
@@ -13,7 +11,6 @@ from typing import Any, Dict, List, Optional
 
 from ..config import settings
 from ..utils.logger import logger
-from .prompt_registry import prompt_registry
 
 
 @dataclass

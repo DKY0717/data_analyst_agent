@@ -256,7 +256,7 @@ def seed_database(connection=None, verbose=True):
     refunds = generate_refunds(orders)
 
     if verbose:
-        print(f"生成数据统计:")
+        print("生成数据统计:")
         print(f"  - 地区: {len(regions)} 条")
         print(f"  - 类别: {len(categories)} 条")
         print(f"  - 商品: {len(products)} 条")

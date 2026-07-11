@@ -112,8 +112,7 @@ class QwenAPIClient:
                         continue
                     if response.status_code != 200:
                         raise LLMResponseError(
-                            f"API 返回非 200 状态码: {response.status_code}, "
-                            f"响应: {response.text}"
+                            f"API 返回非 200 状态码: {response.status_code}"
                         )
 
                     result = response.json()
@@ -171,10 +170,10 @@ class QwenAPIClient:
                     success=False,
                     error_type=type(exc).__name__,
                 )
-                raise LLMResponseError(f"API 响应结构异常: {exc}")
+                raise LLMResponseError("API 响应结构异常") from exc
 
             except Exception as e:
-                logger.error(f"API 调用异常: {e} (第 {attempt} 次)")
+                logger.error("API 调用异常: %s (第 %s 次)", type(e).__name__, attempt)
                 if attempt >= self.max_retries:
                     self._record_observability(
                         stage=stage,
@@ -183,10 +182,9 @@ class QwenAPIClient:
                         success=False,
                         error_type=type(e).__name__,
                     )
-                    raise LLMError(f"API 调用失败: {e}")
+                    raise LLMError("API 调用失败") from e
 
             # 指数退避：第 1 次等 1 秒，第 2 次等 2 秒，第 3 次等 4 秒
-            import asyncio
             await asyncio.sleep(2 ** attempt)
 
         raise LLMError("API 调用失败，已达最大重试次数")
@@ -524,10 +522,8 @@ class QwenAPIClient:
                 end = content.rindex('}') + 1
                 json_str = content[start:end]
                 return json.loads(json_str)
-            except (ValueError, json.JSONDecodeError) as e:
-                raise LLMResponseError(
-                    f"{context}响应不是有效的 JSON: {content[:200]}..."
-                )
+            except (ValueError, json.JSONDecodeError):
+                raise LLMResponseError(f"{context}响应不是有效的 JSON")
 
     def _format_query_result(self, query_result: dict) -> str:
         """将查询结果格式化为易读的文本

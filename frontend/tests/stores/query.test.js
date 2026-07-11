@@ -109,10 +109,8 @@ describe('useQueryStore', () => {
 
   it('cancelQuery 中断进行中的请求', async () => {
     const { queryAgentSSE } = await import('@/api/agent')
-    let rejectFn
     queryAgentSSE.mockImplementation((_q, _s, _onProgress, signal) => {
       return new Promise((_, reject) => {
-        rejectFn = reject
         signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
     })

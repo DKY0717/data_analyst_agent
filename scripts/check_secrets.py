@@ -13,8 +13,12 @@ PLACEHOLDER_VALUES = {
     "your-api-key-here",
     "replace_me",
     "replace-me",
+    "...",
     "<token>",
     "<secret>",
+    "你的密钥",
+    "留在本地或",
+    "本地未提交配置",
 }
 
 QWEN_API_KEY_PATTERN = re.compile(
@@ -30,6 +34,7 @@ def _is_placeholder(value: str) -> bool:
     normalized = value.strip().strip("\"'").lower()
     return (
         normalized in PLACEHOLDER_VALUES
+        or normalized.startswith("replace-me")
         or normalized.startswith("${")
         or normalized.startswith("os.getenv(")
     )
@@ -41,6 +46,7 @@ def _uses_qwen_environment_variable(line: str) -> bool:
         or "os.getenv('QWEN_API_KEY'" in line
         or "${QWEN_API_KEY}" in line
         or "secrets.QWEN_API_KEY" in line
+        or ("$API_KEY" in line and "QWEN_API_KEY" in line)
     )
 
 
@@ -81,6 +87,9 @@ def scan_files(paths: list[str]) -> list[dict]:
     findings = []
     for raw_path in paths:
         path = Path(raw_path)
+        # `git ls-files` 在提交删除前仍会列出工作树中已不存在的路径。
+        if not path.exists():
+            continue
         try:
             content = path.read_bytes()
             if b"\x00" in content:

@@ -186,7 +186,7 @@ class SQLGuard:
             }
 
         except Exception as e:
-            logger.error(f"SQL验证错误: {e}")
+            logger.error("SQL 验证错误: %s", type(e).__name__)
             return self._result(
                 False,
                 sql,

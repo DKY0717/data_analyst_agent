@@ -24,7 +24,7 @@ describe('frontend bundle configuration', () => {
 
     expect(viteConfig).not.toContain("'vendor-element': ['element-plus']")
     expect(viteConfig).toContain("id.includes('/element-plus/')")
-    expect(viteConfig).toContain("id.includes('/xlsx/')")
+    expect(viteConfig).not.toContain("id.includes('/xlsx/')")
   })
 
   it('keeps the dev proxy aligned with documented backend ports', () => {

@@ -4,10 +4,19 @@ import tempfile
 import os
 import json
 import duckdb
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
+from app.db._sandbox_worker import _json_default
 from app.db.sandbox import SandboxExecutor
+
+
+def test_sandbox_worker_serializes_supported_database_scalars():
+    assert _json_default(date(2026, 7, 11)) == "2026-07-11"
+    assert _json_default(datetime(2026, 7, 11, 8, 30)) == "2026-07-11T08:30:00"
+    assert _json_default(Decimal("12.34")) == 12.34
 
 
 def test_sandbox_execute_select():

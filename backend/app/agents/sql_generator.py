@@ -11,6 +11,7 @@ from ..semantic.semantic_loader import semantic_loader
 from ..utils.schema_formatter import format_physical_schema
 from ..utils.logger import logger
 from ..utils.exceptions import LLMError
+from ..services.tracing import build_sql_metadata
 
 
 class SQLGenerator:
@@ -73,19 +74,25 @@ class SQLGenerator:
                 explanation=result.get("explanation", "")
             )
 
-            logger.info(f"SQL 生成成功: {output.sql[:100]}...")
+            metadata = build_sql_metadata(output.sql)
+            logger.info(
+                "SQL 生成成功: hash=%s type=%s tables=%s",
+                metadata["hash"],
+                metadata["statement_type"],
+                metadata["tables"],
+            )
             return output
 
         except (KeyError, TypeError) as e:
             # LLM 返回的 JSON 缺少必要字段
-            logger.error(f"SQL 生成结果格式错误: {e}")
-            raise LLMError(f"SQL 生成结果格式错误: {e}")
+            logger.error("SQL 生成结果格式错误: %s", type(e).__name__)
+            raise LLMError("SQL 生成结果格式错误") from e
         except LLMError:
             # LLM 调用本身失败，直接向上抛
             raise
         except Exception as e:
-            logger.error(f"SQL 生成异常: {e}")
-            raise LLMError(f"SQL 生成失败: {e}")
+            logger.error("SQL 生成异常: %s", type(e).__name__)
+            raise LLMError("SQL 生成失败") from e
 
     def _format_schema(self, schema_context: Dict[str, Any]) -> str:
         """

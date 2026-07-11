@@ -32,10 +32,6 @@ export default defineConfig({
             return 'element-plus'
           }
 
-          if (id.includes('/xlsx/')) {
-            return 'xlsx'
-          }
-
           return undefined
         },
       },

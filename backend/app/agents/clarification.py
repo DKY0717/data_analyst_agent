@@ -1,7 +1,6 @@
 # 主动澄清模块
 # 当意图解析置信度低或缺失关键槽位时，生成结构化澄清请求。
 
-from typing import Any
 
 from ..analysis_intent.models import AnalysisIntent, ClarificationOption, ClarificationRequest
 

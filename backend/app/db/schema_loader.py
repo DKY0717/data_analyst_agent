@@ -45,8 +45,8 @@ class SchemaLoader:
                 )
                 return [row[0] for row in cur.fetchall()]
         except Exception as e:
-            logger.error(f"获取表列表失败: {e}")
-            raise SchemaLoadError(f"获取表列表失败: {e}")
+            logger.error("获取表列表失败: %s", type(e).__name__)
+            raise SchemaLoadError("获取表列表失败") from e
 
     def get_table_schema(self, table_name: str) -> Dict[str, Any]:
         """获取指定表的结构信息"""
@@ -86,8 +86,8 @@ class SchemaLoader:
                     "foreign_keys": foreign_keys,
                 }
         except Exception as e:
-            logger.error(f"获取表 {table_name} 结构失败: {e}")
-            raise SchemaLoadError(f"获取表 {table_name} 结构失败: {e}")
+            logger.error("获取表结构失败: %s", type(e).__name__)
+            raise SchemaLoadError("获取表结构失败") from e
 
     def _get_pg_constraints(self, conn, table_name: str) -> tuple:
         """PostgreSQL 约束查询"""
@@ -153,8 +153,8 @@ class SchemaLoader:
                 schema[table] = self.get_table_schema(table)
             return {"tables": schema}
         except Exception as e:
-            logger.error(f"获取完整Schema失败: {e}")
-            raise SchemaLoadError(f"获取完整Schema失败: {e}")
+            logger.error("获取完整 Schema 失败: %s", type(e).__name__)
+            raise SchemaLoadError("获取完整 Schema 失败") from e
 
     @staticmethod
     def _parse_constraints(constraints: List[tuple]) -> tuple:

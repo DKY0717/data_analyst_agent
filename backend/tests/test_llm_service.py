@@ -38,6 +38,7 @@ class TestParseJsonResponse:
         with pytest.raises(LLMResponseError) as exc_info:
             client._parse_json_response(content, "测试")
         assert "不是有效的 JSON" in str(exc_info.value)
+        assert content not in str(exc_info.value)
 
 
 class TestFormatQueryResult:
@@ -303,7 +304,9 @@ class TestCallAPIObservability:
         assert get_calls()[0]["success"] is True
 
     @pytest.mark.asyncio
-    async def test_final_failure_records_error_type_without_error_message(self, client, monkeypatch):
+    async def test_final_failure_records_error_type_without_error_message(
+        self, client, monkeypatch, caplog
+    ):
         start_trace()
         outcomes = [RuntimeError("secret server response")] * client.max_retries
         monkeypatch.setattr(
@@ -324,3 +327,4 @@ class TestCallAPIObservability:
         assert call["attempt_count"] == client.max_retries
         assert call["error_type"] == "RuntimeError"
         assert "secret server response" not in str(call)
+        assert "secret server response" not in caplog.text

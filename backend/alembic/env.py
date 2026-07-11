@@ -1,4 +1,4 @@
-"""Alembic 环境配置，支持 DuckDB 和 PostgreSQL 双后端。"""
+"""PostgreSQL Alembic 环境；DuckDB 演示库通过 init.sql 可重建。"""
 
 from logging.config import fileConfig
 
@@ -7,6 +7,7 @@ from alembic import context
 
 import sys
 from pathlib import Path
+from urllib.parse import quote_plus
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -19,19 +20,22 @@ if config.config_file_name is not None:
 
 target_metadata = None
 
-backend = settings.DATABASE_BACKEND
-if not backend:
-    backend = "postgresql" if settings.DATABASE_URL.startswith("postgresql") else "duckdb"
-
-if backend == "postgresql":
-    db_url = (
-        f"postgresql://{settings.PG_USER}:{settings.PG_PASSWORD}"
-        f"@{settings.PG_HOST}:{settings.PG_PORT}/{settings.PG_DATABASE}"
+backend = settings.DATABASE_BACKEND or (
+    "postgresql" if settings.DATABASE_URL.startswith("postgresql") else "duckdb"
+)
+if backend != "postgresql":
+    raise RuntimeError(
+        "Alembic only manages PostgreSQL; rebuild DuckDB from database/init.sql"
     )
-else:
-    db_url = "duckdb:///" + str(settings.DATA_DIR / "database.duckdb")
 
-config.set_main_option("sqlalchemy.url", db_url)
+db_url = (
+    f"postgresql+psycopg2://{quote_plus(settings.PG_USER)}:"
+    f"{quote_plus(settings.PG_PASSWORD)}@{settings.PG_HOST}:{settings.PG_PORT}/"
+    f"{quote_plus(settings.PG_DATABASE)}"
+)
+
+# ConfigParser 把 % 当插值符；URL 编码后的百分号需转义后再写入配置。
+config.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

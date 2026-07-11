@@ -13,8 +13,12 @@ from urllib.request import urlopen
 
 REQUIRED_FILES = (
     "backend/app/main.py",
+    "backend/evaluation/core_path_runner.py",
+    "backend/alembic/versions/20260711_0001_initial_schema.py",
     "frontend/package.json",
     "database/seed_data.py",
+    "docker-compose.secure.yml",
+    ".github/workflows/ci.yml",
     "scripts/interview_evidence.py",
     "docs/interview_guide.md",
     "docs/resume_project_packet.md",
@@ -112,11 +116,16 @@ def evaluate_preflight(
         checks.append(CheckResult(relative_path, status, message))
 
     jwt_secret = demo_env.get("JWT_SECRET", "")
+    jwt_secret_strong = len(jwt_secret) >= 32
     checks.append(
         CheckResult(
             "JWT_SECRET",
-            "PASS" if jwt_secret else "FAIL",
-            "JWT_SECRET 已配置（值已隐藏）" if jwt_secret else "缺少 JWT_SECRET",
+            "PASS" if jwt_secret_strong else "FAIL",
+            (
+                "JWT_SECRET 已配置且长度合规（值已隐藏）"
+                if jwt_secret_strong
+                else "JWT_SECRET 缺失或少于 32 字符"
+            ),
         )
     )
 
@@ -192,6 +201,7 @@ def build_preflight_report(result: PreflightResult) -> str:
             "cd backend && uvicorn app.main:app --reload",
             "cd frontend && npm run dev",
             "python scripts/interview_demo_preflight.py --strict",
+            "cd backend && python -m evaluation.core_path_runner",
             "```",
             "",
             "## 3. 演示顺序",
@@ -208,9 +218,10 @@ def build_preflight_report(result: PreflightResult) -> str:
             "",
             "## 4. 失败处理",
             "",
-            "- 缺少 `JWT_SECRET` 或 `AUTH_DEMO_ENABLED=true`：先补 `.env`，再重启后端。",
+            "- `JWT_SECRET` 缺失/少于 32 字符或未设置 `AUTH_DEMO_ENABLED=true`：先补 `.env`，再重启后端。",
             "- 后端 readiness 不可访问：确认 `uvicorn app.main:app --reload` 已在 `backend` 目录启动。",
             "- 前端不可访问：确认 `npm run dev` 已在 `frontend` 目录启动。",
+            "- 发布前再检查真实模型 artifact 的 HEAD SHA，并让 CI 验证迁移、依赖审计与 secure Compose。",
             "",
         ]
     )

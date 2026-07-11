@@ -37,20 +37,28 @@ def test_base_ci_has_deterministic_pull_request_checks():
     assert set(workflow["jobs"]) == {
         "backend-tests",
         "backend-tests-pg",
+        "dependency-audit",
         "docker-image-builds",
         "frontend-build",
         "frontend-e2e",
         "secret-scan",
     }
     assert "pytest backend/tests -q" in commands
+    assert "python -m ruff check" in commands
+    assert "--cov-fail-under=75" in commands
+    assert "python -m alembic -c backend/alembic.ini upgrade head" in commands
+    assert "python -m alembic -c backend/alembic.ini downgrade base" in commands
     assert "python -m evaluation.intent_evaluator" in commands
     assert "python -m evaluation.intent_grounding_evaluator" in commands
     assert "python -m evaluation.permission_evaluator --json" in commands
     assert "npm ci" in commands
     assert "npm run test --prefix frontend" in commands
+    assert "npm run lint --prefix frontend" in commands
     assert "npm run test:e2e --prefix frontend" in commands
     assert "npm run build" in commands
     assert "git ls-files -z" in commands
+    assert "python -m pip_audit -r backend/requirements.txt --strict" in commands
+    assert "npm audit --prefix frontend --audit-level=high" in commands
     assert "python -m evaluation.evaluator" not in commands
     assert "MIMO_API_KEY" not in raw
     assert "secrets.QWEN_API_KEY" not in raw
@@ -86,6 +94,7 @@ def test_base_ci_validates_docker_compose_configuration():
 
     assert "Validate Docker Compose configuration" in step_names
     assert "docker compose -f docker-compose.yml config" in commands
+    assert "docker compose -f docker-compose.yml -f docker-compose.secure.yml config" in commands
     assert commands.index("docker compose -f docker-compose.yml config") < commands.index(
         "docker build -f backend/Dockerfile"
     )
@@ -124,8 +133,12 @@ def test_base_ci_runs_frontend_unit_tests_before_build():
 
     assert job["name"] == "Frontend production build"
     assert "Run frontend unit tests" in step_names
+    assert "Run frontend lint" in step_names
     assert "npm run test --prefix frontend" in commands
     assert commands.index("npm run test --prefix frontend") < commands.index(
+        "npm run build --prefix frontend"
+    )
+    assert commands.index("npm run lint --prefix frontend") < commands.index(
         "npm run build --prefix frontend"
     )
 

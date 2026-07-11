@@ -4,12 +4,10 @@
 import json
 import sqlite3
 import threading
-from collections import deque
 from pathlib import Path
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Dict, Optional
 
 from ..config import settings
-from ..utils.logger import logger
 from .conversation_context import conversation_context_builder, ConversationContextBuilder
 
 

@@ -1,1 +1,8 @@
-Generic single-database configuration.
+PostgreSQL production schema migrations.
+
+Run from the repository root with PostgreSQL environment variables configured:
+
+    python -m alembic -c backend/alembic.ini upgrade head
+
+DuckDB is the reproducible local/demo database and is rebuilt from
+`database/init.sql`; Alembic intentionally refuses to manage DuckDB.

@@ -4,7 +4,6 @@
 import json
 import yaml
 from pathlib import Path
-from typing import Any
 
 
 SPIDER_DIR = Path(__file__).parent.parent.parent / "data" / "spider"
@@ -34,7 +33,6 @@ def classify_difficulty(sql: str) -> str:
     has_group = "GROUP BY" in sql_upper
     has_having = "HAVING" in sql_upper
     has_order = "ORDER BY" in sql_upper
-    has_limit = "LIMIT" in sql_upper
     has_union = "UNION" in sql_upper
     has_except = "EXCEPT" in sql_upper
     has_intersect = "INTERSECT" in sql_upper

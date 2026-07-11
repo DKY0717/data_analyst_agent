@@ -54,7 +54,7 @@
         :page-size="pageSize"
         :total="totalRows"
         layout="prev, pager, next, total"
-        small
+        size="small"
         background
       />
     </div>
@@ -65,6 +65,7 @@
 import { computed, ref, watch } from 'vue'
 import { Download, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus/es/components/message/index.mjs'
+import { buildCsv, buildSpreadsheetXml } from '@/utils/spreadsheet'
 
 const props = defineProps({
   data: {
@@ -101,36 +102,17 @@ const pagedRows = computed(() => {
 function exportCSV() {
   const cols = columns.value
   const rows = props.data?.rows || []
-  const header = cols.join(',')
-  const body = rows.map(r =>
-    r.map(cell => {
-      const str = String(cell ?? '')
-      return str.includes(',') || str.includes('"') || str.includes('\n')
-        ? `"${str.replace(/"/g, '""')}"`
-        : str
-    }).join(',')
-  ).join('\n')
-  const csv = '\uFEFF' + header + '\n' + body
+  const csv = '\uFEFF' + buildCsv(cols, rows)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   downloadBlob(blob, `query_result_${Date.now()}.csv`)
   ElMessage.success('CSV 导出成功')
 }
 
 function exportExcel() {
-  import('xlsx').then((XLSX) => {
-    const cols = columns.value
-    const rows = props.data?.rows || []
-    const wsData = [cols, ...rows]
-    const ws = XLSX.utils.aoa_to_sheet(wsData)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
-    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-    const blob = new Blob([wbout], { type: 'application/octet-stream' })
-    downloadBlob(blob, `query_result_${Date.now()}.xlsx`)
-    ElMessage.success('Excel 导出成功')
-  }).catch(() => {
-    ElMessage.error('Excel 导出失败')
-  })
+  const xml = buildSpreadsheetXml(columns.value, props.data?.rows || [])
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+  downloadBlob(blob, `query_result_${Date.now()}.xls`)
+  ElMessage.success('Excel 导出成功')
 }
 
 function downloadBlob(blob, filename) {

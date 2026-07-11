@@ -129,7 +129,7 @@ const chartOption = computed(() => {
   }
 
   if (type === 'pie') {
-    const pieData = dataRows.map((r, i) => ({
+    const pieData = dataRows.map((r) => ({
       name: String(r[0]),
       value: Number(r[numericCols[0]]) || 0,
     }))

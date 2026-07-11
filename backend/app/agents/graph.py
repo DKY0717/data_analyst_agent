@@ -25,7 +25,7 @@ from ..security.data_permission import data_permission_guard
 from ..db.query_runner import query_runner
 from ..config import settings
 from ..services.llm_observability import get_calls, start_trace
-from ..services.tracing import trace_node, add_span_attributes, record_span_event
+from ..services.tracing import trace_node
 from ..utils.logger import logger
 
 

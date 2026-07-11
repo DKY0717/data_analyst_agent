@@ -16,6 +16,9 @@
 # Python
 __pycache__/
 *.pyc
+.coverage
+coverage.xml
+htmlcov/
 
 # Database
 *.duckdb
@@ -33,6 +36,7 @@ data/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/dist-ci/
 frontend/test-results/
 
 # Evaluation outputs are generated; force-add selected baselines when needed.

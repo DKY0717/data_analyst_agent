@@ -202,11 +202,13 @@ class IntentGroundingEvaluationRunner:
     @staticmethod
     def _edge_set_match(actual: List[List[str]], expected: List[List[str]]) -> bool:
         """JOIN 边忽略方向比较，但不允许额外或缺失路径。"""
-        normalize = lambda edges: {
-            frozenset((str(edge[0]), str(edge[1])))
-            for edge in edges
-            if isinstance(edge, (list, tuple)) and len(edge) == 2
-        }
+        def normalize(edges: List[List[str]]) -> set[frozenset[str]]:
+            return {
+                frozenset((str(edge[0]), str(edge[1])))
+                for edge in edges
+                if isinstance(edge, (list, tuple)) and len(edge) == 2
+            }
+
         return normalize(actual) == normalize(expected)
 
     @staticmethod

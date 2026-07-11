@@ -148,11 +148,11 @@ class TestGenerate:
     """测试 SQL 生成功能"""
 
     @pytest.mark.asyncio
-    async def test_generate_success(self, generator, mock_schema):
+    async def test_generate_success(self, generator, mock_schema, caplog):
         """测试成功生成 SQL"""
         # Mock LLM 返回
         mock_response = {
-            "sql": "SELECT COUNT(*) AS order_count FROM orders",
+            "sql": "SELECT COUNT(*) AS order_count FROM orders WHERE customer_name = 'private-customer'",
             "tables": ["orders"],
             "explanation": "统计订单总数"
         }
@@ -164,9 +164,11 @@ class TestGenerate:
 
             # 验证返回结果
             assert isinstance(result, SQLGeneratorOutput)
-            assert result.sql == "SELECT COUNT(*) AS order_count FROM orders"
+            assert "private-customer" in result.sql
             assert "orders" in result.tables
             assert result.explanation == "统计订单总数"
+            assert "private-customer" not in caplog.text
+            assert "hash=" in caplog.text
 
             # 验证 LLM 被正确调用
             mock_llm.generate_sql.assert_called_once()

@@ -4,7 +4,17 @@
 
 import json
 import sys
-import time
+from datetime import date, datetime
+from decimal import Decimal
+
+
+def _json_default(value):
+    """把数据库标量转换为稳定 JSON 类型，未知对象继续 fail-closed。"""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    raise TypeError(f"Unsupported database value type: {type(value).__name__}")
 
 
 def main():
@@ -14,8 +24,6 @@ def main():
     connection_config = input_data.get("connection_config", input_data.get("db_path"))
     backend = input_data["backend"]
     timeout = int(input_data.get("timeout") or 30)
-
-    start_time = time.time()
 
     try:
         if backend == "postgresql":
@@ -39,18 +47,15 @@ def main():
             rows = [list(row) for row in result.fetchall()]
             conn.close()
 
-        execution_time_ms = int((time.time() - start_time) * 1000)
-
         output = {
             "success": True,
             "columns": columns,
             "rows": rows,
             "row_count": len(rows),
         }
-        sys.stdout.write(json.dumps(output, ensure_ascii=False))
+        sys.stdout.write(json.dumps(output, ensure_ascii=False, default=_json_default))
 
     except Exception as e:
-        execution_time_ms = int((time.time() - start_time) * 1000)
         output = {
             "success": False,
             "columns": [],
@@ -58,7 +63,7 @@ def main():
             "error": str(e),
             "error_type": type(e).__name__,
         }
-        sys.stdout.write(json.dumps(output, ensure_ascii=False))
+        sys.stdout.write(json.dumps(output, ensure_ascii=False, default=_json_default))
 
 
 if __name__ == "__main__":

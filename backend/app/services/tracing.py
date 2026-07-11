@@ -31,7 +31,8 @@ def init_tracing(service_name: str = "data-analyst-agent") -> None:
     """
     global _tracer
 
-    exporter_type = os.getenv("OTEL_EXPORTER", "console").lower()
+    # 默认不向 stdout 导出 span；需要控制台或 OTLP 时由部署环境显式开启。
+    exporter_type = os.getenv("OTEL_EXPORTER", "none").lower()
 
     resource = Resource.create({
         SERVICE_NAME: service_name,
@@ -46,7 +47,7 @@ def init_tracing(service_name: str = "data-analyst-agent") -> None:
             exporter = OTLPSpanExporter()
             logger.info("OpenTelemetry OTLP 导出器已启用")
         except Exception as e:
-            logger.warning(f"OTLP 导出器初始化失败，回退到控制台: {e}")
+            logger.warning("OTLP 导出器初始化失败，回退到控制台: %s", type(e).__name__)
             exporter = ConsoleSpanExporter()
     elif exporter_type == "none":
         # 只关闭导出，不关闭 SDK tracer；测试和本地调试仍可创建 recording span。
@@ -144,6 +145,14 @@ def _record_result_attributes(span, result):
 
 def _record_sql_metadata(span, sql: str) -> None:
     """记录去字面量后的 SQL 指纹和结构信息，不把查询原文写入追踪系统。"""
+    metadata = build_sql_metadata(sql)
+    span.set_attribute("sql.hash", metadata["hash"])
+    span.set_attribute("sql.statement_type", metadata["statement_type"])
+    span.set_attribute("sql.tables", metadata["tables"])
+
+
+def build_sql_metadata(sql: str) -> dict[str, str]:
+    """生成可安全写日志/追踪的 SQL 结构元数据，不返回 SQL 原文或字面量。"""
     statement_type = "UNKNOWN"
     tables: list[str] = []
     fingerprint_source = sql
@@ -171,10 +180,11 @@ def _record_sql_metadata(span, sql: str) -> None:
         # 解析失败时也不输出 SQL；仅保留不可逆摘要用于关联同一异常查询。
         pass
 
-    fingerprint = hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()[:16]
-    span.set_attribute("sql.hash", fingerprint)
-    span.set_attribute("sql.statement_type", statement_type)
-    span.set_attribute("sql.tables", ",".join(tables))
+    return {
+        "hash": hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()[:16],
+        "statement_type": statement_type,
+        "tables": ",".join(tables),
+    }
 
 
 def add_span_attributes(attributes: dict) -> None:

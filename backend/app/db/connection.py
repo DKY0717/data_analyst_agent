@@ -2,9 +2,7 @@
 # 支持 DuckDB（嵌入式）和 PostgreSQL（生产级）双后端
 # 通过 DATABASE_URL 或 DATABASE_BACKEND 环境变量自动选择
 
-import re
 from contextlib import contextmanager
-from pathlib import Path
 
 from ..config import settings
 from ..utils.logger import logger
@@ -34,8 +32,8 @@ class DatabaseConnection:
             else:
                 return self._get_duckdb_connection()
         except Exception as e:
-            logger.error(f"连接数据库失败: {e}")
-            raise DatabaseError(f"连接数据库失败: {e}")
+            logger.error("连接数据库失败: %s", type(e).__name__)
+            raise DatabaseError("连接数据库失败") from e
 
     def _get_duckdb_connection(self):
         """DuckDB 连接"""
@@ -67,8 +65,8 @@ class DatabaseConnection:
         except Exception as e:
             if self.backend == "postgresql":
                 conn.rollback()
-            logger.error(f"数据库会话错误: {e}")
-            raise DatabaseError(f"数据库会话错误: {e}")
+            logger.error("数据库会话错误: %s", type(e).__name__)
+            raise DatabaseError("数据库会话错误") from e
         finally:
             conn.close()
 
