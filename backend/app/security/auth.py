@@ -57,6 +57,17 @@ def is_auth_enabled() -> bool:
     return bool(JWT_SECRET or get_api_keys())
 
 
+def has_secure_auth_configuration() -> bool:
+    """secure profile 至少要求一个足够长的 JWT secret 或 API key。"""
+    strong_jwt = len(JWT_SECRET) >= 32
+    strong_api_key = any(
+        len(raw.strip()) >= 24
+        for raw in API_KEYS_RAW.split(",")
+        if raw.strip()
+    )
+    return strong_jwt or strong_api_key
+
+
 @dataclass
 class AuthUser:
     user_id: str

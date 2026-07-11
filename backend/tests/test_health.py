@@ -37,6 +37,7 @@ def test_readiness_checks_database():
     assert response.status_code == 200
     payload = response.json()["data"]
     assert payload["status"] == "ready"
+    assert payload["deployment_profile"] in {"demo", "secure"}
     assert payload["database"]["ok"] is True
     assert payload["database"]["backend"] in {"duckdb", "postgresql"}
     assert payload["sql_execution"] == {
@@ -64,6 +65,47 @@ def test_readiness_failure_hides_database_error(monkeypatch):
     assert response.status_code == 503
     assert response.json()["detail"] == "服务未就绪"
     assert "private" not in response.text
+
+
+def test_secure_readiness_fails_closed_without_authentication(monkeypatch):
+    from app.api import health
+
+    client = TestClient(app)
+    monkeypatch.setattr(health.settings, "DEPLOYMENT_PROFILE", "secure")
+    monkeypatch.setattr(health.settings, "SANDBOX_MODE", True)
+    monkeypatch.setattr(health.settings, "AUTH_DEMO_ENABLED", False)
+    monkeypatch.setattr(health.settings, "AUTH_PASSWORD_LOGIN_ENABLED", False)
+    monkeypatch.setattr(
+        health.auth_security,
+        "has_secure_auth_configuration",
+        lambda: False,
+    )
+
+    response = client.get("/health/readiness")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "服务未就绪"
+    assert "authentication_missing_or_weak" not in response.text
+
+
+def test_secure_readiness_reports_ready_when_auth_and_sandbox_are_enabled(monkeypatch):
+    from app.api import health
+
+    client = TestClient(app)
+    monkeypatch.setattr(health.settings, "DEPLOYMENT_PROFILE", "secure")
+    monkeypatch.setattr(health.settings, "SANDBOX_MODE", True)
+    monkeypatch.setattr(health.settings, "AUTH_DEMO_ENABLED", False)
+    monkeypatch.setattr(health.settings, "AUTH_PASSWORD_LOGIN_ENABLED", False)
+    monkeypatch.setattr(
+        health.auth_security,
+        "has_secure_auth_configuration",
+        lambda: True,
+    )
+
+    response = client.get("/health/readiness")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["deployment_profile"] == "secure"
 
 
 def test_readiness_fails_when_business_tables_are_missing(tmp_path, monkeypatch):
