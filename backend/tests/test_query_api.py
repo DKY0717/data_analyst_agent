@@ -11,6 +11,9 @@ from app.models.schemas import QueryRequest, QueryResponse
 from app.security.auth import create_jwt_token
 
 
+TEST_JWT_SECRET = "test-jwt-secret-that-is-at-least-32-bytes"
+
+
 @pytest.fixture(autouse=True)
 def disable_rate_limit():
     """固定 API 测试环境，避免限流和本机认证配置影响结果。"""
@@ -350,7 +353,7 @@ def test_query_requires_credentials_when_auth_enabled():
     client = TestClient(app)
     mock_graph = AsyncMock()
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET), \
          patch("app.api.query.get_agent_graph", return_value=mock_graph):
         response = client.post("/api/chat/query", json={"question": "统计订单数"})
 
@@ -362,7 +365,7 @@ def test_query_stream_requires_credentials_when_auth_enabled():
     client = TestClient(app)
     mock_graph = AsyncMock()
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET), \
          patch("app.api.query.get_agent_graph", return_value=mock_graph):
         response = client.post("/api/chat/query/stream", json={"question": "统计订单数"})
 
@@ -375,10 +378,10 @@ def test_query_passes_jwt_user_to_agent_graph():
     mock_graph = AsyncMock()
     mock_graph.run = AsyncMock(return_value=make_agent_result())
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         token = create_jwt_token("user:demo", ["analyst"])["access_token"]
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET), \
          patch("app.api.query.get_agent_graph", return_value=mock_graph):
         response = client.post(
             "/api/chat/query",
@@ -447,10 +450,10 @@ def test_query_skips_cache_when_auth_user_present():
     mock_graph = AsyncMock()
     mock_graph.run = AsyncMock(return_value=make_agent_result())
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         token = create_jwt_token("user:demo", ["analyst"])["access_token"]
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET), \
          patch("app.api.query.get_agent_graph", return_value=mock_graph), \
          patch("app.api.query.query_cache") as mock_cache:
         response = client.post(
@@ -468,10 +471,10 @@ def test_query_does_not_write_authenticated_result_to_shared_cache():
     mock_graph = AsyncMock()
     mock_graph.run = AsyncMock(return_value=make_agent_result())
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         token = create_jwt_token("user:demo", ["analyst"])["access_token"]
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"), \
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET), \
          patch("app.api.query.get_agent_graph", return_value=mock_graph), \
          patch("app.api.query.query_cache") as mock_cache:
         response = client.post(

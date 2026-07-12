@@ -11,6 +11,7 @@ from app.security.auth import create_jwt_token
 
 
 ROOT = Path(__file__).resolve().parents[2]
+TEST_JWT_SECRET = "test-jwt-secret-that-is-at-least-32-bytes"
 
 
 class DuckDBHealthConnection:
@@ -158,7 +159,7 @@ def test_create_ab_test_requires_credentials_when_auth_enabled():
     client = TestClient(app)
 
     # 认证开启后，运行时配置写入口不能再匿名调用。
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         response = client.post("/health/ab-tests", json=make_ab_test_payload())
 
     assert response.status_code == 401
@@ -168,7 +169,7 @@ def test_create_ab_test_rejects_non_admin_jwt_when_auth_enabled():
     client = TestClient(app)
 
     # 普通分析员身份只能查询数据，不能修改 A/B 测试运行时配置。
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         token = create_jwt_token("demo:analyst", ["analyst"])["access_token"]
         response = client.post(
             "/health/ab-tests",
@@ -183,7 +184,7 @@ def test_monitoring_detail_endpoints_require_credentials_when_auth_enabled():
     client = TestClient(app)
 
     # 这些端点不是 liveness/readiness 探针，会暴露缓存、prompt 版本和实验状态。
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         for path in ["/health/cache", "/health/metrics", "/health/ab-tests"]:
             response = client.get(path)
             assert response.status_code == 401
@@ -192,7 +193,7 @@ def test_monitoring_detail_endpoints_require_credentials_when_auth_enabled():
 def test_monitoring_detail_endpoints_reject_non_admin_jwt_when_auth_enabled():
     client = TestClient(app)
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         token = create_jwt_token("demo:analyst", ["analyst"])["access_token"]
         for path in ["/health/cache", "/health/metrics", "/health/ab-tests"]:
             response = client.get(path, headers={"Authorization": f"Bearer {token}"})
@@ -217,7 +218,7 @@ def test_monitoring_detail_endpoints_accept_api_key_when_auth_enabled():
 def test_create_ab_test_accepts_admin_jwt_when_auth_enabled():
     client = TestClient(app)
 
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         token = create_jwt_token("demo:admin", ["admin"])["access_token"]
         response = client.post(
             "/health/ab-tests",
@@ -252,7 +253,7 @@ def test_create_ab_test_accepts_api_key_when_auth_enabled():
 
 def test_create_ab_test_rejects_invalid_variant_payloads():
     client = TestClient(app, raise_server_exceptions=False)
-    with patch("app.security.auth.JWT_SECRET", "test-secret"):
+    with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
         token = create_jwt_token("demo:admin", ["admin"])["access_token"]
     invalid_payloads = [
         {**make_ab_test_payload("missing_prompt_name"), "variants": [{"name": "control", "prompt_version": 1}]},
@@ -266,7 +267,7 @@ def test_create_ab_test_rejects_invalid_variant_payloads():
     ]
 
     for payload in invalid_payloads:
-        with patch("app.security.auth.JWT_SECRET", "test-secret"):
+        with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             response = client.post(
                 "/health/ab-tests",
                 json=payload,

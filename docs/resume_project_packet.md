@@ -22,7 +22,7 @@
 
 ### 简历短版
 
-- Data Analyst Agent：FastAPI + LangGraph + DuckDB + Vue3 实现可控 NL2SQL 问数系统，支持多轮追问、主动澄清、SQL Repair、SQL 优化、三层安全治理、权限审计、15 条可执行核心路径、650 个后端测试、58 个前端单测和 17 个 E2E。
+- Data Analyst Agent：FastAPI + LangGraph + DuckDB + Vue3 实现可控 NL2SQL 问数系统，支持多轮追问、主动澄清、SQL Repair、SQL 优化、三层安全治理、权限审计、15 条可执行核心路径、657 个后端测试、58 个前端单测和 17 个 E2E。
 
 ## 30 秒介绍
 

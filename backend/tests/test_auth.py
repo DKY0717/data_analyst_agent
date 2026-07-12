@@ -17,9 +17,13 @@ from app.security.auth import (
 )
 
 
+TEST_JWT_SECRET = "test-jwt-secret-that-is-at-least-32-bytes"
+PRIVATE_DEMO_SECRET = "super-private-demo-secret-at-least-32-bytes"
+
+
 class TestJWTToken:
     def test_create_and_verify_token(self):
-        with patch("app.security.auth.JWT_SECRET", "test-secret-key"):
+        with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             token_data = create_jwt_token("test_user", ["user"])
             assert "access_token" in token_data
             assert token_data["token_type"] == "bearer"
@@ -30,15 +34,15 @@ class TestJWTToken:
             assert "user" in user.roles
 
     def test_expired_token_raises_error(self):
-        with patch("app.security.auth.JWT_SECRET", "test-secret-key"):
+        with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             import jwt
             payload = {"sub": "test", "roles": ["user"], "iat": 0, "exp": 0}
-            expired_token = jwt.encode(payload, "test-secret-key", algorithm="HS256")
+            expired_token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
             with pytest.raises(Exception):
                 verify_jwt_token(expired_token)
 
     def test_invalid_token_raises_error(self):
-        with patch("app.security.auth.JWT_SECRET", "test-secret-key"):
+        with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             with pytest.raises(Exception):
                 verify_jwt_token("invalid.token.here")
 
@@ -72,7 +76,7 @@ class TestAuthEnabled:
             assert is_auth_enabled() is False
 
     def test_jwt_secret_enables_auth(self):
-        with patch("app.security.auth.JWT_SECRET", "some-secret"):
+        with patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             assert is_auth_enabled() is True
 
     def test_api_keys_enable_auth(self):
@@ -120,7 +124,7 @@ class TestDemoLoginEndpoint:
         client = TestClient(app)
 
         with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
-             patch("app.security.auth.JWT_SECRET", "test-secret"):
+             patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             response = client.post("/api/auth/demo-login", json={"role": role})
 
         assert response.status_code == 200
@@ -137,7 +141,7 @@ class TestDemoLoginEndpoint:
         client = TestClient(app)
 
         with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
-             patch("app.security.auth.JWT_SECRET", "test-secret"):
+             patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             response = client.post("/api/auth/demo-login", json={"role": "guest"})
 
         assert response.status_code == 400
@@ -147,7 +151,7 @@ class TestDemoLoginEndpoint:
         client = TestClient(app)
 
         with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
-             patch("app.security.auth.JWT_SECRET", "test-secret"):
+             patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             login_response = client.post("/api/auth/demo-login", json={"role": "support"})
             token = login_response.json()["data"]["access_token"]
             me_response = client.get(
@@ -166,11 +170,11 @@ class TestDemoLoginEndpoint:
         client = TestClient(app)
 
         with patch("app.api.auth_router.settings.AUTH_DEMO_ENABLED", True), \
-             patch("app.security.auth.JWT_SECRET", "super-private-demo-secret"):
+             patch("app.security.auth.JWT_SECRET", PRIVATE_DEMO_SECRET):
             response = client.post("/api/auth/demo-login", json={"role": "admin"})
 
         assert response.status_code == 200
-        assert "super-private-demo-secret" not in response.text
+        assert PRIVATE_DEMO_SECRET not in response.text
 
 
 class TestPasswordLoginEndpoint:
@@ -191,7 +195,7 @@ class TestPasswordLoginEndpoint:
         with patch("app.api.auth_router.settings.AUTH_PASSWORD_LOGIN_ENABLED", True), \
              patch("app.api.auth_router.settings.AUTH_ADMIN_USERNAME", "owner"), \
              patch("app.api.auth_router.settings.AUTH_ADMIN_PASSWORD", "private-pass"), \
-             patch("app.security.auth.JWT_SECRET", "test-secret"):
+             patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             response = client.post(
                 "/api/auth/login",
                 json={"username": "admin", "password": "admin123"},
@@ -220,7 +224,7 @@ class TestPasswordLoginEndpoint:
         with patch("app.api.auth_router.settings.AUTH_PASSWORD_LOGIN_ENABLED", True), \
              patch("app.api.auth_router.settings.AUTH_ADMIN_USERNAME", "owner"), \
              patch("app.api.auth_router.settings.AUTH_ADMIN_PASSWORD", "private-pass"), \
-             patch("app.security.auth.JWT_SECRET", "test-secret"):
+             patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             response = client.post(
                 "/api/auth/login",
                 json={"username": "owner", "password": "private-pass"},
@@ -238,7 +242,7 @@ class TestPasswordLoginEndpoint:
         with patch("app.api.auth_router.settings.AUTH_PASSWORD_LOGIN_ENABLED", True), \
              patch("app.api.auth_router.settings.AUTH_ADMIN_USERNAME", "owner"), \
              patch("app.api.auth_router.settings.AUTH_ADMIN_PASSWORD", "private-pass"), \
-             patch("app.security.auth.JWT_SECRET", "test-secret"):
+             patch("app.security.auth.JWT_SECRET", TEST_JWT_SECRET):
             response = client.post(
                 "/api/auth/login",
                 params={"username": "owner", "password": "private-pass"},

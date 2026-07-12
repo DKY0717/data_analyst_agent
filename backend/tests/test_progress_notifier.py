@@ -63,7 +63,7 @@ async def test_sync_notifier_schedules_awaitable_when_loop_is_running():
 
 @pytest.mark.asyncio
 async def test_async_notifier_logs_only_stage_and_error_type(caplog):
-    sensitive_message = "QWEN_API_KEY=private-progress-secret"
+    sensitive_message = "QWEN_API_KEY=private-progress-secret"  # secret-scan: allow
 
     async def broken_callback(_stage, _progress):
         raise RuntimeError(sensitive_message)
