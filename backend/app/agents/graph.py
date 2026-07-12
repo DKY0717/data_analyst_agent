@@ -14,6 +14,7 @@ from .grounding import schema_grounder
 from .clarification import clarification_engine
 from .session_store import session_store
 from .audit import audit_report_builder
+from .progress_notifier import notify_progress, notify_progress_sync
 from ..analysis_intent.models import AnalysisIntent
 from ..analysis_intent.rule_parser import AnalysisIntentRuleParser
 from ..analysis_intent.llm_parser import AnalysisIntentLLMParser
@@ -544,27 +545,9 @@ class AgentGraph:
         """合并已有审计事件和节点新事件。"""
         return list(state.get("audit_events") or []) + new_events
 
-    @staticmethod
-    async def _emit_progress(state: AgentState, stage: str, progress: int) -> None:
-        """调用进度回调（如果存在），用于 SSE 流式推送。"""
-        cb = state.get("_on_progress")
-        if cb:
-            try:
-                result = cb(stage, progress)
-                if hasattr(result, '__await__'):
-                    await result
-            except Exception:
-                pass
-
-    @staticmethod
-    def _emit_progress_sync(state: AgentState, stage: str, progress: int) -> None:
-        """同步版本的进度回调，用于 LangGraph 在独立线程中运行的同步节点。"""
-        cb = state.get("_on_progress")
-        if cb:
-            try:
-                cb(stage, progress)
-            except Exception:
-                pass
+    # 保留类内调用名以缩小冻结期改动面，具体同步/异步边界统一由独立模块实现。
+    _emit_progress = staticmethod(notify_progress)
+    _emit_progress_sync = staticmethod(notify_progress_sync)
 
     @staticmethod
     def _analysis_intent_from_state(state: AgentState) -> AnalysisIntent:
