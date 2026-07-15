@@ -2485,3 +2485,27 @@
 - ✅ PR #1 两个基础 CI 根因已本地修复并验证
 - ⏳ 推送当前 HEAD 并等待 GitHub Actions 完整复验
 - ⏸️ 基础 CI 通过后触发同 SHA 真实模型评测
+
+---
+
+## 2026-07-15 — 真实模型质量门禁修复
+
+### 完成的工作
+
+- 数据权限 Guard 改为按 SQLGlot 查询作用域解析物理表、CTE 和派生子查询；合法中间结果不再误阻断，底层敏感字段穿透仍 fail-closed。
+- 地区、省份、城市拆为三个最小语义维度；“地区”只向模型暴露 `regions.region_name`。
+- NL2SQL 评测新增 `permission_guard` 阶段、权限规则和脱敏错误原因，且不改变 safe/unsafe 指标定义。
+- 设计、计划和实现阶段提交：`cefaef7`、`e5e1806`、`2d857ed`、`6c26d4f`、`a54d6a8`。
+
+### 验证证据
+
+- CI 等价后端全量：`672 passed`，branch coverage `81.01%`，高于 75% 门槛。
+- 权限核心/集成：`54 passed`；语义、Grounding、意图与 Prompt：`55 passed`；评测与安全审计：`51 passed`。
+- Ruff、Secret Scan（399 个已跟踪文件）和 `git diff --check` 通过。
+- 核心路径 Runner：`15/15`，`surface_completeness_rate=1.0`。
+
+### 当前进度
+
+- ✅ 真实模型评测暴露的三类根因已修复并完成本地冻结验证
+- ⏳ 推送新 HEAD 并等待基础 GitHub CI
+- ⏸️ 基础 CI 通过后运行同 SHA Qwen 强制质量门禁与严格安全审计
