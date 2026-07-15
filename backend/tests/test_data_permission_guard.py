@@ -105,6 +105,115 @@ def test_admin_can_access_sensitive_customer_field():
     assert "customers.customer_name" in result.referenced_columns
 
 
+def test_admin_can_access_physical_columns_through_nested_ctes():
+    """CTE 输出列不是物理表字段，权限应追溯并只检查底层真实字段。"""
+    guard = DataPermissionGuard()
+    sql = (
+        "WITH customer_sales AS ("
+        "SELECT c.customer_id, COALESCE(SUM(o.total_amount), 0) AS total_spent "
+        "FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id "
+        "GROUP BY c.customer_id"
+        "), avg_sales AS ("
+        "SELECT AVG(total_spent) AS average_sales_amount FROM customer_sales"
+        ") "
+        "SELECT COUNT(DISTINCT cs.customer_id) AS customer_count "
+        "FROM customer_sales cs, avg_sales a "
+        "WHERE cs.total_spent > a.average_sales_amount LIMIT 1000"
+    )
+
+    result = guard.authorize(sql, user(["admin"]), ecommerce_schema())
+
+    assert result.is_allowed is True
+    assert result.referenced_tables == ["customers", "orders"]
+    assert set(result.referenced_columns) == {
+        "customers.customer_id",
+        "orders.customer_id",
+        "orders.total_amount",
+    }
+
+
+def test_admin_can_access_physical_columns_through_derived_subquery():
+    """派生表别名只代表中间结果，不能被误判成未授权物理表。"""
+    guard = DataPermissionGuard()
+    sql = (
+        "SELECT o.total_amount, customer_view.customer_name "
+        "FROM orders o "
+        "JOIN (SELECT customer_id, customer_name FROM customers) customer_view "
+        "ON o.customer_id = customer_view.customer_id LIMIT 1000"
+    )
+
+    result = guard.authorize(sql, user(["admin"]), ecommerce_schema())
+
+    assert result.is_allowed is True
+    assert result.referenced_tables == ["orders", "customers"]
+    assert set(result.referenced_columns) == {
+        "orders.customer_id",
+        "orders.total_amount",
+        "customers.customer_id",
+        "customers.customer_name",
+    }
+
+
+def test_analyst_cannot_leak_sensitive_column_through_derived_subquery():
+    """跳过派生输出的重复检查不能跳过内层敏感物理字段。"""
+    guard = DataPermissionGuard()
+    sql = (
+        "SELECT customer_view.customer_name "
+        "FROM (SELECT customer_name FROM customers) customer_view LIMIT 1000"
+    )
+
+    result = guard.authorize(sql, user(["analyst"]), ecommerce_schema())
+
+    assert result.is_allowed is False
+    assert result.blocked_rule == "block_unauthorized_column"
+    assert "customers.customer_name" in result.reason
+
+
+def test_analyst_cannot_leak_sensitive_column_through_cte():
+    """CTE 的外层引用可跳过，但 CTE 内层物理字段必须按 Analyst 策略阻断。"""
+    guard = DataPermissionGuard()
+    sql = (
+        "WITH customer_view AS (SELECT customer_name FROM customers) "
+        "SELECT customer_name FROM customer_view LIMIT 1000"
+    )
+
+    result = guard.authorize(sql, user(["analyst"]), ecommerce_schema())
+
+    assert result.is_allowed is False
+    assert result.blocked_rule == "block_unauthorized_column"
+    assert "customers.customer_name" in result.reason
+
+
+def test_analyst_cannot_leak_sensitive_star_through_derived_subquery():
+    """外层派生通配符可跳过重复检查，但内层物理通配符仍应 fail-closed。"""
+    guard = DataPermissionGuard()
+    sql = "SELECT customer_view.* FROM (SELECT * FROM customers) customer_view LIMIT 1000"
+
+    result = guard.authorize(sql, user(["analyst"]), ecommerce_schema())
+
+    assert result.is_allowed is False
+    assert result.blocked_rule == "block_unauthorized_column"
+    assert "customers.*" in result.reason
+
+
+def test_correlated_subquery_resolves_outer_physical_alias_once():
+    """相关子查询中的外层别名应回到父 scope 检查，不能被当成派生表。"""
+    guard = DataPermissionGuard()
+    sql = (
+        "SELECT c.customer_id FROM customers c "
+        "WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id) "
+        "LIMIT 1000"
+    )
+
+    result = guard.authorize(sql, user(["admin"]), ecommerce_schema())
+
+    assert result.is_allowed is True
+    assert set(result.referenced_columns) == {
+        "customers.customer_id",
+        "orders.customer_id",
+    }
+
+
 def test_admin_can_access_unknown_table_for_repair_flow():
     guard = DataPermissionGuard()
 
@@ -200,6 +309,25 @@ def test_multi_table_ambiguous_unqualified_column_fails_closed():
     assert result.is_allowed is False
     assert result.blocked_rule == "block_ambiguous_column"
     assert "order_id" in result.reason
+
+
+def test_duplicate_source_alias_fails_closed():
+    """SQLGlot 无法建立唯一 scope 时，权限边界必须阻断而不是默认放行。"""
+    guard = DataPermissionGuard()
+
+    result = guard.authorize(
+        (
+            "SELECT duplicated.total_amount FROM orders duplicated "
+            "JOIN payments duplicated ON duplicated.order_id = duplicated.order_id "
+            "LIMIT 1000"
+        ),
+        user(["admin"]),
+        ecommerce_schema(),
+    )
+
+    assert result.is_allowed is False
+    assert result.blocked_rule == "block_ambiguous_column"
+    assert result.reason == "无法安全解析字段作用域"
 
 
 def test_projection_alias_in_order_by_is_not_treated_as_physical_column():
