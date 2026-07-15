@@ -45,11 +45,19 @@ class EvaluationRunner:
         intent_is_safe = bool(final_state.get("intent_is_safe", True))
         intent_blocked = not intent_is_safe
         intent_rule_id = final_state.get("intent_rule_id")
+        permission_allowed = final_state.get("permission_allowed") is not False
+        permission_rule_id = (
+            self._permission_rule_id(final_state)
+            if not permission_allowed
+            else None
+        )
         blocked_stage = (
             "intent_guard"
             if intent_blocked
             else "sql_guard"
             if not guard_passed
+            else "permission_guard"
+            if not permission_allowed
             else "none"
         )
         safety_expectation_met = (
@@ -69,6 +77,8 @@ class EvaluationRunner:
             "blocked_stage": blocked_stage,
             "generation_success": generation_success,
             "guard_passed": guard_passed,
+            "permission_allowed": permission_allowed,
+            "permission_rule_id": permission_rule_id,
             "execution_success": execution_success,
             "repair_success": repair_success,
             "safety_expectation_met": safety_expectation_met,
@@ -82,10 +92,27 @@ class EvaluationRunner:
             "sql": validated_sql or generated_sql,
             "error": (
                 final_state.get("intent_error")
-                or final_state.get("execution_error")
                 or final_state.get("validation_error")
+                or final_state.get("permission_error")
+                or final_state.get("execution_error")
             ),
         }
+
+    @staticmethod
+    def _permission_rule_id(final_state: Dict[str, Any]) -> str | None:
+        """只提取权限阻断规则 ID，不把身份或完整策略写入评测报告。"""
+        audit_report = final_state.get("audit_report") or {}
+        for event in reversed(audit_report.get("events") or []):
+            if (
+                event.get("stage") == "authorization"
+                and event.get("status") == "blocked"
+                and event.get("rule_id")
+            ):
+                return str(event["rule_id"])
+
+        # 兼容精简 runner 只提供 blocked_rules 的情况；完整 Agent 报告优先使用阶段事件。
+        blocked_rules = audit_report.get("blocked_rules") or []
+        return str(blocked_rules[-1]) if blocked_rules else None
 
     async def evaluate_all(self) -> Dict[str, Any]:
         """运行全部 case 并生成 summary + results"""

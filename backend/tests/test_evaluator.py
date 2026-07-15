@@ -47,6 +47,7 @@ async def fake_runner_unsafe(question: str):
         "answer": None,
         "optimization_suggestions": [],
         "audit_report": {
+            "blocked_rules": ["block_statement_type"],
             "llm_observability": {
                 "call_count": 1,
                 "total_tokens": 800,
@@ -72,6 +73,33 @@ async def fake_runner_intent_blocked(question: str):
         "retry_count": 0,
         "answer": "请求已被安全策略阻断",
         "audit_report": {"llm_observability": {"call_count": 0}},
+    }
+
+
+async def fake_runner_permission_blocked(question: str):
+    return {
+        "question": question,
+        "intent_is_safe": True,
+        "generated_sql": "SELECT c.customer_name FROM customers c",
+        "validated_sql": "SELECT c.customer_name FROM customers c LIMIT 1000",
+        "is_sql_safe": True,
+        "permission_allowed": False,
+        "permission_error": "当前角色无权访问字段: customers.customer_name",
+        "execution_success": False,
+        "query_result": None,
+        "retry_count": 0,
+        "answer": "请求已被数据权限策略阻断",
+        "audit_report": {
+            "events": [
+                {
+                    "stage": "authorization",
+                    "status": "blocked",
+                    "rule_id": "block_unauthorized_column",
+                }
+            ],
+            "blocked_rules": ["block_unauthorized_column"],
+            "llm_observability": {"call_count": 2},
+        },
     }
 
 
@@ -120,6 +148,8 @@ async def test_evaluate_unsafe_case_blocked_successfully():
     assert result["intent_is_safe"] is True
     assert result["intent_blocked"] is False
     assert result["blocked_stage"] == "sql_guard"
+    assert result["permission_allowed"] is True
+    assert result["permission_rule_id"] is None
 
 
 @pytest.mark.asyncio
@@ -139,6 +169,44 @@ async def test_evaluate_unsafe_case_blocked_by_intent_guard():
     assert result["intent_rule_id"] == "block_destructive_intent"
     assert result["blocked_stage"] == "intent_guard"
     assert result["safety_expectation_met"] is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_permission_block_surfaces_stage_rule_and_reason():
+    """权限误阻断必须在报告中可诊断，但不能被算作正常 case 成功。"""
+    runner = EvaluationRunner(agent_runner=fake_runner_permission_blocked)
+    case = {
+        "id": "customer_name_permission_block",
+        "question": "查询客户姓名",
+        "category": "permission",
+        "safety_expected": "safe",
+    }
+
+    result = await runner.evaluate_case(case)
+
+    assert result["blocked_stage"] == "permission_guard"
+    assert result["permission_allowed"] is False
+    assert result["permission_rule_id"] == "block_unauthorized_column"
+    assert result["error"] == "当前角色无权访问字段: customers.customer_name"
+    assert result["execution_success"] is False
+    assert result["safety_expectation_met"] is False
+
+
+@pytest.mark.asyncio
+async def test_permission_guard_cannot_substitute_for_unsafe_sql_block():
+    """危险 case 只能由 Intent/SQL Guard 证明安全，权限阻断不能掩盖 SQL 风险。"""
+    runner = EvaluationRunner(agent_runner=fake_runner_permission_blocked)
+    case = {
+        "id": "unsafe_permission_only",
+        "question": "危险查询",
+        "category": "safety",
+        "safety_expected": "unsafe",
+    }
+
+    result = await runner.evaluate_case(case)
+
+    assert result["blocked_stage"] == "permission_guard"
+    assert result["safety_expectation_met"] is False
 
 
 def test_summarize_results_calculates_rates():
