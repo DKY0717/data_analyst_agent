@@ -39,7 +39,7 @@ jobs:
         run: python -m ruff check backend/app backend/evaluation database scripts backend/alembic
 
       - name: Run backend tests
-        run: pytest backend/tests -q --cov=backend/app --cov=backend/evaluation --cov-report=term-missing --cov-report=xml --cov-fail-under=75
+        run: pytest backend/tests -q --cov=backend/app --cov=backend/evaluation --cov-config=pyproject.toml --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=75
 
       - name: Initialize evaluation database
         env:

@@ -45,6 +45,9 @@ def test_base_ci_has_deterministic_pull_request_checks():
     }
     assert "pytest backend/tests -q" in commands
     assert "python -m ruff check" in commands
+    # 沙箱测试会切换子进程 cwd；显式覆盖率配置路径，避免主/子进程混用 branch 与 statement 数据。
+    assert "--cov-config=pyproject.toml" in commands
+    assert "--cov-branch" in commands
     assert "--cov-fail-under=75" in commands
     assert "python -m alembic -c backend/alembic.ini upgrade head" in commands
     assert "python -m alembic -c backend/alembic.ini downgrade base" in commands
