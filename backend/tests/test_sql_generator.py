@@ -4,7 +4,9 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from app.agents.grounding import SchemaGrounder
 from app.agents.sql_generator import SQLGenerator, llm_client
+from app.analysis_intent.models import AnalysisIntent, IntentSlot
 from app.models.schemas import SQLGeneratorOutput
 from app.utils.exceptions import LLMError
 
@@ -82,6 +84,34 @@ class TestFormatSchema:
         assert "业务语义层:" in result
         assert "销售额 = SUM(orders.total_amount)" in result
         assert "默认时间字段: orders.order_date" in result
+
+    def test_format_schema_keeps_geographic_dimensions_minimal(self, generator, mock_schema):
+        """SQL Prompt 必须给出三个独立地域粒度，避免模型自动增加省份和城市。"""
+        result = generator._format_schema(mock_schema)
+
+        assert "- 地区: regions.region_name" in result
+        assert "- 省份: regions.province" in result
+        assert "- 城市: regions.city" in result
+        region_line = next(line for line in result.splitlines() if line.startswith("- 地区:"))
+        assert "province" not in region_line
+        assert "city" not in region_line
+
+    def test_format_intent_keeps_region_grounding_minimal(self, generator):
+        """结构化 Grounding Prompt 也必须只把地区绑定到 region_name。"""
+        intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="sales_amount", confidence=0.95)],
+            dimensions=[IntentSlot(concept="region", confidence=0.95)],
+            overall_confidence=0.95,
+        )
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = generator._format_intent(payload)
+
+        region_line = next(line for line in result.splitlines() if "region:" in line)
+        assert "regions.region_name" in region_line
+        assert "regions.province" not in region_line
+        assert "regions.city" not in region_line
 
     def test_format_schema_empty_tables(self, generator):
         """测试空 Schema 的格式化"""

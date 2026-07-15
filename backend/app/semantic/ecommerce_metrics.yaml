@@ -107,17 +107,39 @@ dimensions:
     name: 地区
     aliases:
       - 地区
-      - 城市
-      - 省份
       - 区域
     fields:
       - regions.region_name
+    required_joins:
+      - orders.customer_id = customers.customer_id
+      - customers.region_id = regions.region_id
+    description: 订单通过客户关联大区；按地区分析时只使用 region_name，不自动增加省份或城市。
+
+  province:
+    candidate_id: province
+    name: 省份
+    aliases:
+      - 省份
+      - 省
+    fields:
       - regions.province
+    required_joins:
+      - orders.customer_id = customers.customer_id
+      - customers.region_id = regions.region_id
+    description: 订单通过客户关联省份；仅在问题明确要求省级粒度时使用。
+
+  city:
+    candidate_id: city
+    name: 城市
+    aliases:
+      - 城市
+      - 市
+    fields:
       - regions.city
     required_joins:
       - orders.customer_id = customers.customer_id
       - customers.region_id = regions.region_id
-    description: 订单通过客户关联地区。
+    description: 订单通过客户关联城市；仅在问题明确要求城市粒度时使用。
 
   category:
     candidate_id: category_name

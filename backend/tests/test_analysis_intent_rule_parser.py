@@ -31,6 +31,15 @@ def test_rule_parser_extracts_multiple_metrics_without_duplicates():
     assert [slot.concept for slot in intent.dimensions] == ["region"]
 
 
+def test_rule_parser_keeps_geographic_granularities_independent():
+    """显式省份或城市问题不能再被折叠成宽泛的 region 三字段维度。"""
+    province_intent = AnalysisIntentRuleParser().parse("按省份统计销售额")
+    city_intent = AnalysisIntentRuleParser().parse("按城市统计销售额")
+
+    assert [slot.concept for slot in province_intent.dimensions] == ["province"]
+    assert [slot.concept for slot in city_intent.dimensions] == ["city"]
+
+
 def test_rule_parser_extracts_ascending_ranking():
     intent = AnalysisIntentRuleParser().parse("找出订单数最少的前 3 个地区")
 

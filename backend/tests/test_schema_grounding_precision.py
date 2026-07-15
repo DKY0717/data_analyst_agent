@@ -20,6 +20,7 @@ def intent(metric: str, dimension: str | None = None) -> AnalysisIntent:
 def test_sales_by_region_builds_exact_physical_route():
     grounding = SchemaGrounder().ground(intent("sales_amount", "region"))
     route = grounding["schema_route"]
+    candidate = grounding["dimension_groundings"][0]["candidates"][0]
 
     assert route["selected_tables"] == ["customers", "orders", "regions"]
     assert route["join_edges"] == [
@@ -27,6 +28,27 @@ def test_sales_by_region_builds_exact_physical_route():
         ("customers.region_id", "regions.region_id"),
     ]
     assert all("(" not in table for table in route["selected_tables"])
+    assert candidate["candidate_id"] == "region_name"
+    assert candidate["expression"] == "regions.region_name"
+    assert candidate["columns"] == ["regions.region_name"]
+
+
+def test_province_and_city_build_independent_minimal_groundings():
+    """省份和城市应复用地区 JOIN 路径，但各自只公开一个物理字段。"""
+    for concept, candidate_id, expression in (
+        ("province", "province", "regions.province"),
+        ("city", "city", "regions.city"),
+    ):
+        grounding = SchemaGrounder().ground(intent("sales_amount", concept))
+        candidate = grounding["dimension_groundings"][0]["candidates"][0]
+
+        assert candidate["candidate_id"] == candidate_id
+        assert candidate["expression"] == expression
+        assert candidate["columns"] == [expression]
+        assert grounding["schema_route"]["join_edges"] == [
+            ("orders.customer_id", "customers.customer_id"),
+            ("customers.region_id", "regions.region_id"),
+        ]
 
 
 def test_category_override_selects_item_amount_route_without_pseudo_tables():
