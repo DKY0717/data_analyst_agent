@@ -2461,3 +2461,27 @@
 - ✅ 本地稳定性、进度通知和维护性收口
 - ⏳ 当前 HEAD 的远端完整 CI
 - ⏸️ 同 SHA 真实模型 artifact
+
+---
+
+## 2026-07-15 — PR #1 CI 根因修复
+
+### 完成的工作
+
+- 修复 pytest-cov 在沙箱子进程切换 cwd 后混用 statement/branch coverage 的问题，基础 CI 显式指定 `pyproject.toml` 和 branch 模式。
+- DuckDB 演示数据改为事务批量插入，首次空库自举专项用时由约 26 秒降至约 6.45 秒；readiness smoke 保留两分钟诊断窗口。
+- 增加批量插入失败回滚测试，并将 README、开发文档、面试指南和简历材料同步为 658 个后端测试。
+- 阶段提交：`bd66c1a`、`c71ef6e`、`f3a6bde`。
+
+### 验证证据
+
+- CI 等价后端全量：`658 passed`，branch coverage `80.87%`，高于 75% 门槛。
+- seed/demo bootstrap/workflow 专项：`10 passed`；文档一致性：`23 passed`。
+- Ruff、Secret Scan（397 个已跟踪文件）、`git diff --check` 全部通过。
+- 核心路径 Runner：`15/15`，`surface_completeness_rate=1.0`。
+
+### 当前进度
+
+- ✅ PR #1 两个基础 CI 根因已本地修复并验证
+- ⏳ 推送当前 HEAD 并等待 GitHub Actions 完整复验
+- ⏸️ 基础 CI 通过后触发同 SHA 真实模型评测
