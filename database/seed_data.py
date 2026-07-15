@@ -273,13 +273,6 @@ def seed_database(connection=None, verbose=True):
             is_pg = db_connection.backend == "postgresql"
         ph = "%s" if is_pg else "?"
 
-        def execute(sql, params=None):
-            if is_pg:
-                cur = conn.cursor()
-                cur.execute(sql, params)
-            else:
-                conn.execute(sql, params)
-
         def execute_statement(sql):
             if is_pg:
                 cur = conn.cursor()
@@ -287,29 +280,56 @@ def seed_database(connection=None, verbose=True):
             else:
                 conn.execute(sql)
 
-        # 本地演示和 CI 可能重复运行种子脚本；先按外键依赖清空，保证数据集可重复重建。
+        def execute_many(sql, rows):
+            if is_pg:
+                cur = conn.cursor()
+                cur.executemany(sql, rows)
+            else:
+                conn.executemany(sql, rows)
+
+        # DuckDB 的外键索引不支持在同一事务内先删子表再删父表，因此清空阶段保持依赖顺序提交。
         for table in TABLE_DELETE_ORDER:
             execute_statement(f"DELETE FROM {table}")
 
-        for r in regions:
-            execute(f"INSERT INTO regions VALUES ({ph}, {ph}, {ph}, {ph})", r)
-        for c in categories:
-            execute(f"INSERT INTO categories VALUES ({ph}, {ph})", c)
-        for p in products:
-            execute(f"INSERT INTO products VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})", p)
-        for c in customers:
-            execute(f"INSERT INTO customers VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})", c)
-        for o in orders:
-            execute(f"INSERT INTO orders VALUES ({ph}, {ph}, {ph}, {ph}, {ph})", o)
-        for item in order_items:
-            execute(f"INSERT INTO order_items VALUES ({ph}, {ph}, {ph}, {ph}, {ph})", item)
-        for pay in payments:
-            execute(f"INSERT INTO payments VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})", pay)
-        for ref in refunds:
-            execute(f"INSERT INTO refunds VALUES ({ph}, {ph}, {ph}, {ph}, {ph})", ref)
+        # 真正耗时的是批量插入；用单事务提交，既加速空库自举，也避免失败时留下半批新数据。
+        if not is_pg:
+            execute_statement("BEGIN TRANSACTION")
 
-        if is_pg:
-            conn.commit()
+        try:
+            execute_many(f"INSERT INTO regions VALUES ({ph}, {ph}, {ph}, {ph})", regions)
+            execute_many(f"INSERT INTO categories VALUES ({ph}, {ph})", categories)
+            execute_many(
+                f"INSERT INTO products VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                products,
+            )
+            execute_many(
+                f"INSERT INTO customers VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                customers,
+            )
+            execute_many(f"INSERT INTO orders VALUES ({ph}, {ph}, {ph}, {ph}, {ph})", orders)
+            execute_many(
+                f"INSERT INTO order_items VALUES ({ph}, {ph}, {ph}, {ph}, {ph})",
+                order_items,
+            )
+            execute_many(
+                f"INSERT INTO payments VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})",
+                payments,
+            )
+            execute_many(
+                f"INSERT INTO refunds VALUES ({ph}, {ph}, {ph}, {ph}, {ph})",
+                refunds,
+            )
+
+            if is_pg:
+                conn.commit()
+            else:
+                execute_statement("COMMIT")
+        except Exception:
+            if is_pg:
+                conn.rollback()
+            else:
+                execute_statement("ROLLBACK")
+            raise
 
     if verbose:
         print("数据插入完成！")

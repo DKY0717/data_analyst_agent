@@ -237,7 +237,8 @@ jobs:
           QWEN_MODEL: mimo-v2.5-pro
         run: |
           docker compose -f docker-compose.yml up -d backend
-          for attempt in {1..30}; do
+          # 首次空数据卷需要完成演示库自举；保留两分钟窗口，并持续输出容器状态便于诊断。
+          for attempt in {1..60}; do
             if curl --fail --silent http://localhost:8000/health/readiness; then
               exit 0
             fi

@@ -119,6 +119,7 @@ def test_base_ci_smoke_tests_backend_container_readiness():
     assert smoke_step["env"]["QWEN_API_URL"] == "http://127.0.0.1:9/v1/chat/completions"
     assert smoke_step["env"]["QWEN_MODEL"] == "mimo-v2.5-pro"
     assert "docker compose -f docker-compose.yml up -d backend" in smoke_step["run"]
+    assert "for attempt in {1..60}" in smoke_step["run"]
     assert "curl --fail --silent http://localhost:8000/health/readiness" in smoke_step["run"]
     assert "docker compose -f docker-compose.yml logs backend" in smoke_step["run"]
     assert cleanup_step["if"] == "always()"
