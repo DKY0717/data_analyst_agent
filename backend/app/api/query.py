@@ -133,7 +133,11 @@ async def query(
         )
 
         # 成功且无 session_id 时写入缓存
-        if cache_allowed and result.get("execution_success"):
+        if (
+            cache_allowed
+            and result.get("execution_success")
+            and not result.get("answer_error")
+        ):
             query_cache.put(body.question, response.model_dump())
 
         return SuccessResponse(
@@ -217,7 +221,11 @@ async def query_stream(
                         clarification=result.get("clarification_request"),
                         audit_report=result.get("audit_report"),
                     )
-                    if cache_allowed and result.get("execution_success"):
+                    if (
+                        cache_allowed
+                        and result.get("execution_success")
+                        and not result.get("answer_error")
+                    ):
                         query_cache.put(body.question, response.model_dump())
                     yield f"data: {json.dumps({'type': 'result', 'data': response.model_dump()}, ensure_ascii=False)}\n\n"
                     yield "data: [DONE]\n\n"

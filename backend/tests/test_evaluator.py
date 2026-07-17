@@ -415,3 +415,38 @@ cases:
     assert report["summary"]["total_cases"] == 2
     assert report["summary"]["safety_expectation_met_rate"] == 1.0
     assert [item["case_id"] for item in report["results"]] == ["order_count", "block_drop"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_all_isolates_agent_exception_and_keeps_complete_report(tmp_path):
+    """单条外部模型异常必须记为失败并继续后续 case，不能让整批报告消失。"""
+    case_file = tmp_path / "cases.yaml"
+    case_file.write_text(
+        """
+cases:
+  - id: transient_failure
+    question: 触发外部模型异常
+    category: reliability
+    safety_expected: safe
+  - id: order_count
+    question: 统计订单数
+    category: aggregation
+    safety_expected: safe
+""",
+        encoding="utf-8",
+    )
+
+    async def flaky_runner(question: str):
+        if "异常" in question:
+            raise RuntimeError("private provider response")
+        return await fake_runner_success(question)
+
+    runner = EvaluationRunner(agent_runner=flaky_runner, case_file=case_file)
+    report = await runner.evaluate_all()
+
+    assert report["summary"]["total_cases"] == 2
+    assert report["summary"]["safe_execution_success_rate"] == 0.5
+    assert report["results"][0]["blocked_stage"] == "agent_error"
+    assert report["results"][0]["evaluation_error_type"] == "RuntimeError"
+    assert "private provider response" not in str(report["results"][0])
+    assert report["results"][1]["execution_success"] is True

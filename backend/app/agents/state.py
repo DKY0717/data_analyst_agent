@@ -27,6 +27,7 @@ class AgentState(TypedDict):
         execution_error: SQL 执行失败的错误信息
         retry_count: SQL 修复重试次数，最多 3 次
         answer: LLM 生成的自然语言回答
+        answer_error: 自然语言答案降级原因；SQL 查询结果仍然有效
         optimization_suggestions: SQL 优化建议（预留字段）
         session_id: 多轮分析会话 ID，不传则按单轮查询处理
         conversation_context: 由历史会话生成的追问上下文摘要
@@ -63,6 +64,7 @@ class AgentState(TypedDict):
     execution_error_type: Optional[str]
     retry_count: int
     answer: Optional[str]
+    answer_error: Optional[str]
     optimization_suggestions: List[str]
     audit_events: List[Dict[str, Any]]
     audit_report: Optional[Dict[str, Any]]

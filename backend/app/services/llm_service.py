@@ -8,6 +8,7 @@ import asyncio
 import json
 import httpx
 import logging
+import re
 import time
 from typing import Optional
 
@@ -111,8 +112,10 @@ class QwenAPIClient:
                         attempt -= 1
                         continue
                     if response.status_code != 200:
+                        error_metadata = self._provider_error_metadata(response)
                         raise LLMResponseError(
-                            f"API 返回非 200 状态码: {response.status_code}"
+                            "API 返回非 200 状态码: "
+                            f"{response.status_code}{error_metadata}"
                         )
 
                     result = response.json()
@@ -188,6 +191,33 @@ class QwenAPIClient:
             await asyncio.sleep(2 ** attempt)
 
         raise LLMError("API 调用失败，已达最大重试次数")
+
+    @classmethod
+    def _provider_error_metadata(cls, response: httpx.Response) -> str:
+        """仅提取安全的错误码/类型，绝不传播可能回显输入数据的 message。"""
+        try:
+            payload = response.json()
+        except (ValueError, TypeError):
+            return ""
+
+        if not isinstance(payload, dict):
+            return ""
+        error = payload.get("error")
+        error_payload = error if isinstance(error, dict) else payload
+        parts = []
+        for key in ("code", "type"):
+            token = cls._sanitize_provider_error_token(error_payload.get(key))
+            if token:
+                parts.append(f"{key}={token}")
+        return f" ({', '.join(parts)})" if parts else ""
+
+    @staticmethod
+    def _sanitize_provider_error_token(value: object) -> str | None:
+        """错误元数据只允许短标识符字符，防止供应商响应内容进入日志。"""
+        if not isinstance(value, str):
+            return None
+        token = re.sub(r"[^A-Za-z0-9_.:-]", "", value)[:80]
+        return token or None
 
     def _record_observability(
         self,

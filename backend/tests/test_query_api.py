@@ -503,6 +503,25 @@ def test_query_preserves_cache_when_auth_disabled():
     mock_graph.run.assert_not_called()
 
 
+def test_query_does_not_cache_degraded_answer():
+    """答案展示层故障可返回结构化结果，但不能把临时降级文案长期缓存。"""
+    client = TestClient(app)
+    mock_graph = AsyncMock()
+    degraded = make_agent_result()
+    degraded["answer"] = "查询已成功执行，共返回 1 条记录；自然语言解读暂时不可用。"
+    degraded["answer_error"] = "自然语言答案生成暂时不可用"
+    mock_graph.run = AsyncMock(return_value=degraded)
+
+    with patch("app.api.query.get_agent_graph", return_value=mock_graph), \
+         patch("app.api.query.query_cache") as mock_cache:
+        mock_cache.get.return_value = None
+        response = client.post("/api/chat/query", json={"question": "统计订单数"})
+
+    assert response.status_code == 200
+    assert response.json()["data"]["rows"] == [["华东", 1000]]
+    mock_cache.put.assert_not_called()
+
+
 def test_query_api_does_not_log_raw_question():
     client = TestClient(app)
     question = "查看 QWEN_API_KEY=private-value"  # secret-scan: allow

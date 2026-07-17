@@ -10,6 +10,7 @@ from app.analysis_intent.models import AnalysisIntent, IntentSlot
 from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
 from app.security.data_permission import DataPermissionResult
 from app.services.llm_observability import record_call, start_trace
+from app.utils.exceptions import LLMError
 
 
 # ---- 测试用 fixtures ----
@@ -51,6 +52,28 @@ def make_query_result_failure():
         "error": "Table 'nonexistent' not found",
         "error_type": "CatalogException"
     }
+
+
+@pytest.mark.asyncio
+async def test_answer_generation_failure_degrades_without_losing_query_result():
+    """展示层 LLM 故障不能抹掉已经成功执行的查询。"""
+    mock_answer = MagicMock()
+    mock_answer.generate = AsyncMock(side_effect=LLMError("答案生成失败"))
+    graph = AgentGraph(answer_generator_service=mock_answer)
+    state = {
+        "question": "统计订单数",
+        "validated_sql": "SELECT COUNT(*) FROM orders LIMIT 1000",
+        "query_result": make_query_result_success(),
+        "audit_events": [],
+        "llm_calls": [],
+    }
+
+    result = await graph._generate_answer(state)
+
+    assert result["answer"] == "查询已成功执行，共返回 2 条记录；自然语言解读暂时不可用。"
+    assert result["answer_error"] == "自然语言答案生成暂时不可用"
+    assert result["audit_events"][-1]["status"] == "degraded"
+    assert result["audit_events"][-1]["action"] == "generate_answer"
 
 
 @pytest.fixture(autouse=True)

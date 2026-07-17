@@ -2,12 +2,10 @@
 # 测试 QwenAPIClient 的核心功能：JSON 解析、结果格式化、异常处理
 
 import pytest
-import json
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.llm_service import QwenAPIClient
 from app.services.llm_observability import get_calls, start_trace
-from app.utils.exceptions import LLMError, LLMTimeoutError, LLMResponseError
+from app.utils.exceptions import LLMError, LLMResponseError
 
 
 @pytest.fixture
@@ -328,3 +326,32 @@ class TestCallAPIObservability:
         assert call["error_type"] == "RuntimeError"
         assert "secret server response" not in str(call)
         assert "secret server response" not in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_non_200_exposes_only_sanitized_provider_error_metadata(
+        self, client, monkeypatch
+    ):
+        """保留供应商错误码用于诊断，但不传播可能包含输入数据的 message。"""
+        response = FakeHTTPResponse(
+            {
+                "error": {
+                    "code": "data_inspection_failed",
+                    "type": "invalid_request_error",
+                    "message": "private customer value",
+                }
+            },
+            status_code=400,
+        )
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: FakeAsyncClient([response]),
+        )
+
+        with pytest.raises(LLMResponseError) as exc_info:
+            await client._call_api([], 0.1, stage="generate_answer")
+
+        message = str(exc_info.value)
+        assert "400" in message
+        assert "data_inspection_failed" in message
+        assert "invalid_request_error" in message
+        assert "private customer value" not in message

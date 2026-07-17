@@ -8,7 +8,8 @@ v1.7 把项目从“功能与测试数量较多”收敛为可执行、可审计
 
 - 15 条核心路径只替换外部模型边界，真实运行 LangGraph、Grounding、Intent/SQL Guard、权限改写、优化器、隔离 DuckDB 和 SQLite 多轮会话。
 - 真实模型手动 workflow 记录 HEAD SHA、Provider、模型、脱敏 API 端点、case pack 版本和 UTC 时间，并先运行 4 条 smoke。
-- 后端 672 个测试，当前全量覆盖率 81.01%；前端 58 个单元测试和 17 个 Playwright E2E。
+- 答案生成异常不会丢弃已完成的 SQL 结果或污染共享缓存；评测 runner 会隔离单 case 异常并继续写出完整失败证据。
+- 后端 676 个测试，当前全量覆盖率 81.09%；前端 58 个单元测试和 17 个 Playwright E2E。
 - CI 门禁包含 Ruff、ESLint、75% 覆盖率、PostgreSQL migration round trip、Python/Node 依赖审计、Secret Scan、demo/secure Compose、镜像构建和 readiness smoke。
 
 ## 数据库生命周期

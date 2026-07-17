@@ -27,6 +27,7 @@ from ..db.query_runner import query_runner
 from ..config import settings
 from ..services.llm_observability import get_calls, start_trace
 from ..services.tracing import trace_node
+from ..utils.exceptions import LLMError
 from ..utils.logger import logger
 
 
@@ -504,13 +505,38 @@ class AgentGraph:
         logger.info("节点: generate_answer - 生成答案")
         await self._emit_progress(state, "生成分析结果...", 95)
         start_trace(state.get("llm_calls") or [])
-        answer = await (self._answer_generator or answer_generator).generate(
-            state["question"],
-            state["validated_sql"],
-            state["query_result"]
-        )
+        try:
+            answer = await (self._answer_generator or answer_generator).generate(
+                state["question"],
+                state["validated_sql"],
+                state["query_result"]
+            )
+        except LLMError as exc:
+            # SQL 已经安全执行时，展示层故障只降级答案，不能让可靠的结构化结果丢失。
+            logger.warning("自然语言答案生成降级: %s", type(exc).__name__)
+            query_result = state.get("query_result") or {}
+            row_count = query_result.get(
+                "row_count", len(query_result.get("rows") or [])
+            )
+            return {
+                "answer": (
+                    f"查询已成功执行，共返回 {row_count} 条记录；"
+                    "自然语言解读暂时不可用。"
+                ),
+                "answer_error": "自然语言答案生成暂时不可用",
+                "llm_calls": get_calls(),
+                "audit_events": self._append_audit_event(
+                    state,
+                    "answer",
+                    "generate_answer",
+                    "degraded",
+                    "自然语言答案生成失败，已保留结构化查询结果",
+                    details={"error_type": type(exc).__name__},
+                ),
+            }
         return {
             "answer": answer,
+            "answer_error": None,
             "llm_calls": get_calls(),
             "audit_events": self._append_audit_event(
                 state,
@@ -678,6 +704,7 @@ class AgentGraph:
             "execution_error_type": None,
             "retry_count": 0,
             "answer": None,
+            "answer_error": None,
             "optimization_suggestions": [],
             "audit_events": [],
             "audit_report": None,
@@ -754,6 +781,7 @@ class AgentGraph:
             "execution_error_type": None,
             "retry_count": 0,
             "answer": "澄清请求已过期或候选无效，请重新提问。",
+            "answer_error": None,
             "optimization_suggestions": [],
             "audit_events": [event],
             "audit_report": None,

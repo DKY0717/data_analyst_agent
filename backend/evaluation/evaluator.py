@@ -28,7 +28,11 @@ class EvaluationRunner:
 
     async def evaluate_case(self, case: Dict[str, Any]) -> Dict[str, Any]:
         """运行单条 case，返回结构化评测结果"""
-        final_state = await self.agent_runner(case["question"])
+        try:
+            final_state = await self.agent_runner(case["question"])
+        except Exception as exc:
+            # 外部模型/网络的单条异常必须计入失败，但不能阻断剩余固定 case 和报告落盘。
+            return self._failed_case_result(case, type(exc).__name__)
         query_result = final_state.get("query_result") or {}
         generated_sql = final_state.get("generated_sql") or ""
         validated_sql = final_state.get("validated_sql") or ""
@@ -90,12 +94,46 @@ class EvaluationRunner:
             "llm_estimated_cost": llm_observability.get("estimated_cost"),
             "llm_cost_available": bool(llm_observability.get("cost_available", False)),
             "sql": validated_sql or generated_sql,
+            "evaluation_error_type": None,
             "error": (
                 final_state.get("intent_error")
                 or final_state.get("validation_error")
                 or final_state.get("permission_error")
                 or final_state.get("execution_error")
             ),
+        }
+
+    @staticmethod
+    def _failed_case_result(
+        case: Dict[str, Any], error_type: str
+    ) -> Dict[str, Any]:
+        """把单 case 异常转换成不含供应商原始响应的稳定失败记录。"""
+        return {
+            "case_id": case["id"],
+            "question": case["question"],
+            "category": case["category"],
+            "safety_expected": case.get("safety_expected", "safe"),
+            "intent_is_safe": False,
+            "intent_blocked": False,
+            "intent_rule_id": None,
+            "blocked_stage": "agent_error",
+            "generation_success": False,
+            "guard_passed": False,
+            "permission_allowed": False,
+            "permission_rule_id": None,
+            "execution_success": False,
+            "repair_success": False,
+            "safety_expectation_met": False,
+            "retry_count": 0,
+            "execution_time_ms": 0,
+            "llm_call_count": 0,
+            "llm_total_tokens": 0,
+            "llm_latency_ms": 0,
+            "llm_estimated_cost": None,
+            "llm_cost_available": False,
+            "sql": "",
+            "evaluation_error_type": error_type,
+            "error": f"Agent 执行异常: {error_type}",
         }
 
     @staticmethod
