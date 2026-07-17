@@ -92,6 +92,11 @@ def test_load_optional_report_rejects_missing_path(tmp_path):
         load_optional_report(tmp_path / "missing.json", "nl2sql")
 
 
+def test_load_optional_report_rejects_directory_as_stable_input_error(tmp_path):
+    with pytest.raises(SecurityAuditInputError, match="is not a file"):
+        load_optional_report(tmp_path, "nl2sql")
+
+
 def test_main_writes_reports_and_prints_json(tmp_path, capsys):
     exit_code = main(
         [

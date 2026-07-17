@@ -246,6 +246,10 @@ def test_real_llm_workflow_declares_provider_identity_smoke_and_auditable_artifa
     assert "--permission-report" in commands
     assert "--quality-gate-report" in commands
     assert "--fail-on-missing-real-reports" in commands
+    assert "AUDIT_ARGS=()" in commands
+    assert 'if [[ -n "$NL2SQL_REPORT" ]]' in commands
+    assert 'if [[ -f "$QUALITY_GATE_REPORT" ]]' in commands
+    assert '"${AUDIT_ARGS[@]}"' in commands
     assert "PERMISSION_REPORT=" in commands
     assert "$EVALUATION_REPORT_DIR/quality-gate.json" in commands
     assert "python -m scripts.prepare_evaluation_database" in commands

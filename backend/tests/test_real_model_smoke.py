@@ -2,6 +2,7 @@
 
 import pytest
 
+from app.utils.exceptions import LLMResponseError
 from evaluation.real_model_smoke import RealModelSmokeRunner, SMOKE_CASE_IDS
 
 
@@ -66,3 +67,25 @@ async def test_real_model_smoke_classifies_guard_failure_without_error_text():
     assert report["summary"]["passed"] is False
     assert all(result["failure_stage"] == "sql_guard" for result in report["results"])
     assert all("error_type" not in result for result in report["results"])
+
+
+@pytest.mark.asyncio
+async def test_real_model_smoke_records_only_structured_provider_error_metadata():
+    """真实 smoke 要能诊断供应商拒绝原因，但不得写入原始 message。"""
+    async def provider_rejected(*args, **kwargs):
+        raise LLMResponseError(
+            "API 返回非 200 状态码: 400 (code=Arrearage)",
+            status_code=400,
+            provider_code="Arrearage",
+            provider_type="invalid_request_error",
+        )
+
+    report = await RealModelSmokeRunner(agent_runner=provider_rejected).evaluate_all()
+
+    assert report["summary"]["passed"] is False
+    for result in report["results"]:
+        assert result["error_type"] == "LLMResponseError"
+        assert result["provider_status_code"] == 400
+        assert result["provider_error_code"] == "Arrearage"
+        assert result["provider_error_type"] == "invalid_request_error"
+        assert "message" not in result

@@ -165,11 +165,22 @@ jobs:
           NL2SQL_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'nl2sql-evaluation-*.json' | sort | tail -n 1)"
           REPAIR_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'sql-repair-evaluation-*.json' | sort | tail -n 1)"
           CORRECTNESS_REPORT="$(find "$EVALUATION_REPORT_DIR" -name 'result-correctness-evaluation-*.json' | sort | tail -n 1)"
+          QUALITY_GATE_REPORT="$EVALUATION_REPORT_DIR/quality-gate.json"
+          AUDIT_ARGS=()
+          if [[ -n "$NL2SQL_REPORT" ]]; then
+            AUDIT_ARGS+=(--nl2sql-report "$NL2SQL_REPORT")
+          fi
+          if [[ -n "$REPAIR_REPORT" ]]; then
+            AUDIT_ARGS+=(--repair-report "$REPAIR_REPORT")
+          fi
+          if [[ -n "$CORRECTNESS_REPORT" ]]; then
+            AUDIT_ARGS+=(--correctness-report "$CORRECTNESS_REPORT")
+          fi
+          if [[ -f "$QUALITY_GATE_REPORT" ]]; then
+            AUDIT_ARGS+=(--quality-gate-report "$QUALITY_GATE_REPORT")
+          fi
           python -m evaluation.security_audit_exporter \
-            --nl2sql-report "$NL2SQL_REPORT" \
-            --repair-report "$REPAIR_REPORT" \
-            --correctness-report "$CORRECTNESS_REPORT" \
-            --quality-gate-report "$EVALUATION_REPORT_DIR/quality-gate.json" \
+            "${AUDIT_ARGS[@]}" \
             --write-report \
             --fail-on-missing-real-reports
 

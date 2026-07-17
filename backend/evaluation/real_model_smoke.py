@@ -85,7 +85,7 @@ class RealModelSmokeRunner:
                 "passed": passed,
             }
         except Exception as exc:
-            return {
+            result = {
                 "case_id": case.case_id,
                 "expected_status": case.expected_status,
                 "actual_status": "error",
@@ -96,6 +96,16 @@ class RealModelSmokeRunner:
                 "error_type": type(exc).__name__,
                 "passed": False,
             }
+            # LLM 调用边界已完成字符白名单清洗；smoke 只复制结构化元数据，不写异常 message。
+            provider_fields = {
+                "provider_status_code": getattr(exc, "status_code", None),
+                "provider_error_code": getattr(exc, "provider_code", None),
+                "provider_error_type": getattr(exc, "provider_type", None),
+            }
+            result.update(
+                {key: value for key, value in provider_fields.items() if value is not None}
+            )
+            return result
 
     @staticmethod
     def _failure_stage(state: dict[str, Any]) -> str:

@@ -355,3 +355,6 @@ class TestCallAPIObservability:
         assert "data_inspection_failed" in message
         assert "invalid_request_error" in message
         assert "private customer value" not in message
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.provider_code == "data_inspection_failed"
+        assert exc_info.value.provider_type == "invalid_request_error"

@@ -112,10 +112,18 @@ class QwenAPIClient:
                         attempt -= 1
                         continue
                     if response.status_code != 200:
-                        error_metadata = self._provider_error_metadata(response)
+                        provider_code, provider_type = self._provider_error_details(
+                            response
+                        )
+                        error_metadata = self._format_provider_error_metadata(
+                            provider_code, provider_type
+                        )
                         raise LLMResponseError(
                             "API 返回非 200 状态码: "
-                            f"{response.status_code}{error_metadata}"
+                            f"{response.status_code}{error_metadata}",
+                            status_code=response.status_code,
+                            provider_code=provider_code,
+                            provider_type=provider_type,
                         )
 
                     result = response.json()
@@ -193,22 +201,34 @@ class QwenAPIClient:
         raise LLMError("API 调用失败，已达最大重试次数")
 
     @classmethod
-    def _provider_error_metadata(cls, response: httpx.Response) -> str:
+    def _provider_error_details(
+        cls, response: httpx.Response
+    ) -> tuple[str | None, str | None]:
         """仅提取安全的错误码/类型，绝不传播可能回显输入数据的 message。"""
         try:
             payload = response.json()
         except (ValueError, TypeError):
-            return ""
+            return None, None
 
         if not isinstance(payload, dict):
-            return ""
+            return None, None
         error = payload.get("error")
         error_payload = error if isinstance(error, dict) else payload
+        return (
+            cls._sanitize_provider_error_token(error_payload.get("code")),
+            cls._sanitize_provider_error_token(error_payload.get("type")),
+        )
+
+    @staticmethod
+    def _format_provider_error_metadata(
+        provider_code: str | None, provider_type: str | None
+    ) -> str:
+        """把已清洗的 provider 标识格式化到安全异常消息中。"""
         parts = []
-        for key in ("code", "type"):
-            token = cls._sanitize_provider_error_token(error_payload.get(key))
-            if token:
-                parts.append(f"{key}={token}")
+        if provider_code:
+            parts.append(f"code={provider_code}")
+        if provider_type:
+            parts.append(f"type={provider_type}")
         return f" ({', '.join(parts)})" if parts else ""
 
     @staticmethod
