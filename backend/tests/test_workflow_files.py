@@ -183,35 +183,7 @@ def test_real_llm_workflow_declares_provider_identity_smoke_and_auditable_artifa
     raw = path.read_text(encoding="utf-8")
     triggers = workflow_triggers(workflow)
     commands = workflow_commands(workflow)
-    job = workflow["jobs"]["real-llm-evaluation"]
-    evaluation_commands = {
-        "python -m evaluation.run_metadata",
-        "python -m evaluation.real_model_smoke",
-        "python -m evaluation.intent_evaluator",
-        "python -m evaluation.evaluator",
-        "python -m evaluation.repair_evaluator",
-        "python -m evaluation.result_correctness_evaluator",
-        "python -m evaluation.intent_grounding_evaluator",
-        "python -m evaluation.permission_evaluator",
-        "python -m evaluation.quality_gate",
-        "python -m evaluation.security_audit_exporter",
-    }
-    evaluation_steps = [
-        step
-        for step in job["steps"]
-        if any(command in str(step.get("run", "")) for command in evaluation_commands)
-    ]
-    summary_steps = [
-        step for step in job["steps"] if "$GITHUB_STEP_SUMMARY" in str(step.get("run", ""))
-    ]
-    upload_steps = [
-        step
-        for step in job["steps"]
-        if str(step.get("uses", "")).startswith("actions/upload-artifact@")
-    ]
-    metadata_step = next(
-        step for step in job["steps"] if step.get("name") == "Write evaluation run metadata"
-    )
+    jobs = workflow["jobs"]
 
     assert set(triggers) == {"workflow_dispatch"}
     inputs = triggers["workflow_dispatch"]["inputs"]
@@ -219,24 +191,94 @@ def test_real_llm_workflow_declares_provider_identity_smoke_and_auditable_artifa
     assert inputs["llm_provider"]["options"] == ["mimo", "qwen"]
     assert inputs["model"]["default"] == "mimo-v2.5-pro"
     assert inputs["api_url"]["default"].startswith("https://token-plan-cn.xiaomimimo.com/")
-    assert job["env"]["LLM_PROVIDER"] == "${{ inputs.llm_provider }}"
-    assert job["env"]["QWEN_API_URL"] == "${{ inputs.api_url }}"
-    assert job["env"]["QWEN_MODEL"] == "${{ inputs.model }}"
     assert workflow["permissions"]["contents"] == "read"
+    assert set(jobs) == {
+        "preflight",
+        "nl2sql-shards",
+        "repair-shards",
+        "correctness-shards",
+        "quality-gate",
+    }
     assert "secrets.QWEN_API_KEY" in raw
     assert "secrets.MIMO_API_KEY" in raw
     assert "secrets.DASHSCOPE_API_KEY" in raw
-    assert "QWEN_API_KEY" not in job.get("env", {})
     assert "pull_request_target" not in raw
-    assert "python -m evaluation.evaluator" in commands
+
+    preflight = jobs["preflight"]
+    assert preflight["timeout-minutes"] == 60
+    assert preflight["env"]["EVALUATION_HEAD_SHA"] == "${{ github.sha }}"
+    assert "pytest backend/tests -q" in commands
     assert "python -m evaluation.run_metadata" in commands
     assert "python -m evaluation.real_model_smoke" in commands
-    assert metadata_step["env"]["EVALUATION_HEAD_SHA"] == "${{ github.sha }}"
+    assert "python -m evaluation.intent_evaluator" in commands
     assert "run-metadata.json" in raw
     assert "real-model-smoke.json" in raw
-    assert "python -m evaluation.intent_evaluator" in commands
-    assert "python -m evaluation.repair_evaluator" in commands
-    assert "python -m evaluation.result_correctness_evaluator" in commands
+
+    matrix_contracts = {
+        "nl2sql-shards": (list(range(13)), "python -m evaluation.evaluator", 13),
+        "repair-shards": (list(range(3)), "python -m evaluation.repair_evaluator", 3),
+        "correctness-shards": (
+            list(range(5)),
+            "python -m evaluation.result_correctness_evaluator",
+            5,
+        ),
+    }
+    for job_name, (indices, command, shard_count) in matrix_contracts.items():
+        job = jobs[job_name]
+        assert job["strategy"]["fail-fast"] is False
+        assert job["strategy"]["max-parallel"] == 2
+        assert job["strategy"]["matrix"]["shard_index"] == indices
+        assert job["timeout-minutes"] == 90
+        assert job["env"]["EVALUATION_HEAD_SHA"] == "${{ github.sha }}"
+        assert job["env"]["LLM_PROVIDER"] == "${{ inputs.llm_provider }}"
+        assert job["env"]["QWEN_MODEL"] == "${{ inputs.model }}"
+        run_step = next(step for step in job["steps"] if command in str(step.get("run", "")))
+        assert run_step["timeout-minutes"] == 75
+        assert f"--shard-count {shard_count}" in str(run_step["run"])
+        assert "--shard-index ${{ matrix.shard_index }}" in str(run_step["run"])
+        assert "--checkpoint-output" in str(run_step["run"])
+        upload = next(
+            step
+            for step in job["steps"]
+            if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+        )
+        assert upload["if"] == "always()"
+        assert "${{ github.run_id }}" in upload["with"]["name"]
+        assert "${{ matrix.shard_index }}" in upload["with"]["name"]
+
+    assert jobs["nl2sql-shards"]["needs"] == "preflight"
+    assert jobs["repair-shards"]["needs"] == ["preflight", "nl2sql-shards"]
+    assert "always()" in jobs["repair-shards"]["if"]
+    assert "needs.preflight.result == 'success'" in jobs["repair-shards"]["if"]
+    assert jobs["correctness-shards"]["needs"] == ["preflight", "repair-shards"]
+    assert "always()" in jobs["correctness-shards"]["if"]
+
+    quality_job = jobs["quality-gate"]
+    assert quality_job["if"] == "${{ always() }}"
+    assert "EVALUATION_REPORT_DIR" not in quality_job.get("env", {})
+    assert set(quality_job["needs"]) == {
+        "preflight",
+        "nl2sql-shards",
+        "repair-shards",
+        "correctness-shards",
+    }
+    download_steps = [
+        step
+        for step in quality_job["steps"]
+        if str(step.get("uses", "")).startswith("actions/download-artifact@")
+    ]
+    assert len(download_steps) == 4
+    assert all(step["uses"] == "actions/download-artifact@v8" for step in download_steps)
+    assert all(step.get("continue-on-error") is True for step in download_steps)
+    assert {step["with"].get("merge-multiple") for step in download_steps} == {True}
+    assert "real-llm-nl2sql-${{ github.run_id }}-shard-*" in raw
+    assert "real-llm-repair-${{ github.run_id }}-shard-*" in raw
+    assert "real-llm-correctness-${{ github.run_id }}-shard-*" in raw
+
+    assert commands.count("python -m evaluation.shard_report_aggregator") == 3
+    assert "--expected-head-sha \"${{ github.sha }}\"" in commands
+    assert "--expected-provider \"${{ inputs.llm_provider }}\"" in commands
+    assert "--expected-model \"${{ inputs.model }}\"" in commands
     assert "python -m evaluation.intent_grounding_evaluator" in commands
     assert "python -m evaluation.permission_evaluator --write-report" in commands
     assert "python -m evaluation.quality_gate" in commands
@@ -250,39 +292,38 @@ def test_real_llm_workflow_declares_provider_identity_smoke_and_auditable_artifa
     assert 'if [[ -n "$NL2SQL_REPORT" ]]' in commands
     assert 'if [[ -f "$QUALITY_GATE_REPORT" ]]' in commands
     assert '"${AUDIT_ARGS[@]}"' in commands
-    assert "PERMISSION_REPORT=" in commands
     assert "$EVALUATION_REPORT_DIR/quality-gate.json" in commands
-    assert "python -m scripts.prepare_evaluation_database" in commands
-    assert commands.index("python -m scripts.prepare_evaluation_database") < commands.index(
-        "python -m evaluation.real_model_smoke"
-    )
-    assert commands.index("python -m evaluation.real_model_smoke") < commands.index(
-        "python -m evaluation.evaluator"
-    )
-    assert commands.index("python -m evaluation.evaluator") < commands.index(
-        "python -m evaluation.result_correctness_evaluator"
-    )
-    assert commands.index(
-        "python -m evaluation.result_correctness_evaluator"
-    ) < commands.index("python -m evaluation.intent_grounding_evaluator")
-    assert commands.index(
-        "python -m evaluation.intent_grounding_evaluator"
-    ) < commands.index("python -m evaluation.permission_evaluator")
-    assert commands.index(
-        "python -m evaluation.permission_evaluator"
-    ) < commands.index("python -m evaluation.quality_gate")
-    assert commands.index("python -m evaluation.quality_gate") < commands.index(
-        "python -m evaluation.security_audit_exporter"
-    )
-    # runner.temp 在 job 级 env 尚不可用；报告目录必须等 runner 分配后在 step 级注入。
-    assert "EVALUATION_REPORT_DIR" not in job.get("env", {})
+
+    report_steps = [
+        step
+        for step in quality_job["steps"]
+        if "$EVALUATION_REPORT_DIR" in str(step.get("run", ""))
+    ]
+    assert report_steps
     assert all(
         step.get("env", {}).get("EVALUATION_REPORT_DIR")
         == "${{ runner.temp }}/llm-evaluation"
-        for step in [*evaluation_steps, *summary_steps]
+        for step in report_steps
     )
+
+    audit_step = next(
+        step
+        for step in quality_job["steps"]
+        if "python -m evaluation.security_audit_exporter" in str(step.get("run", ""))
+    )
+    assert audit_step["if"] == "always()"
+    final_upload = next(
+        step
+        for step in quality_job["steps"]
+        if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+    )
+    assert final_upload["if"] == "always()"
+    assert final_upload["with"]["name"] == "real-llm-quality-gate-${{ github.run_id }}"
+    assert "actions/upload-artifact@v7" in raw
+    assert "QWEN_API_KEY" not in quality_job.get("env", {})
+
+    assert "python -m evaluation.evaluator" in commands
+    assert "python -m evaluation.repair_evaluator" in commands
+    assert "python -m evaluation.result_correctness_evaluator" in commands
+    assert "python -m scripts.prepare_evaluation_database" in commands
     assert "$GITHUB_STEP_SUMMARY" in commands
-    assert len(upload_steps) == 1
-    assert upload_steps[0]["if"] == "always()"
-    assert upload_steps[0]["with"]["name"] == "real-llm-evaluation-${{ github.run_id }}"
-    assert upload_steps[0]["with"]["path"] == "${{ runner.temp }}/llm-evaluation"
