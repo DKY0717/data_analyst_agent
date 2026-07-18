@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from argparse import ArgumentParser
 from copy import deepcopy
 from pathlib import Path
 
@@ -10,7 +11,9 @@ import pytest
 from evaluation.shard_support import (
     AtomicCheckpointWriter,
     ShardSpec,
+    add_shard_cli_arguments,
     case_file_sha256,
+    resolve_shard_cli_options,
     run_evaluation_shard,
     select_shard_cases,
 )
@@ -28,6 +31,44 @@ def make_cases(count: int) -> list[dict[str, str]]:
 def test_shard_spec_rejects_invalid_bounds(shard_index, shard_count):
     with pytest.raises(ValueError):
         ShardSpec(index=shard_index, count=shard_count)
+
+
+def test_shard_cli_options_require_all_three_shard_arguments():
+    parser = ArgumentParser()
+    add_shard_cli_arguments(parser)
+
+    incomplete = parser.parse_args(["--shard-index", "0", "--shard-count", "2"])
+    with pytest.raises(ValueError, match="必须同时提供"):
+        resolve_shard_cli_options(incomplete)
+
+    complete = parser.parse_args(
+        [
+            "--case-file",
+            "custom.yaml",
+            "--shard-index",
+            "1",
+            "--shard-count",
+            "3",
+            "--checkpoint-output",
+            "checkpoint.json",
+        ]
+    )
+    options = resolve_shard_cli_options(complete)
+
+    assert options.case_file == Path("custom.yaml")
+    assert options.shard == ShardSpec(index=1, count=3)
+    assert options.checkpoint_output == Path("checkpoint.json")
+
+
+def test_shard_cli_options_preserve_unsharded_custom_case_file():
+    parser = ArgumentParser()
+    add_shard_cli_arguments(parser)
+
+    options = resolve_shard_cli_options(parser.parse_args(["--case-file", "custom.yaml"]))
+
+    assert options.case_file == Path("custom.yaml")
+    assert options.shard is None
+    assert options.checkpoint_output is None
 
 
 def test_round_robin_shards_are_stable_and_cover_every_case_once():

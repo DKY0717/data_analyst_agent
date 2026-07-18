@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import hashlib
 import json
@@ -34,6 +35,52 @@ class ShardSpec:
             raise ValueError("分片总数必须大于 0")
         if self.index < 0 or self.index >= self.count:
             raise ValueError("分片索引必须位于 [0, shard_count) 范围内")
+
+
+@dataclass(frozen=True)
+class ShardCliOptions:
+    """把三类 evaluator 的 CLI 输入收敛为同一个稳定内部契约。"""
+
+    case_file: Path | None
+    shard: ShardSpec | None
+    checkpoint_output: Path | None
+
+
+def add_shard_cli_arguments(parser: argparse.ArgumentParser) -> None:
+    """注册共享参数，避免三个真实评测入口出现命名或默认值漂移。"""
+    parser.add_argument("--case-file", help="自定义评测 case YAML 路径")
+    parser.add_argument("--shard-index", type=int, help="从 0 开始的当前分片编号")
+    parser.add_argument("--shard-count", type=int, help="固定分片总数")
+    parser.add_argument("--checkpoint-output", help="当前分片稳定 checkpoint JSON 路径")
+
+
+def resolve_shard_cli_options(args: argparse.Namespace) -> ShardCliOptions:
+    """要求分片参数成组出现；不完整输入必须在调用模型前 fail closed。"""
+    shard_values = (
+        getattr(args, "shard_index", None),
+        getattr(args, "shard_count", None),
+        getattr(args, "checkpoint_output", None),
+    )
+    has_any_shard_value = any(value is not None for value in shard_values)
+    has_all_shard_values = all(value is not None for value in shard_values)
+    if has_any_shard_value and not has_all_shard_values:
+        raise ValueError(
+            "--shard-index、--shard-count 和 --checkpoint-output 必须同时提供"
+        )
+
+    case_file_value = getattr(args, "case_file", None)
+    if not has_all_shard_values:
+        return ShardCliOptions(
+            case_file=Path(case_file_value) if case_file_value else None,
+            shard=None,
+            checkpoint_output=None,
+        )
+
+    return ShardCliOptions(
+        case_file=Path(case_file_value) if case_file_value else None,
+        shard=ShardSpec(index=shard_values[0], count=shard_values[1]),
+        checkpoint_output=Path(shard_values[2]),
+    )
 
 
 class AtomicCheckpointWriter:

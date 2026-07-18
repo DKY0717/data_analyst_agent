@@ -1,14 +1,25 @@
 # NL2SQL 评测运行器
 # 用固定 case 集量化 Agent 的生成、校验、执行、修复和安全表现。
 
+import argparse
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List
 
 import yaml
 
 from app.agents.graph import get_agent_graph
+from app.utils.logger import logger
 from evaluation.report_writer import ReportWriter
+from evaluation.shard_support import (
+    AtomicCheckpointWriter,
+    ShardCliOptions,
+    ShardSpec,
+    add_shard_cli_arguments,
+    resolve_shard_cli_options,
+    run_evaluation_shard,
+)
 
 
 AgentRunner = Callable[[str], Awaitable[Dict[str, Any]]]
@@ -152,14 +163,40 @@ class EvaluationRunner:
         blocked_rules = audit_report.get("blocked_rules") or []
         return str(blocked_rules[-1]) if blocked_rules else None
 
-    async def evaluate_all(self) -> Dict[str, Any]:
-        """运行全部 case 并生成 summary + results"""
-        results = []
+    async def evaluate_all(
+        self,
+        *,
+        shard: ShardSpec | None = None,
+        checkpoint_output: str | Path | None = None,
+        head_sha: str = "",
+        provider: str = "",
+        model: str = "",
+        inter_case_delay_seconds: float = 3,
+    ) -> Dict[str, Any]:
+        """运行完整 case pack，或运行一个带增量 checkpoint 的固定分片。"""
         cases = self.load_cases()
+        if shard is not None:
+            if checkpoint_output is None:
+                raise ValueError("分片评测必须提供 checkpoint 输出路径")
+            return await run_evaluation_shard(
+                cases=cases,
+                evaluate_case=self.evaluate_case,
+                summarize=self.summarize_results,
+                shard=shard,
+                suite="nl2sql",
+                case_file=self.case_file,
+                checkpoint_writer=AtomicCheckpointWriter(checkpoint_output).write,
+                head_sha=head_sha,
+                provider=provider,
+                model=model,
+                inter_case_delay_seconds=inter_case_delay_seconds,
+            )
+
+        results = []
         for i, case in enumerate(cases):
             results.append(await self.evaluate_case(case))
             if i < len(cases) - 1:
-                await asyncio.sleep(3)
+                await asyncio.sleep(inter_case_delay_seconds)
 
         return {
             "summary": self.summarize_results(results),
@@ -244,17 +281,38 @@ class EvaluationRunner:
         return sum(1 for item in results if item.get(key) == value) / len(results)
 
 
-async def main_async() -> None:
-    """命令行入口：运行评测并输出报告"""
-    runner = EvaluationRunner()
-    report = await runner.evaluate_all()
-    writer = ReportWriter()
-    writer.write(report)
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="运行 NL2SQL 真实模型评测")
+    add_shard_cli_arguments(parser)
+    return parser.parse_args(argv)
 
 
-def main() -> None:
-    asyncio.run(main_async())
+async def main_async(options: ShardCliOptions | None = None) -> Dict[str, Any]:
+    """命令行入口：完整模式写正式报告，分片模式只写稳定 checkpoint。"""
+    options = options or ShardCliOptions(None, None, None)
+    runner = EvaluationRunner(case_file=options.case_file)
+    report = await runner.evaluate_all(
+        shard=options.shard,
+        checkpoint_output=options.checkpoint_output,
+        head_sha=os.getenv("EVALUATION_HEAD_SHA", ""),
+        provider=os.getenv("LLM_PROVIDER", ""),
+        model=os.getenv("QWEN_MODEL", ""),
+    )
+    if options.shard is None:
+        ReportWriter().write(report)
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        options = resolve_shard_cli_options(parse_args(argv))
+        asyncio.run(main_async(options))
+        return 0
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        # CLI 只记录异常类型，防止 case 内容或供应商原始响应进入 Actions 日志。
+        logger.error("NL2SQL 评测初始化失败，异常类型=%s", type(exc).__name__)
+        return 2
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

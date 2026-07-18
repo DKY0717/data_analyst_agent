@@ -1,10 +1,15 @@
 """结果正确性评测器的确定性测试。"""
 
+import json
 from pathlib import Path
 
 import pytest
 
-from evaluation.result_correctness_evaluator import ResultCorrectnessEvaluator
+from evaluation.result_correctness_evaluator import (
+    ResultCorrectnessEvaluator,
+    parse_args,
+)
+from evaluation.shard_support import ShardSpec, resolve_shard_cli_options
 
 
 def sample_case(case_id="monthly_sales_2024"):
@@ -305,3 +310,66 @@ def test_load_cases_uses_configured_file(tmp_path):
     )
 
     assert runner.load_cases() == []
+
+
+@pytest.mark.asyncio
+async def test_correctness_evaluate_all_runs_selected_shard_and_writes_checkpoint(
+    monkeypatch, tmp_path
+):
+    case_file = tmp_path / "golden_cases.yaml"
+    cases = [sample_case(f"golden_{index}") for index in range(4)]
+    case_file.write_text(
+        "cases:\n"
+        + "".join(
+            f"  - id: {case['id']}\n"
+            "    question: test\n"
+            "    category: time_series\n"
+            "    reference_sql: SELECT 1\n"
+            "    comparison: {mode: scalar}\n"
+            for case in cases
+        ),
+        encoding="utf-8",
+    )
+    runner = ResultCorrectnessEvaluator(
+        agent_runner=successful_agent,
+        reference_runner=FakeReferenceRunner(),
+        comparator=FakeComparator(),
+        case_file=case_file,
+    )
+    calls = []
+
+    async def fake_evaluate_case(case):
+        calls.append(case["id"])
+        return runner._base_result(case)
+
+    monkeypatch.setattr(runner, "evaluate_case", fake_evaluate_case)
+    checkpoint = tmp_path / "correctness-shard.json"
+
+    report = await runner.evaluate_all(
+        shard=ShardSpec(index=1, count=2),
+        checkpoint_output=checkpoint,
+        head_sha="abc123",
+        provider="mimo",
+        model="mimo-v2.5-pro",
+    )
+
+    assert calls == ["golden_1", "golden_3"]
+    assert json.loads(checkpoint.read_text(encoding="utf-8")) == report
+    assert report["shard"]["complete"] is True
+
+
+def test_correctness_cli_exposes_shared_shard_contract():
+    args = parse_args(
+        [
+            "--case-file",
+            "cases.yaml",
+            "--shard-index",
+            "0",
+            "--shard-count",
+            "5",
+            "--checkpoint-output",
+            "checkpoint.json",
+        ]
+    )
+
+    assert resolve_shard_cli_options(args).shard == ShardSpec(index=0, count=5)

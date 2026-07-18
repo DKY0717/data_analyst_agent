@@ -1,9 +1,12 @@
 # Evaluator 测试
 # 使用 fake runner 让评测指标可稳定测试，不依赖真实 Qwen API。
 
+import json
+
 import pytest
 
-from evaluation.evaluator import EvaluationRunner
+from evaluation.evaluator import EvaluationRunner, parse_args
+from evaluation.shard_support import ShardSpec, resolve_shard_cli_options
 
 
 async def fake_runner_success(question: str):
@@ -450,3 +453,57 @@ cases:
     assert report["results"][0]["evaluation_error_type"] == "RuntimeError"
     assert "private provider response" not in str(report["results"][0])
     assert report["results"][1]["execution_success"] is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_all_runs_only_selected_shard_and_writes_checkpoint(tmp_path):
+    case_file = tmp_path / "cases.yaml"
+    case_file.write_text(
+        """
+cases:
+  - {id: case_0, question: 问题0, category: aggregation, safety_expected: safe}
+  - {id: case_1, question: 问题1, category: aggregation, safety_expected: safe}
+  - {id: case_2, question: 问题2, category: aggregation, safety_expected: safe}
+  - {id: case_3, question: 问题3, category: aggregation, safety_expected: safe}
+""",
+        encoding="utf-8",
+    )
+    calls = []
+
+    async def recording_runner(question):
+        calls.append(question)
+        return await fake_runner_success(question)
+
+    checkpoint = tmp_path / "nl2sql-shard.json"
+    runner = EvaluationRunner(agent_runner=recording_runner, case_file=case_file)
+
+    report = await runner.evaluate_all(
+        shard=ShardSpec(index=1, count=2),
+        checkpoint_output=checkpoint,
+        head_sha="abc123",
+        provider="mimo",
+        model="mimo-v2.5-pro",
+        inter_case_delay_seconds=0,
+    )
+
+    assert calls == ["问题1", "问题3"]
+    assert [item["case_id"] for item in report["results"]] == ["case_1", "case_3"]
+    assert json.loads(checkpoint.read_text(encoding="utf-8")) == report
+    assert report["shard"]["complete"] is True
+
+
+def test_nl2sql_cli_exposes_shared_shard_contract():
+    args = parse_args(
+        [
+            "--case-file",
+            "cases.yaml",
+            "--shard-index",
+            "0",
+            "--shard-count",
+            "2",
+            "--checkpoint-output",
+            "checkpoint.json",
+        ]
+    )
+
+    assert resolve_shard_cli_options(args).shard == ShardSpec(index=0, count=2)

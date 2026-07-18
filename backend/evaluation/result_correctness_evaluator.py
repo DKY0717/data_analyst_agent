@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List
 
@@ -13,6 +14,13 @@ from app.utils.logger import logger
 from evaluation.correctness_report_writer import CorrectnessReportWriter
 from evaluation.reference_query_runner import reference_query_runner
 from evaluation.result_comparator import result_comparator
+from evaluation.shard_support import (
+    AtomicCheckpointWriter,
+    ShardSpec,
+    add_shard_cli_arguments,
+    resolve_shard_cli_options,
+    run_evaluation_shard,
+)
 
 
 AgentRunner = Callable[[str], Awaitable[Dict[str, Any]]]
@@ -131,10 +139,35 @@ class ResultCorrectnessEvaluator:
             result["failure_type"] = "unexpected_error"
             return result
 
-    async def evaluate_all(self) -> Dict[str, Any]:
-        """顺序运行全部 case，确保单条失败不会阻断整批基准。"""
+    async def evaluate_all(
+        self,
+        *,
+        shard: ShardSpec | None = None,
+        checkpoint_output: str | Path | None = None,
+        head_sha: str = "",
+        provider: str = "",
+        model: str = "",
+    ) -> Dict[str, Any]:
+        """顺序运行完整黄金基准，或运行一个带 checkpoint 的固定分片。"""
+        cases = self.load_cases()
+        if shard is not None:
+            if checkpoint_output is None:
+                raise ValueError("分片评测必须提供 checkpoint 输出路径")
+            return await run_evaluation_shard(
+                cases=cases,
+                evaluate_case=self.evaluate_case,
+                summarize=self.summarize_results,
+                shard=shard,
+                suite="correctness",
+                case_file=self.case_file,
+                checkpoint_writer=AtomicCheckpointWriter(checkpoint_output).write,
+                head_sha=head_sha,
+                provider=provider,
+                model=model,
+            )
+
         results = []
-        for case in self.load_cases():
+        for case in cases:
             results.append(await self.evaluate_case(case))
         return {"summary": self.summarize_results(results), "results": results}
 
@@ -199,25 +232,49 @@ class ResultCorrectnessEvaluator:
         return sum(1 for item in results if item.get(key) is True) / len(results)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="运行结果正确性黄金基准")
-    parser.add_argument("--case-file", help="自定义黄金 case YAML 路径")
-    return parser.parse_args()
+    add_shard_cli_arguments(parser)
+    return parser.parse_args(argv)
 
 
-async def main_async(case_file: str | Path | None = None) -> Dict[str, Any]:
-    """运行完整基准并输出汇总和中文报告路径。"""
-    report = await ResultCorrectnessEvaluator(case_file=case_file).evaluate_all()
-    paths = CorrectnessReportWriter().write(report)
+async def main_async(
+    case_file: str | Path | None = None,
+    *,
+    shard: ShardSpec | None = None,
+    checkpoint_output: str | Path | None = None,
+    head_sha: str = "",
+    provider: str = "",
+    model: str = "",
+) -> Dict[str, Any]:
+    """完整模式输出正式报告；分片模式输出可恢复 checkpoint。"""
+    report = await ResultCorrectnessEvaluator(case_file=case_file).evaluate_all(
+        shard=shard,
+        checkpoint_output=checkpoint_output,
+        head_sha=head_sha,
+        provider=provider,
+        model=model,
+    )
     print(json.dumps(report["summary"], ensure_ascii=False, indent=2))
-    print(f"Result correctness report: {paths['markdown']}")
+    if shard is None:
+        paths = CorrectnessReportWriter().write(report)
+        print(f"Result correctness report: {paths['markdown']}")
     return report
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: list[str] | None = None) -> int:
     try:
-        asyncio.run(main_async(args.case_file))
+        options = resolve_shard_cli_options(parse_args(argv))
+        asyncio.run(
+            main_async(
+                options.case_file,
+                shard=options.shard,
+                checkpoint_output=options.checkpoint_output,
+                head_sha=os.getenv("EVALUATION_HEAD_SHA", ""),
+                provider=os.getenv("LLM_PROVIDER", ""),
+                model=os.getenv("QWEN_MODEL", ""),
+            )
+        )
         return 0
     except (OSError, ValueError, yaml.YAMLError) as exc:
         logger.error("结果正确性评测初始化失败，异常类型=%s", type(exc).__name__)

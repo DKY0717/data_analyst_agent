@@ -1,11 +1,14 @@
 # SQL Repair 故障注入评测器测试
 # 使用 fake 依赖稳定覆盖安全前置校验、修复、执行、意图保持和汇总指标。
 
+import json
+
 import pytest
 
 from app.models.schemas import SQLRepairOutput
 from app.services.llm_observability import record_call
-from evaluation.repair_evaluator import RepairEvaluationRunner
+from evaluation.repair_evaluator import RepairEvaluationRunner, parse_args
+from evaluation.shard_support import ShardSpec, resolve_shard_cli_options
 
 
 CASE = {
@@ -337,3 +340,56 @@ cases:
     assert len(report["results"]) == 2
     assert report["results"][0]["error"] == "unexpected guard failure"
     assert report["results"][1]["error"] == "blocked"
+
+
+@pytest.mark.asyncio
+async def test_repair_evaluate_all_runs_only_selected_shard_and_writes_checkpoint(
+    monkeypatch, tmp_path
+):
+    case_file = tmp_path / "repair_cases.yaml"
+    case_file.write_text(
+        """
+cases:
+  - {id: repair_0, description: d0, original_sql: SELECT 0}
+  - {id: repair_1, description: d1, original_sql: SELECT 1}
+  - {id: repair_2, description: d2, original_sql: SELECT 2}
+  - {id: repair_3, description: d3, original_sql: SELECT 3}
+""",
+        encoding="utf-8",
+    )
+    runner = RepairEvaluationRunner(case_file=case_file)
+    calls = []
+
+    async def fake_evaluate_case(case):
+        calls.append(case["id"])
+        return {**runner._empty_result({**case, "description": case["description"]}), "case_id": case["id"]}
+
+    monkeypatch.setattr(runner, "evaluate_case", fake_evaluate_case)
+    checkpoint = tmp_path / "repair-shard.json"
+
+    report = await runner.evaluate_all(
+        shard=ShardSpec(index=0, count=2),
+        checkpoint_output=checkpoint,
+        head_sha="abc123",
+        provider="mimo",
+        model="mimo-v2.5-pro",
+    )
+
+    assert calls == ["repair_0", "repair_2"]
+    assert json.loads(checkpoint.read_text(encoding="utf-8")) == report
+    assert report["shard"]["complete"] is True
+
+
+def test_repair_cli_exposes_shared_shard_contract():
+    args = parse_args(
+        [
+            "--shard-index",
+            "1",
+            "--shard-count",
+            "3",
+            "--checkpoint-output",
+            "checkpoint.json",
+        ]
+    )
+
+    assert resolve_shard_cli_options(args).shard == ShardSpec(index=1, count=3)
