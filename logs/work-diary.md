@@ -2555,3 +2555,86 @@
 - ✅ 真实模型失败可诊断、缺失证据可归档
 - ⏳ 提交推送并等待新基础 CI
 - ⏸️ 最终 SHA 的真实 Qwen 重跑需要再次授权
+
+---
+
+## 2026-07-17 — 最终 SHA 真实 Qwen 复验
+
+### 完成的工作
+
+- 提交 `ee31f462add8345906fd24fc0d64c869dd0621a0` 的基础 CI `29551414488` 7/7 job 全绿。
+- 经用户确认后触发真实 Qwen workflow `29551872202`，运行元数据确认 provider=`qwen`、model=`qwen-plus`、head SHA 与当前提交完全一致。
+- 确定性后端测试通过；4 条真实 smoke 均返回 `HTTP 400 / Arrearage`，确认阻塞原因是 DashScope 账户欠费或余额不可用，不是项目 SQL、Prompt、权限或工作流代码失败。
+- smoke artifact 成功写入清洗后的 provider status/code/type；严格安全审计成功落盘真实报告缺失证据，未再出现空路径目录异常。
+
+### 当前进度
+
+- ✅ 当前 SHA 的本地测试、基础 CI 和真实模型失败证据链闭环
+- ✅ 确定性 Intent Guard、Grounding 和 Data Permission 评测通过
+- ⏸️ 真实 NL2SQL、Repair、Correctness 和强制质量门禁被 DashScope `Arrearage` 外部账户状态阻断
+
+### 下一步
+
+- DashScope 账户恢复余额后，在不修改代码的前提下重新运行同一 SHA 的真实 Qwen workflow。
+
+---
+
+## 2026-07-17 — MiMo 密钥复验与门禁时限审计
+
+### 完成的工作
+
+- 本地 `.env` 的 MiMo Key 通过最小 HTTP 200 连通性检查；经用户确认后安全同步为 GitHub Secret `MIMO_API_KEY`，未输出密钥值。
+- 首次 MiMo workflow `29562830403` 证明旧 GitHub Secret 返回 `HTTP 401 / invalid_key`。
+- 更新 Secret 后重跑 workflow `29565150001`，精确绑定提交 `ee31f462add8345906fd24fc0d64c869dd0621a0`。
+- 确定性后端测试、4/4 真实 MiMo smoke 和 37/37 意图安全评测通过；未授权客户姓名场景正确命中 `block_unauthorized_column`。
+- workflow 在真实 NL2SQL 评测阶段达到 45 分钟 job 上限，Repair、Correctness 和最终质量门禁未执行；artifact 正确记录缺失报告。
+
+### 当前进度
+
+- ✅ MiMo Key 与完整 Agent 核心链路真实可用
+- ✅ 当前 SHA 的 smoke、安全意图和基础 CI 证据通过
+- ⏸️ 65 条 NL2SQL、6 条 Repair、10 条 Correctness 的完整 MiMo 门禁受单 job 时限阻断
+
+### 下一步
+
+- 将长评测改为分片或有限并发运行，并增量保存分片报告，最终独立汇总质量门禁；避免仅扩大单 job 超时。
+
+---
+
+## 2026-07-18 — 真实模型分片评测设计
+
+### 完成的工作
+
+- 复核 MiMo 超时证据和当前单 job 串行评测实现，确认需要同时解决执行隔离、增量证据和严格汇总。
+- 与用户确认 GitHub Actions 矩阵分片方案，真实模型最大并发固定为 2。
+- 完成分片规则、checkpoint 契约、严格合并、失败恢复、安全边界和测试验收设计。
+- 设计提交：`c2b8208`。
+- 完成共享 round-robin 分片、逐 case checkpoint 和原子 JSON 替换组件；专项 `11 passed`。
+- 实施计划提交：`ba7f1f6`；Task 1 提交：`7bc1d08`。
+- NL2SQL、SQL Repair、Result Correctness 三类 evaluator 接入统一分片参数与稳定 checkpoint；相关测试 `48 passed`，报告/smoke 回归 `11 passed`。
+- Task 2 提交：`0bf33b9`。
+- 新增严格汇总器：校验分片编号、完整状态、SHA/provider/model、case 文件哈希和结果全集；失败生成稳定诊断，成功重算正式 summary。
+- 汇总/报告/质量门禁/安全审计组合 `112 passed`；Task 3 提交：`78d3464`。
+- 真实模型 workflow 拆为预检、13 个 NL2SQL 分片、3 个 Repair 分片、5 个 Correctness 分片和最终严格汇总；三类矩阵 `max-parallel=2`。
+- workflow/门禁/审计/文档契约 `66 passed`；Task 4 提交：`67b2b6f`。
+- README、开发说明、面试指南和简历材料同步分片证据链、717 个后端测试和 81.34% 全量 branch coverage。
+
+### 验证证据
+
+- 后端纯全量：`717 passed`，退出码 0；CI 等价覆盖率：81.34%，高于 75% 门槛。
+- 分片/汇总/workflow/文档专项：`63 passed`；核心路径：`15/15`，surface 完整率 100%。
+- Ruff、Secret Scan（405 个跟踪文件）和 `git diff --check` 通过；保留 1 个既有 Starlette/httpx 弃用警告。
+
+### 当前进度
+
+- ✅ 分片评测设计已确认并独立提交
+- ✅ 共享分片与原子 checkpoint 基础组件
+- ✅ 三类真实评测接入统一分片 CLI
+- ✅ 严格分片汇总与诊断证据
+- ✅ GitHub Actions 矩阵编排与证据链
+- ✅ 本地冻结验证与文档证据
+- ⏳ 推送新 HEAD 并等待基础 CI
+
+### 下一步
+
+- 推送当前 HEAD，等待基础 CI 全绿；随后单独取得授权，再触发新 SHA 的真实 MiMo 评测。

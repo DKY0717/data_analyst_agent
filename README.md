@@ -10,9 +10,9 @@
 
 **SQL 自动修复闭环** — 执行失败后将错误信息反馈给修复 Agent，根据错误类型选择差异化修复策略，最多重试 3 次，每次修复后重新经过安全校验。
 
-**外部模型故障隔离** — SQL 已安全执行后，答案生成服务异常会降级为结构化结果提示且不会写入共享缓存；批量真实评测会把单 case 异常记录为失败并继续落盘完整报告，避免一次供应商波动抹掉整批证据。
+**外部模型故障隔离** — SQL 已安全执行后，答案生成服务异常会降级为结构化结果提示且不会写入共享缓存；真实评测按固定分片运行，每完成一条 case 就原子更新 checkpoint，避免供应商波动或 job 超时抹掉已完成证据。
 
-**600+ 后端测试 + 可执行核心路径** — 后端 678 个测试、前端 58 个单元测试、17 个 E2E 测试、65 条结构化评测用例、6 条数据权限回归评测和 15 条可执行核心路径覆盖关键功能与安全链路；当前全量后端覆盖率基线为 81.10%。
+**700+ 后端测试 + 可执行核心路径** — 后端 717 个测试、前端 58 个单元测试、17 个 E2E 测试、65 条结构化评测用例、6 条数据权限回归评测和 15 条可执行核心路径覆盖关键功能与安全链路；当前全量后端覆盖率基线为 81.34%。
 
 ## 面试/简历材料
 
@@ -101,7 +101,7 @@ flowchart LR
 
 | 评测 | 用例数 | 可复核证据 |
 |------|--------|----------|
-| NL2SQL 电商评测 | 32 条 | 手动真实模型 workflow 产出；以 artifact 的 HEAD SHA 为准 |
+| NL2SQL 电商评测 | 65 条 | 手动真实模型 workflow 分片产出；以 artifact 的 HEAD SHA 为准 |
 | 危险意图评测 | 37 条 | 确定性 case pack 覆盖阻断与安全对照 |
 | Intent Guard 提前阻断 | 8 条 | 确定性提前阻断回归 |
 | SQL Repair 故障注入 | 6 条 | 手动真实模型 Repair 报告 |
@@ -143,7 +143,7 @@ python -m alembic -c backend/alembic.ini downgrade base
 python -m alembic -c backend/alembic.ini upgrade head
 ```
 
-普通 PR CI 还会执行 Ruff、ESLint、后端 75% 覆盖率门槛、Python/Node 依赖审计、Secret Scan、secure Compose 解析、镜像构建与 readiness smoke。真实模型调用仍放在手动 workflow，并输出 HEAD SHA、Provider、模型、脱敏端点、case 版本和 UTC 时间，避免把旧 artifact 当作当前提交证据。
+普通 PR CI 还会执行 Ruff、ESLint、后端 75% 覆盖率门槛、Python/Node 依赖审计、Secret Scan、secure Compose 解析、镜像构建与 readiness smoke。真实模型调用仍放在手动 workflow：预检后依次运行 13 个 NL2SQL 分片、3 个 Repair 分片和 5 个 Correctness 分片，每类最多并发 2；最终只接受同一 HEAD SHA、Provider、模型和 case 文件哈希的完整证据。
 `/health/readiness` 不只检查数据库连接，还会验证核心业务表和关键演示数据，避免空库或 seed 失败时误报可用。
 基础 CI 会运行前端单元测试和前端生产构建，避免前端测试数量只停留在 README 声明。
 基础 CI 会运行 Playwright 前端 E2E 测试，覆盖工作台基础交互、响应式布局和权限演示链路。
@@ -231,7 +231,7 @@ python -m evaluation.security_audit_exporter --write-report \
   --fail-on-missing-real-reports
 ```
 
-手动触发的真实模型 workflow 会先生成运行元数据和 4 条核心 smoke，再运行完整 NL2SQL、SQL Repair、结果正确性、Grounding、权限评测和 quality gate，最终把 `security-audit-*.md/json` 与其它报告一起上传为 artifact。报告绑定当前 HEAD SHA，面试或复盘时可以确认它确实对应当前代码。
+手动触发的真实模型 workflow 会先生成运行元数据并执行 4 条核心 smoke，再按 `13/3/5` 个分片运行完整 NL2SQL、SQL Repair 和结果正确性评测。每个分片逐 case 原子保存 checkpoint，单步预留 artifact 上传时间；最终 job 校验分片编号、完整状态、HEAD SHA、Provider、模型、case 文件哈希和 case 覆盖，只有全集一致时才运行 quality gate。缺片时严格安全审计仍会落盘失败证据。
 
 面试前可以用轻量证据包脚本生成可复制命令清单。脚本只输出本地/远端证据检查步骤，不联网、不读取 GitHub 登录态：
 
@@ -242,7 +242,7 @@ python scripts/interview_evidence.py --run-id <github_run_id>
 ## 运行测试
 
 ```bash
-# 后端测试（678 个）
+# 后端测试（717 个）
 cd backend && python -m pytest -q
 
 # 前端单元测试（58 个）
@@ -308,7 +308,7 @@ data_analyst_agent/
 │   │   └── utils/         # 日志和异常
 │   ├── evaluation/        # 评测 cases、runner 和报告
 │   ├── alembic/           # PostgreSQL Alembic revisions
-│   └── tests/             # 678 个测试
+│   └── tests/             # 717 个测试
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # API 客户端

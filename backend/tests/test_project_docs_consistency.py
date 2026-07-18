@@ -11,8 +11,8 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（678 个）" in readme
-    assert "tests/             # 678 个测试" in readme
+    assert "后端测试（717 个）" in readme
+    assert "tests/             # 717 个测试" in readme
     assert "后端测试（595 个）" not in readme
     assert "tests/             # 595 个测试" not in readme
     assert "后端测试（587 个）" not in readme
@@ -312,7 +312,8 @@ def test_core_path_polish_docs_are_documented():
 def test_interview_guide_matches_current_project_evidence():
     guide = read_text("docs/interview_guide.md")
 
-    assert "678 个后端测试" in guide
+    assert "717 个后端测试" in guide
+    assert "逐 case 原子 checkpoint" in guide
     assert "v1.8" in guide
     assert "HTTP transport/结构化解析" in guide
     assert "58 个前端单测" in guide
@@ -338,7 +339,8 @@ def test_interview_guide_matches_current_project_evidence():
 def test_resume_packet_matches_current_project_evidence():
     packet = read_text("docs/resume_project_packet.md")
 
-    assert "678 个后端测试" in packet
+    assert "717 个后端测试" in packet
+    assert "严格汇总" in packet
     assert "58 个前端单测" in packet
     assert "17 个 E2E" in packet
     assert "Playwright 前端 E2E" in packet
@@ -367,7 +369,8 @@ def test_v17_docs_define_migration_secure_profile_and_quality_boundaries():
     assert "Alembic 只管理 PostgreSQL" in readme
     assert "docker-compose.secure.yml" in readme
     assert "75% 覆盖率门槛" in readme
-    assert "81.10%" in readme
+    assert "81.34%" in readme
+    assert "13 个 NL2SQL 分片" in readme
     assert "HEAD SHA" in guide
     assert "DuckDB 用固定脚本重建" in guide
     assert "Alembic 只管理 PostgreSQL" in packet
