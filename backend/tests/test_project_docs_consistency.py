@@ -64,8 +64,8 @@ def test_readme_backend_test_count_matches_current_claim():
 def test_readme_frontend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "前端单元测试（58 个）" in readme
-    assert "前端 58 个单元测试" in readme
+    assert "前端单元测试（59 个）" in readme
+    assert "前端 59 个单元测试" in readme
     assert "前端单元测试（54 个）" not in readme
     assert "前端 54 个单元测试" not in readme
     assert "前端单元测试（53 个）" not in readme
@@ -331,7 +331,7 @@ def test_interview_guide_matches_current_project_evidence():
     assert "逐 case 原子 checkpoint" in guide
     assert "v1.8" in guide
     assert "HTTP transport/结构化解析" in guide
-    assert "58 个前端单测" in guide
+    assert "59 个前端单测" in guide
     assert "17 个 E2E" in guide
     assert "前端单元测试" in guide
     assert "Playwright 前端 E2E" in guide
@@ -356,7 +356,7 @@ def test_resume_packet_matches_current_project_evidence():
 
     assert "717 个后端测试" in packet
     assert "严格汇总" in packet
-    assert "58 个前端单测" in packet
+    assert "59 个前端单测" in packet
     assert "17 个 E2E" in packet
     assert "Playwright 前端 E2E" in packet
     assert "demo/secure Compose" in packet

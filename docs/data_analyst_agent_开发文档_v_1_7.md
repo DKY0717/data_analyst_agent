@@ -11,7 +11,7 @@ v1.7 把项目从“功能与测试数量较多”收敛为可执行、可审计
 - 65 条 NL2SQL、6 条 Repair 和 10 条 Correctness 真实评测拆为 `13/3/5` 个固定分片，三类依次执行且 `max-parallel=2`。
 - 答案生成异常不会丢弃已完成的 SQL 结果或污染共享缓存；分片 runner 隔离单 case 异常，并在每条完成后通过原子替换更新 checkpoint。
 - 最终汇总会校验分片编号、完整状态、HEAD SHA、Provider、模型、case 文件哈希和 case 覆盖；缺片、重复或来源不一致时拒绝生成正式质量报告。
-- 后端 717 个测试，当前全量覆盖率 81.34%；前端 58 个单元测试和 17 个 Playwright E2E。
+- 后端 717 个测试，当前全量覆盖率 81.34%；前端 59 个单元测试和 17 个 Playwright E2E。
 - CI 门禁包含 Ruff、ESLint、75% 覆盖率、PostgreSQL migration round trip、Python/Node 依赖审计、Secret Scan、demo/secure Compose、镜像构建和 readiness smoke。
 
 ## 数据库生命周期
