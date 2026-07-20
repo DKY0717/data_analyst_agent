@@ -22,6 +22,10 @@
 
 > 第9～13章已补充规则/LLM Intent 合并、语义与 MetadataCatalog、Grounding 最短 JOIN 路由、带会话的主动澄清、十二节点条件边、Repair 重新校验、Optimizer 和 SQLite 多轮上下文。正文按当前实现区分危险/越权阻断与可保存的最小执行失败摘要。对应专项验收为 93 项测试通过。
 
+### 深化第四部分
+
+> 第14～18章已补充 Intent/SQL AST 双层 Guard、LIMIT 与子进程超时、JWT/API Key 和 scope-aware 数据权限、行级 SQL 改写、传输/Repair/降级失败分类，以及 AuditReport 与 ContextVar LLM 观测。正文明确 Sandbox 和审计报告的能力边界。对应专项验收为 227 项测试通过。
+
 ### 后续同步规则
 
 > 项目代码变化后，先比较当前 HEAD 与本文件基线，再在 `CURRENT-CODE-MAP.md` 定位受影响章节，核对源码、测试和实际行为，最后更新正文、契约测试和本日志。只修改首页版本号不能视为课程已经同步。
