@@ -18,6 +18,10 @@
 
 > 第5～8章已补充双后端 Schema 元数据、FastAPI 请求与业务状态、OpenAI-compatible 调用和最小 NL2SQL 接口。课程明确区分空 content、HTTP 重试、SQL Repair 与结果正确性，并使用 Fake LLM/隔离数据库提供确定性练习。对应专项验收为 72 项测试通过。
 
+### 深化第三部分
+
+> 第9～13章已补充规则/LLM Intent 合并、语义与 MetadataCatalog、Grounding 最短 JOIN 路由、带会话的主动澄清、十二节点条件边、Repair 重新校验、Optimizer 和 SQLite 多轮上下文。正文按当前实现区分危险/越权阻断与可保存的最小执行失败摘要。对应专项验收为 93 项测试通过。
+
 ### 后续同步规则
 
 > 项目代码变化后，先比较当前 HEAD 与本文件基线，再在 `CURRENT-CODE-MAP.md` 定位受影响章节，核对源码、测试和实际行为，最后更新正文、契约测试和本日志。只修改首页版本号不能视为课程已经同步。
