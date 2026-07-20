@@ -39,7 +39,7 @@
 | 29 | `backend/app/semantic/ecommerce_metrics.yaml`、`backend/evaluation/cases/` | 语义、Grounding、黄金结果和前端相关测试 |
 | 30 | `backend/app/`、`backend/tests/` | 最小复现、根因、修复和回归测试 |
 | 31 | `backend/app/services/llm_service.py`、`backend/app/security/sql_guard.py`、`backend/app/db/query_runner.py` | 独立学习实现的确定性测试 |
-| 32 | `docs/interview_guide.md`、`docs/resume_project_packet.md` | 架构图、演示证据和模拟问答评分 |
+| 32 | `scripts/interview_demo_preflight.py`、`scripts/interview_evidence.py`、`docs/interview_guide.md`、`docs/resume_project_packet.md` | `backend/tests/test_interview_demo_preflight_script.py`、`backend/tests/test_interview_evidence_script.py`、模拟问答评分 |
 
 ## 2. 核心区域到负责章节
 

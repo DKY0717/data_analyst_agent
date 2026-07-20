@@ -33,6 +33,8 @@ netstat -ano | Select-String ':8000'
 > 401 通常与凭据或端点有关，429 通常与配额或限流有关，超时和空 content 可能来自供应商长尾行为。日志只保留脱敏类型和状态，不要把 API Key 或完整响应复制到学习笔记。
 >
 > 没有真实模型时，优先运行 `backend/tests/test_llm_service.py` 和确定性核心路径，不要伪造真实通过结果。
+>
+> 当前课程基线还存在一个已确认边界：reasoning 非空但 content 为空时，LLM Service 的普通重试计数与 429 预算由 `or` 条件组合，该分支可能无法被普通 `max_retries` 截断。调试时用 Fake LLM 加短外层 deadline 复现，不要直接反复调用真实模型；详细证据和修复验收见第28、30章。
 
 ## 5. 前端能打开但没有 Schema
 
@@ -45,3 +47,5 @@ netstat -ano | Select-String ':8000'
 ## 7. GitHub Actions 红色
 
 > 先区分普通 CI、真实模型分片和严格质量门禁。查看失败 job、步骤、日志和 artifact；缺失真实报告应标记为未验证，而不是自动归零或自动通过。
+>
+> Job 名称包含“quality gate”不代表阈值步骤一定运行。先看三套严格汇总 outcome；run `29634864907` 中 NL2SQL 聚合失败后，真正的阈值评估被 skipped。
