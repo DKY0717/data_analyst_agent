@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="从 Vibe Coding 到独立开发 Data Analyst Agent 的中文学习课程"
+    />
+    <title>Data Analyst Agent 学习课程 v2</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css" />
+    <style>
+      :root {
+        --theme-color: #175c4c;
+      }
+
+      .markdown-section {
+        max-width: 960px;
+      }
+
+      .markdown-section blockquote {
+        border-left-color: #175c4c;
+        background: #f3faf7;
+        padding: 0.8rem 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">课程正在加载，请稍候。</div>
+    <script>
+      // Docsify 只负责呈现 Markdown，课程事实仍由仓库源码和测试约束。
+      window.$docsify = {
+        name: "Data Analyst Agent 学习课程 v2",
+        homepage: "README.md",
+        loadSidebar: true,
+        subMaxLevel: 3,
+        auto2top: true,
+        relativePath: true,
+        search: { placeholder: "搜索课程", noData: "没有找到相关内容", depth: 4 },
+        pagination: { previousText: "上一章", nextText: "下一章", crossChapter: true },
+        copyCode: { buttonText: "复制代码", errorText: "复制失败", successText: "已复制" },
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2/dist/docsify-copy-code.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify-pagination@2/dist/docsify-pagination.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-sql.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+      // 使用严格安全模式渲染课程流程图，避免 Mermaid 标签注入任意 HTML。
+      mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify-mermaid@2/dist/docsify-mermaid.js"></script>
+  </body>
+</html>
