@@ -85,14 +85,8 @@ class QwenAPIClient:
         headers = self._build_headers()
         started_at = time.perf_counter()
 
-        # 指数退避重试循环
-        max_rate_limit_retries = 8
-        rate_limit_retries = 0
-        attempt = 0
-        while attempt < self.max_retries or rate_limit_retries < max_rate_limit_retries:
-            if attempt >= self.max_retries and rate_limit_retries >= max_rate_limit_retries:
-                break
-            attempt += 1
+        # 所有可重试结果共享同一总预算，避免某个分支绕过终止条件。
+        for attempt in range(1, self.max_retries + 1):
             attempt_count = attempt
             try:
                 async with httpx.AsyncClient() as client:
@@ -105,11 +99,28 @@ class QwenAPIClient:
 
                     # 检查 HTTP 状态码
                     if response.status_code == 429:
-                        rate_limit_retries += 1
-                        wait = min(4 * rate_limit_retries, 60)
-                        logger.warning(f"API 限流 429，等待 {wait}s 后重试 (第 {rate_limit_retries}/{max_rate_limit_retries} 次)")
+                        provider_code, provider_type = self._provider_error_details(
+                            response
+                        )
+                        error_metadata = self._format_provider_error_metadata(
+                            provider_code, provider_type
+                        )
+                        if attempt >= self.max_retries:
+                            raise LLMResponseError(
+                                "API 限流 429，已达最大重试次数"
+                                f"{error_metadata}",
+                                status_code=429,
+                                provider_code=provider_code,
+                                provider_type=provider_type,
+                            )
+                        wait = min(4 * attempt, 60)
+                        logger.warning(
+                            "API 限流 429，等待 %ss 后重试 (第 %s/%s 次)",
+                            wait,
+                            attempt,
+                            self.max_retries,
+                        )
                         await asyncio.sleep(wait)
-                        attempt -= 1
                         continue
                     if response.status_code != 200:
                         provider_code, provider_type = self._provider_error_details(
@@ -136,7 +147,11 @@ class QwenAPIClient:
                         reasoning = result["choices"][0]["message"].get("reasoning_content", "")
                         if reasoning:
                             logger.warning(f"推理模型返回空 content，reasoning 长度: {len(reasoning)}")
-                            # 重试，让模型有更多 tokens 生成内容
+                            if attempt >= self.max_retries:
+                                raise LLMResponseError(
+                                    "推理模型连续返回空 content，已达最大重试次数"
+                                )
+                            # 在共享预算内重试，让模型有机会生成最终内容。
                             continue
                         raise LLMResponseError("API 返回空内容")
 
@@ -195,7 +210,7 @@ class QwenAPIClient:
                     )
                     raise LLMError("API 调用失败") from e
 
-            # 指数退避：第 1 次等 1 秒，第 2 次等 2 秒，第 3 次等 4 秒
+            # 指数退避：第 1 次等 2 秒，第 2 次等 4 秒，以此类推。
             await asyncio.sleep(2 ** attempt)
 
         raise LLMError("API 调用失败，已达最大重试次数")

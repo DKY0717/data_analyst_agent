@@ -302,6 +302,80 @@ class TestCallAPIObservability:
         assert get_calls()[0]["success"] is True
 
     @pytest.mark.asyncio
+    async def test_reasoning_only_responses_stop_at_shared_attempt_budget(
+        self, client, monkeypatch
+    ):
+        """推理模型连续返回空 content 时必须在统一预算内终止。"""
+        start_trace()
+        attempts = {"count": 0}
+        response = FakeHTTPResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "reasoning_content": "internal reasoning",
+                        }
+                    }
+                ]
+            }
+        )
+
+        class RepeatingAsyncClient(FakeAsyncClient):
+            async def post(self, *args, **kwargs):
+                attempts["count"] += 1
+                return response
+
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: RepeatingAsyncClient([]),
+        )
+
+        with pytest.raises(LLMResponseError, match="最大重试次数"):
+            await client._call_api([], 0.1, stage="generate_sql")
+
+        assert attempts["count"] == client.max_retries
+        assert len(get_calls()) == 1
+        assert get_calls()[0]["attempt_count"] == client.max_retries
+        assert get_calls()[0]["error_type"] == "LLMResponseError"
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_responses_share_the_same_attempt_budget(
+        self, client, monkeypatch
+    ):
+        """429 不得通过独立计数器绕过一次逻辑调用的总尝试次数。"""
+        start_trace()
+        attempts = {"count": 0}
+        response = FakeHTTPResponse(
+            {"error": {"code": "rate_limit", "type": "rate_limit_error"}},
+            status_code=429,
+        )
+
+        class RepeatingAsyncClient(FakeAsyncClient):
+            async def post(self, *args, **kwargs):
+                attempts["count"] += 1
+                return response
+
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: RepeatingAsyncClient([]),
+        )
+
+        async def no_sleep(seconds):
+            return None
+
+        monkeypatch.setattr("asyncio.sleep", no_sleep)
+
+        with pytest.raises(LLMResponseError, match="最大重试次数") as exc_info:
+            await client._call_api([], 0.1, stage="generate_sql")
+
+        assert attempts["count"] == client.max_retries
+        assert exc_info.value.status_code == 429
+        assert len(get_calls()) == 1
+        assert get_calls()[0]["attempt_count"] == client.max_retries
+        assert get_calls()[0]["error_type"] == "LLMResponseError"
+
+    @pytest.mark.asyncio
     async def test_final_failure_records_error_type_without_error_message(
         self, client, monkeypatch, caplog
     ):
