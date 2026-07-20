@@ -11,8 +11,8 @@ def read_text(relative_path: str) -> str:
 def test_readme_backend_test_count_matches_current_claim():
     readme = read_text("README.md")
 
-    assert "后端测试（725 个）" in readme
-    assert "tests/             # 725 个测试" in readme
+    assert "后端测试（727 个）" in readme
+    assert "tests/             # 727 个测试" in readme
     assert "后端测试（717 个）" not in readme
     assert "tests/             # 717 个测试" not in readme
     assert "后端测试（595 个）" not in readme
@@ -329,7 +329,7 @@ def test_core_path_polish_docs_are_documented():
 def test_interview_guide_matches_current_project_evidence():
     guide = read_text("docs/interview_guide.md")
 
-    assert "725 个后端测试" in guide
+    assert "727 个后端测试" in guide
     assert "717 个后端测试" not in guide
     assert "逐 case 原子 checkpoint" in guide
     assert "v1.8" in guide
@@ -357,7 +357,7 @@ def test_interview_guide_matches_current_project_evidence():
 def test_resume_packet_matches_current_project_evidence():
     packet = read_text("docs/resume_project_packet.md")
 
-    assert "725 个后端测试" in packet
+    assert "727 个后端测试" in packet
     assert "717 个后端测试" not in packet
     assert "严格汇总" in packet
     assert "59 个前端单测" in packet
