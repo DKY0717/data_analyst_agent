@@ -118,7 +118,7 @@ flowchart LR
 git clone <repo-url>
 cd data_analyst_agent
 cp .env.example .env
-# 编辑 .env，填入 QWEN_API_KEY
+# 编辑 .env，在 Qwen、DeepSeek、MiMo 三组中任选一组取消注释并填写 API Key
 docker-compose up -d
 # 前端: http://localhost
 # API 文档: http://localhost:8000/docs
@@ -326,11 +326,13 @@ data_analyst_agent/
 
 ## 环境变量
 
+项目调用 OpenAI Chat Completions 兼容接口。复制 `.env.example` 后，请在 Qwen、DeepSeek、MiMo 三组示例中任选一组取消注释，并确保只启用一组。`QWEN_*` 是为兼容既有部署保留的变量名，不代表只能使用 Qwen；真实 API Key 只应写入本地 `.env`，不要提交到 Git。
+
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `QWEN_API_KEY` | LLM API Key | **必填** |
-| `QWEN_API_URL` | LLM API 地址 | MiMo API |
-| `QWEN_MODEL` | 模型名 | `mimo-v2.5-pro` |
+| `QWEN_API_KEY` | 所选 LLM 服务的 API Key | **必填** |
+| `QWEN_API_URL` | 所选服务的完整 Chat Completions 地址 | 参见 `.env.example` |
+| `QWEN_MODEL` | 所选服务可用的模型名 | 参见 `.env.example` |
 | `SQL_TIMEOUT` | 查询超时（秒） | `30` |
 | `SQL_MAX_ROWS` | 最大返回行数 | `1000` |
 | `SQL_MAX_RETRIES` | SQL 修复最大重试 | `3` |

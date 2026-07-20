@@ -73,11 +73,26 @@ def test_readme_frontend_test_count_matches_current_claim():
 
 def test_llm_provider_docs_and_defaults_are_consistent():
     env_example = read_text(".env.example")
+    readme = read_text("README.md")
     docker_compose = read_text("docker-compose.yml")
     config = read_text("backend/app/config.py")
     agents = read_text("AGENTS.md")
 
-    assert "QWEN_MODEL=mimo-v2.5-pro" in env_example
+    provider_examples = [
+        (
+            "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+            "qwen-plus",
+        ),
+        ("https://api.deepseek.com/chat/completions", "deepseek-chat"),
+        ("https://api.xiaomimimo.com/v1/chat/completions", "mimo-v2.5-pro"),
+    ]
+    assert env_example.count("# QWEN_API_KEY=your_api_key_here") == 3
+    for api_url, model in provider_examples:
+        assert f"# QWEN_API_URL={api_url}" in env_example
+        assert f"# QWEN_MODEL={model}" in env_example
+    assert "任选一组取消注释" in env_example
+    assert "Qwen、DeepSeek、MiMo 三组示例" in readme
+    assert "不代表只能使用 Qwen" in readme
     assert "QWEN_MODEL=${QWEN_MODEL:-mimo-v2.5-pro}" in docker_compose
     assert 'QWEN_MODEL: str = os.getenv("QWEN_MODEL", "mimo-v2.5-pro")' in config
     assert "OpenAI-compatible LLM API" in agents
