@@ -26,6 +26,10 @@
 
 > 第14～18章已补充 Intent/SQL AST 双层 Guard、LIMIT 与子进程超时、JWT/API Key 和 scope-aware 数据权限、行级 SQL 改写、传输/Repair/降级失败分类，以及 AuditReport 与 ContextVar LLM 观测。正文明确 Sandbox 和审计报告的能力边界。对应专项验收为 227 项测试通过。
 
+### 深化第五部分
+
+> 第19～22章已补充同步/SSE差异、断连取消和共享缓存边界、Vue/Pinia请求状态机、ECharts连续查询生命周期、CSV/SpreadsheetML公式注入防护、demo/secure部署、Nginx SSE代理与DuckDB/Alembic生命周期。验收包含后端48项、前端59项测试与生产构建。
+
 ### 后续同步规则
 
 > 项目代码变化后，先比较当前 HEAD 与本文件基线，再在 `CURRENT-CODE-MAP.md` 定位受影响章节，核对源码、测试和实际行为，最后更新正文、契约测试和本日志。只修改首页版本号不能视为课程已经同步。
