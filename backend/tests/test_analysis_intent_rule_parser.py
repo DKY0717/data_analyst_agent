@@ -40,6 +40,15 @@ def test_rule_parser_keeps_geographic_granularities_independent():
     assert [slot.concept for slot in city_intent.dimensions] == ["city"]
 
 
+def test_rule_parser_distinguishes_product_from_product_category():
+    """“商品”是单品维度，而“商品类别”必须优先命中更长的类别别名。"""
+    product_intent = AnalysisIntentRuleParser().parse("找出销售额最高的 5 个商品")
+    category_intent = AnalysisIntentRuleParser().parse("统计各商品类别的销售额")
+
+    assert [slot.concept for slot in product_intent.dimensions] == ["product"]
+    assert [slot.concept for slot in category_intent.dimensions] == ["category"]
+
+
 def test_rule_parser_extracts_ascending_ranking():
     intent = AnalysisIntentRuleParser().parse("找出订单数最少的前 3 个地区")
 

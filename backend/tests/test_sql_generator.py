@@ -9,7 +9,10 @@ import sqlglot
 from app.agents.grounding import SchemaGrounder
 from app.agents.sql_generator import SQLGenerator, llm_client
 from app.analysis_intent.models import AnalysisIntent, IntentSlot
+from app.analysis_intent.rule_parser import AnalysisIntentRuleParser
 from app.models.schemas import SQLGeneratorOutput
+from app.security.data_permission import DataPermissionGuard
+from app.security.sql_guard import SQLGuard
 from app.utils.exceptions import LLMError
 
 
@@ -257,6 +260,113 @@ class TestGenerate:
             generator._enforce_grounded_dimension_aliases(unrelated_sql, payload)
             == unrelated_sql
         )
+
+    @pytest.mark.asyncio
+    async def test_generate_corrects_product_dimension_drift(self, mock_schema):
+        """模型把商品错写成类别时，Grounding 应同步修正投影和 GROUP BY。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "SELECT c.category_name, "
+                "SUM(oi.quantity * oi.unit_price) AS sales_amount "
+                "FROM order_items oi "
+                "JOIN products p ON oi.product_id = p.product_id "
+                "JOIN categories c ON p.category_id = c.category_id "
+                "WHERE c.category_name = '电子产品' "
+                "GROUP BY c.category_name ORDER BY sales_amount DESC LIMIT 5"
+            ),
+            "tables": ["order_items", "products", "categories"],
+            "explanation": "按商品统计销售额",
+        }
+        generator = SQLGenerator(client=client)
+        intent = AnalysisIntentRuleParser().parse("找出销售额最高的 5 个商品")
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = await generator.generate(
+            "找出销售额最高的 5 个商品",
+            mock_schema,
+            analysis_intent=payload,
+        )
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        assert parsed.expressions[0].alias_or_name == "product_name"
+        assert parsed.expressions[0].sql(dialect="duckdb") == "p.product_name"
+        assert parsed.args["group"].sql(dialect="duckdb") == "GROUP BY p.product_name"
+        assert parsed.args["where"].sql(dialect="duckdb") == (
+            "WHERE c.category_name = '电子产品'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_normalizes_reserved_table_alias(self, mock_schema):
+        """AND/OR 不能作为裸表别名，进入 SQL Guard 前必须确定性改名。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "WITH order_refunds AS ("
+                "SELECT order_id, SUM(refund_amount) AS total_refund_amount "
+                "FROM refunds GROUP BY order_id) "
+                "SELECT COALESCE(or.total_refund_amount, 0) AS refund_amount, "
+                "'or.total_refund_amount' AS note "
+                "FROM orders o LEFT JOIN order_refunds or ON o.order_id = or.order_id"
+            ),
+            "tables": ["orders", "refunds"],
+            "explanation": "汇总退款金额",
+        }
+        generator = SQLGenerator(client=client)
+
+        result = await generator.generate("统计退款金额", mock_schema)
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        assert parsed is not None
+        assert "coalesce(or." not in result.sql.casefold()
+        assert "or_table." in result.sql.casefold()
+        assert "'or.total_refund_amount'" in result.sql
+        assert SQLGuard().validate(result.sql)["is_safe"] is True
+
+    @pytest.mark.asyncio
+    async def test_generate_rewrites_stale_dimension_alias_in_order_by(self, mock_schema):
+        """ORDER BY 使用语义概念名时，应同步到已经投影的稳定 Grounding 别名。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "SELECT regions.region_name AS region_name, "
+                "STRFTIME(orders.order_date, '%Y-%m') AS month, "
+                "COUNT(DISTINCT orders.order_id) AS order_count "
+                "FROM orders "
+                "JOIN customers ON orders.customer_id = customers.customer_id "
+                "JOIN regions ON customers.region_id = regions.region_id "
+                "GROUP BY regions.region_name, STRFTIME(orders.order_date, '%Y-%m') "
+                "ORDER BY month, region"
+            ),
+            "tables": ["orders", "customers", "regions"],
+            "explanation": "地区月度订单趋势",
+        }
+        generator = SQLGenerator(client=client)
+        intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="order_count", confidence=0.95)],
+            dimensions=[
+                IntentSlot(concept="region", confidence=0.95),
+                IntentSlot(concept="month", confidence=0.95),
+            ],
+            overall_confidence=0.95,
+        )
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = await generator.generate(
+            "统计各地区每月的订单数量趋势",
+            mock_schema,
+            analysis_intent=payload,
+        )
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        assert parsed.args["order"].sql(dialect="duckdb") == "ORDER BY month, region_name"
+        permission_result = DataPermissionGuard().authorize(
+            result.sql,
+            {"user_id": "test-admin", "auth_method": "jwt", "roles": ["admin"]},
+        )
+        assert permission_result.is_allowed is True
 
     @pytest.mark.asyncio
     async def test_generate_llm_error(self, generator, mock_schema):

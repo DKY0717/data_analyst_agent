@@ -79,6 +79,7 @@ class AnalysisIntentRuleParser:
             matches.append(
                 (
                     position,
+                    position + len(evidence),
                     key,
                     IntentSlot(
                         concept=key,
@@ -88,10 +89,23 @@ class AnalysisIntentRuleParser:
                 )
             )
 
-        return [
-            slot
-            for _, _, slot in sorted(matches, key=lambda item: (item[0], item[1]))
-        ]
+        # “商品类别”同时包含“商品”时，应采用更长、更具体的业务别名，
+        # 否则同一段文本会被错误拆成 product 和 category 两个维度。
+        selected = []
+        occupied_ranges: list[tuple[int, int]] = []
+        for start, end, key, slot in sorted(
+            matches,
+            key=lambda item: (item[0], -(item[1] - item[0]), item[2]),
+        ):
+            if any(
+                start < occupied_end and end > occupied_start
+                for occupied_start, occupied_end in occupied_ranges
+            ):
+                continue
+            selected.append((start, key, slot))
+            occupied_ranges.append((start, end))
+
+        return [slot for _, _, slot in sorted(selected, key=lambda item: (item[0], item[1]))]
 
     @staticmethod
     def _extract_year_filters(question: str) -> list[FilterSlot]:

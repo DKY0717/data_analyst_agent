@@ -45,6 +45,19 @@ def test_find_dimension_by_alias():
     assert "orders.customer_id = customers.customer_id" in city["required_joins"]
 
 
+def test_product_dimension_is_distinct_from_category():
+    """商品排名必须落到 product_name，不能退化为 category_name 粒度。"""
+    loader = SemanticLoader()
+
+    product = loader.find_dimension("商品")
+    category = loader.find_dimension("商品类别")
+
+    assert product["key"] == "product"
+    assert product["candidate_id"] == "product_name"
+    assert product["fields"] == ["products.product_name"]
+    assert category["key"] == "category"
+
+
 def test_defaults_include_time_field_and_limit():
     """默认配置要包含时间字段和返回上限，供 SQL 生成 prompt 使用"""
     loader = SemanticLoader()
