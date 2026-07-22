@@ -21,8 +21,8 @@ async def get_schema():
             data=SchemaResponse(**schema)
         )
     except SchemaLoadError as e:
-        logger.error(f"Schema 加载失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Schema 加载失败: %s", type(e).__name__)
+        raise HTTPException(status_code=500, detail="Schema 加载失败") from e
     except Exception as e:
-        logger.error(f"Schema 查询异常: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error("Schema 查询异常: %s", type(e).__name__)
+        raise HTTPException(status_code=500, detail="Internal server error") from e

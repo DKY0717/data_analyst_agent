@@ -13,7 +13,7 @@ def test_permission_evaluator_default_cases_pass(monkeypatch):
     report = PermissionEvaluationRunner().evaluate_all()
 
     summary = report["summary"]
-    assert summary["total_cases"] == 5
+    assert summary["total_cases"] == 6
     assert summary["allowed_decision_accuracy"] == 1.0
     assert summary["blocked_rule_accuracy"] == 1.0
     assert summary["row_filter_expectation_accuracy"] == 1.0

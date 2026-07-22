@@ -19,7 +19,8 @@ def test_catalog_finds_metric_and_dimension_candidates_by_alias():
     dimensions = catalog.find_dimension_candidates("城市")
 
     assert metrics[0]["key"] == "sales_amount"
-    assert dimensions[0]["key"] == "region"
+    assert dimensions[0]["key"] == "city"
+    assert dimensions[0]["fields"] == ["regions.city"]
 
 
 def test_catalog_returns_isolated_table_schema_copy():

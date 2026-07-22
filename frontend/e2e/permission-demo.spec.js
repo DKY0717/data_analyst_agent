@@ -34,13 +34,19 @@ function successResult(user, answer, columns, rows, permissionObservability = {
     status: 'completed',
     answer,
     sql: 'SELECT 1',
-    generated_sql: 'SELECT 1',
-    optimized_sql: 'SELECT 1',
     columns,
     rows,
     is_sql_safe: true,
     execution_time_ms: 12,
     retry_count: 0,
+    optimization_suggestions: ['保持当前索引策略'],
+    analysis_intent: {
+      overall_confidence: 0.96,
+      metrics: [{ concept: 'sales_amount', evidence: '销售额' }],
+      dimensions: [],
+      filters: [],
+    },
+    clarification: null,
     audit_report: {
       user_id: user.user_id,
       auth_method: user.auth_method,
@@ -50,7 +56,7 @@ function successResult(user, answer, columns, rows, permissionObservability = {
       limit_injected: false,
       blocked_rules: [],
       permission_observability: permissionObservability,
-      execution_metrics: { row_count: rows.length, total_latency_ms: 120, llm_call_count: 0 },
+      llm_observability: { call_count: 2 },
       events: [
         {
           stage: 'authorization',
@@ -98,13 +104,14 @@ function blockedResult(user) {
     status: 'blocked',
     answer: '请求已被数据权限策略阻断：analyst 不能访问 customers.customer_name。',
     sql: '',
-    generated_sql: '',
-    optimized_sql: '',
     columns: [],
     rows: [],
     is_sql_safe: true,
     execution_time_ms: 0,
     retry_count: 0,
+    optimization_suggestions: [],
+    analysis_intent: null,
+    clarification: null,
     audit_report: {
       user_id: user.user_id,
       auth_method: user.auth_method,
@@ -122,7 +129,7 @@ function blockedResult(user) {
         row_filters_applied: [],
         authorized_sql_changed: false,
       },
-      execution_metrics: { row_count: 0, total_latency_ms: 30, llm_call_count: 0 },
+      llm_observability: { call_count: 1 },
       events: [
         {
           stage: 'authorization',
@@ -232,6 +239,9 @@ test.describe('Permission Demo E2E', () => {
 
     await submitQuestion(page, '统计 2024 年每个月的销售额')
     await expect(page.locator('.answer-panel')).toContainText('2024 年每个月销售额已统计完成。')
+    await expect(page.locator('.sql-block')).toContainText('SELECT 1')
+    await expect(page.locator('.intent-panel')).toContainText('销售额')
+    await expect(page.locator('.suggestion-list')).toContainText('保持当前索引策略')
     await expect(page.locator('.audit-panel')).toContainText('数据权限')
     await expect(page.locator('.audit-panel')).toContainText('row_filter_region_scope')
     await expect(page.locator('.audit-panel')).toContainText('已改写')

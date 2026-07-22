@@ -129,7 +129,7 @@ const chartOption = computed(() => {
   }
 
   if (type === 'pie') {
-    const pieData = dataRows.map((r, i) => ({
+    const pieData = dataRows.map((r) => ({
       name: String(r[0]),
       value: Number(r[numericCols[0]]) || 0,
     }))
@@ -247,17 +247,32 @@ function loadEcharts() {
   return echartsLoader
 }
 
+function disposeChart() {
+  if (!chartInstance) return
+  chartInstance.dispose()
+  chartInstance = null
+}
+
 async function renderChart() {
   await nextTick()
-  if (!chartRef.value || !chartOption.value) {
-    if (chartInstance) {
-      chartInstance.clear()
-    }
+  const container = chartRef.value
+  if (!container || !chartOption.value) {
+    // v-if 会销毁画布；必须同步释放实例，避免后续继续绘制到已脱离页面的 DOM。
+    disposeChart()
     return
   }
+
+  if (chartInstance && chartInstance.getDom() !== container) {
+    disposeChart()
+  }
+
   if (!chartInstance) {
     const echarts = await loadEcharts()
-    chartInstance = echarts.init(chartRef.value)
+    // 动态模块加载期间查询结果可能再次变化，只在原容器仍有效时初始化。
+    if (chartRef.value !== container || !chartOption.value) return
+    if (!chartInstance) {
+      chartInstance = echarts.init(container)
+    }
   }
   chartInstance.setOption(chartOption.value, true)
 }
@@ -284,7 +299,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
-  chartInstance?.dispose()
+  disposeChart()
 })
 </script>
 

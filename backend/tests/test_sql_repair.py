@@ -62,11 +62,11 @@ class TestRepair:
     """测试 SQL 修复功能"""
 
     @pytest.mark.asyncio
-    async def test_repair_success(self, repair_agent, mock_schema):
+    async def test_repair_success(self, repair_agent, mock_schema, caplog):
         """测试成功修复 SQL"""
         # Mock LLM 返回
         mock_response = {
-            "repaired_sql": "SELECT order_id, total_amount FROM orders",
+            "repaired_sql": "SELECT order_id, total_amount FROM orders WHERE customer_name = 'private-customer'",
             "repair_reason": "原 SQL 使用了不存在的字段 amount，已改为 total_amount"
         }
 
@@ -81,8 +81,10 @@ class TestRepair:
 
             # 验证返回结果（repair_reason 现在来自错误分类器，不是 LLM 响应）
             assert isinstance(result, SQLRepairOutput)
-            assert result.repaired_sql == "SELECT order_id, total_amount FROM orders"
+            assert "private-customer" in result.repaired_sql
             assert "column_not_found" in result.repair_reason
+            assert "private-customer" not in caplog.text
+            assert "hash=" in caplog.text
 
             # 验证 LLM 被正确调用
             mock_llm.repair_sql.assert_called_once()

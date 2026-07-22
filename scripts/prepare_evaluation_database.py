@@ -13,7 +13,7 @@ INIT_SQL_PATH = ROOT / "database" / "init.sql"
 # 脚本直接执行时 Python 只加入 scripts/；显式加入仓库根目录以加载 database 包。
 sys.path.insert(0, str(ROOT))
 
-from database.seed_data import seed_database
+from database.seed_data import seed_database  # noqa: E402
 
 
 def prepare_evaluation_database(database_path: Path = DEFAULT_DATABASE_PATH) -> Path:

@@ -9,10 +9,16 @@ metrics:
       - 成交金额
     expression: SUM(orders.total_amount)
     default_table: orders
+    source_tables: [orders]
     dimension_overrides:
       category:
         candidate_id: sales_by_item_amount
         expression: SUM(order_items.quantity * order_items.unit_price)
+        source_tables: [orders, order_items]
+      product:
+        candidate_id: sales_by_product_item_amount
+        expression: SUM(order_items.quantity * order_items.unit_price)
+        source_tables: [orders, order_items]
     description: 已下单订单的总金额；按商品类别拆分时必须使用订单明细金额，避免订单总额在明细 JOIN 后重复累加。
 
   order_count:
@@ -24,6 +30,7 @@ metrics:
       - 订单量
     expression: COUNT(DISTINCT orders.order_id)
     default_table: orders
+    source_tables: [orders]
     description: 去重后的订单数量。
 
   customer_count:
@@ -35,6 +42,7 @@ metrics:
       - 买家数
     expression: COUNT(DISTINCT customers.customer_id)
     default_table: customers
+    source_tables: [customers]
     description: 去重后的客户数量。
 
   average_order_value:
@@ -46,6 +54,7 @@ metrics:
       - AOV
     expression: SUM(orders.total_amount) * 1.0 / COUNT(DISTINCT orders.order_id)
     default_table: orders
+    source_tables: [orders]
     description: 销售额除以订单数。
 
   refund_rate:
@@ -57,6 +66,7 @@ metrics:
       - 退单率
     expression: COUNT(DISTINCT refunds.refund_id) * 1.0 / COUNT(DISTINCT orders.order_id)
     default_table: orders
+    source_tables: [orders, refunds]
     required_joins:
       - orders.order_id = refunds.order_id
     description: 退款记录数除以订单数。
@@ -69,6 +79,8 @@ metrics:
       - 重复购买率
     expression: COUNT(DISTINCT CASE WHEN customer_order_stats.order_count > 1 THEN customer_order_stats.customer_id END) * 1.0 / COUNT(DISTINCT customer_order_stats.customer_id)
     default_table: orders
+    source_tables: [orders]
+    source_columns: [orders.order_id, orders.customer_id]
     description: 下单次数超过 1 次的客户占全部下单客户的比例，生成 SQL 时可使用客户订单数子查询。
 
 dimensions:
@@ -99,17 +111,39 @@ dimensions:
     name: 地区
     aliases:
       - 地区
-      - 城市
-      - 省份
       - 区域
     fields:
       - regions.region_name
+    required_joins:
+      - orders.customer_id = customers.customer_id
+      - customers.region_id = regions.region_id
+    description: 订单通过客户关联大区；按地区分析时只使用 region_name，不自动增加省份或城市。
+
+  province:
+    candidate_id: province
+    name: 省份
+    aliases:
+      - 省份
+      - 省
+    fields:
       - regions.province
+    required_joins:
+      - orders.customer_id = customers.customer_id
+      - customers.region_id = regions.region_id
+    description: 订单通过客户关联省份；仅在问题明确要求省级粒度时使用。
+
+  city:
+    candidate_id: city
+    name: 城市
+    aliases:
+      - 城市
+      - 市
+    fields:
       - regions.city
     required_joins:
       - orders.customer_id = customers.customer_id
       - customers.region_id = regions.region_id
-    description: 订单通过客户关联地区。
+    description: 订单通过客户关联城市；仅在问题明确要求城市粒度时使用。
 
   category:
     candidate_id: category_name
@@ -127,6 +161,19 @@ dimensions:
       - products.category_id = categories.category_id
     description: 订单明细通过商品关联商品类别。
 
+  product:
+    candidate_id: product_name
+    name: 商品
+    aliases:
+      - 商品
+      - 单品
+    fields:
+      - products.product_name
+    required_joins:
+      - orders.order_id = order_items.order_id
+      - order_items.product_id = products.product_id
+    description: 按具体商品分析时使用商品名称；不得用商品类别代替商品粒度。
+
   payment_method:
     candidate_id: payment_method
     name: 支付方式
@@ -138,6 +185,22 @@ dimensions:
     required_joins:
       - orders.order_id = payments.order_id
     description: 订单通过支付表关联支付方式。
+
+joins:
+  - left: orders.customer_id
+    right: customers.customer_id
+  - left: customers.region_id
+    right: regions.region_id
+  - left: orders.order_id
+    right: order_items.order_id
+  - left: order_items.product_id
+    right: products.product_id
+  - left: products.category_id
+    right: categories.category_id
+  - left: orders.order_id
+    right: payments.order_id
+  - left: orders.order_id
+    right: refunds.order_id
 
 defaults:
   time_field: orders.order_date

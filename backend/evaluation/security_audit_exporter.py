@@ -25,6 +25,8 @@ def load_optional_report(path: Path | None, report_name: str) -> dict[str, Any] 
         return None
     if not path.exists():
         raise SecurityAuditInputError(f"{report_name} report does not exist: {path}")
+    if not path.is_file():
+        raise SecurityAuditInputError(f"{report_name} report is not a file: {path}")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -40,6 +42,8 @@ def load_quality_gate_report(path: Path | None) -> dict[str, Any] | None:
         return None
     if not path.exists():
         raise SecurityAuditInputError(f"quality_gate report does not exist: {path}")
+    if not path.is_file():
+        raise SecurityAuditInputError(f"quality_gate report is not a file: {path}")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -209,7 +213,7 @@ def _collect_risks(
             {
                 "id": "real_evaluation.missing",
                 "severity": "info",
-                "message": f"未提供真实 Qwen 端到端评测报告：{', '.join(missing)}。",
+                "message": f"未提供真实模型端到端评测报告：{', '.join(missing)}。",
             }
         )
     return risks

@@ -16,6 +16,9 @@
 # Python
 __pycache__/
 *.pyc
+.coverage
+coverage.xml
+htmlcov/
 
 # Database
 *.duckdb
@@ -33,9 +36,13 @@ data/
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/dist-ci/
 frontend/test-results/
 
 # Evaluation outputs are generated; force-add selected baselines when needed.
 backend/evaluation/reports/*.json
 backend/evaluation/reports/*.md
 !backend/evaluation/reports/.gitkeep
+
+# Backend tests and executable evaluators share generated databases/reports here.
+backend/tests/.tmp/

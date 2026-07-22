@@ -1,7 +1,6 @@
 import logging
 import sys
 from logging.handlers import RotatingFileHandler  # 滚动文件处理器，当日志文件达到指定大小时自动轮转
-from pathlib import Path
 
 from ..config import settings  # 从配置模块导入全局配置对象
 
@@ -70,8 +69,8 @@ def setup_logging() -> logging.Logger:
         file_handler.setFormatter(file_format)
         logger.addHandler(file_handler)
     except OSError as e:
-        # 文件日志不可用时不阻断应用或测试导入；控制台日志仍保留，错误原因会被明确打印。
-        logger.warning(f"文件日志初始化失败，仅使用控制台日志: {e}")
+        # 文件日志不可用时不阻断应用；只记录异常类型，避免路径或凭据进入控制台。
+        logger.warning("文件日志初始化失败，仅使用控制台日志: %s", type(e).__name__)
 
     return logger
 

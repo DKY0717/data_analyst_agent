@@ -12,6 +12,7 @@ describe('useQueryStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    vi.clearAllMocks()
   })
 
   it('初始状态正确', () => {
@@ -108,10 +109,8 @@ describe('useQueryStore', () => {
 
   it('cancelQuery 中断进行中的请求', async () => {
     const { queryAgentSSE } = await import('@/api/agent')
-    let rejectFn
     queryAgentSSE.mockImplementation((_q, _s, _onProgress, signal) => {
       return new Promise((_, reject) => {
-        rejectFn = reject
         signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
     })
@@ -123,5 +122,27 @@ describe('useQueryStore', () => {
     store.cancelQuery()
     await p
     expect(store.loading).toBe(false)
+  })
+
+  it('submitClarification sends the stable clarification identifiers', async () => {
+    const { queryAgent } = await import('@/api/agent')
+    queryAgent.mockResolvedValue({ answer: '销售额已统计', rows: [] })
+    const store = useQueryStore()
+    store.result = {
+      clarification: {
+        clarification_id: 'clarify_metric',
+      },
+    }
+
+    await store.submitClarification({ candidate_id: 'metric_sales', label: '销售额' })
+
+    expect(queryAgent).toHaveBeenCalledWith(
+      '销售额',
+      store.sessionId,
+      {
+        clarificationId: 'clarify_metric',
+        candidateId: 'metric_sales',
+      },
+    )
   })
 })

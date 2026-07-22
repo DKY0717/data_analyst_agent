@@ -3,7 +3,7 @@
 
 import queue
 import threading
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 
 class WriteQueue:

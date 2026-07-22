@@ -4,6 +4,8 @@ import vue from '@vitejs/plugin-vue'
 
 // 默认对齐 README 的后端端口；E2E 脚本可用环境变量切到托管后端。
 const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:8000'
+const devPort = Number(process.env.VITE_DEV_PORT || 3000)
+const strictPort = process.env.VITE_STRICT_PORT === 'true'
 
 export default defineConfig({
   plugins: [vue()],
@@ -13,7 +15,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: devPort,
+    strictPort,
     proxy: {
       '/api': {
         target: apiProxyTarget,
@@ -27,10 +30,6 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('/element-plus/')) {
             return 'element-plus'
-          }
-
-          if (id.includes('/xlsx/')) {
-            return 'xlsx'
           }
 
           return undefined

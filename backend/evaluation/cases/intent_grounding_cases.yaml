@@ -10,6 +10,9 @@ cases:
         value: 2024
     expected_candidate_ids: [sales_by_order_total, region_name]
     expected_route_tables: [orders, customers, regions]
+    expected_join_edges:
+      - [orders.customer_id, customers.customer_id]
+      - [customers.region_id, regions.region_id]
     expected_clarification_required: false
 
   - id: category_sales_uses_item_amount_candidate
@@ -19,6 +22,10 @@ cases:
     expected_dimensions: [category]
     expected_candidate_ids: [sales_by_item_amount, category_name]
     expected_route_tables: [orders, order_items, products, categories]
+    expected_join_edges:
+      - [orders.order_id, order_items.order_id]
+      - [order_items.product_id, products.product_id]
+      - [products.category_id, categories.category_id]
     expected_clarification_required: false
 
   - id: refund_rate_by_category
@@ -28,6 +35,11 @@ cases:
     expected_dimensions: [category]
     expected_candidate_ids: [refund_rate_by_order, category_name]
     expected_route_tables: [orders, refunds, order_items, products, categories]
+    expected_join_edges:
+      - [orders.order_id, refunds.order_id]
+      - [orders.order_id, order_items.order_id]
+      - [order_items.product_id, products.product_id]
+      - [products.category_id, categories.category_id]
     expected_clarification_required: false
 
   - id: monthly_order_count
@@ -37,6 +49,7 @@ cases:
     expected_dimensions: [month]
     expected_candidate_ids: [order_count, order_month]
     expected_route_tables: [orders]
+    expected_join_edges: []
     expected_clarification_required: false
 
   - id: top_region_customer_count
@@ -49,6 +62,8 @@ cases:
       limit: 3
     expected_candidate_ids: [customer_count, region_name]
     expected_route_tables: [customers, regions]
+    expected_join_edges:
+      - [customers.region_id, regions.region_id]
     expected_clarification_required: false
 
   - id: quarter_sales
@@ -58,6 +73,7 @@ cases:
     expected_dimensions: [quarter]
     expected_candidate_ids: [sales_by_order_total, order_quarter]
     expected_route_tables: [orders]
+    expected_join_edges: []
     expected_clarification_required: false
 
   - id: vague_analysis_requires_metric_clarification
@@ -67,5 +83,6 @@ cases:
     expected_dimensions: []
     expected_candidate_ids: []
     expected_route_tables: []
+    expected_join_edges: []
     expected_clarification_required: true
     expected_clarification_option_ids: [metric_sales_amount, metric_order_count, metric_customer_count]

@@ -12,6 +12,15 @@ from ..utils.exceptions import LLMError
 class AnswerGenerator:
     """答案生成 Agent，负责查询结果 → 自然语言解释的转换"""
 
+    def __init__(self, client=None):
+        # 评测可替换外部模型，业务编排和结果处理仍走真实 Agent 节点。
+        self._client = client
+
+    @property
+    def client(self):
+        """未注入时动态读取全局 client，方便测试替换且不改变生产默认。"""
+        return self._client or llm_client
+
     async def generate(
         self,
         question: str,
@@ -34,14 +43,14 @@ class AnswerGenerator:
         """
         try:
             # 调用 LLM 生成答案，返回纯文本
-            answer = await llm_client.generate_answer(question, sql, query_result)
+            answer = await self.client.generate_answer(question, sql, query_result)
 
             logger.info("答案生成成功")
             return answer
 
         except Exception as e:
-            logger.error(f"答案生成异常: {e}")
-            raise LLMError(f"答案生成失败: {e}")
+            logger.error("答案生成异常: %s", type(e).__name__)
+            raise LLMError("答案生成失败") from e
 
 
 # 全局答案生成器实例

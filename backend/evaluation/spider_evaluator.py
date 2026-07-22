@@ -3,14 +3,12 @@
 
 import asyncio
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
 
 from app.agents.graph import get_agent_graph
-from evaluation.report_writer import ReportWriter
 
 
 SPIDER_DIR = Path(__file__).parent.parent.parent / "data" / "spider"

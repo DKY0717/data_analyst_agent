@@ -56,10 +56,10 @@ class TestGenerate:
             mock_llm.generate_answer.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_generate_llm_error(self, generator, mock_query_result):
+    async def test_generate_llm_error(self, generator, mock_query_result, caplog):
         """测试 LLM 调用失败时抛出异常"""
         with patch("app.agents.answer_generator.llm_client") as mock_llm:
-            mock_llm.generate_answer = AsyncMock(side_effect=Exception("API 调用失败"))
+            mock_llm.generate_answer = AsyncMock(side_effect=Exception("private model response"))
 
             with pytest.raises(LLMError) as exc_info:
                 await generator.generate(
@@ -69,6 +69,8 @@ class TestGenerate:
                 )
 
             assert "答案生成失败" in str(exc_info.value)
+            assert "private model response" not in str(exc_info.value)
+            assert "private model response" not in caplog.text
 
     @pytest.mark.asyncio
     async def test_generate_empty_result(self, generator):

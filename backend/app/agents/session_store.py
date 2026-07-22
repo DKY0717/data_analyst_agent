@@ -4,12 +4,10 @@
 import json
 import sqlite3
 import threading
-from collections import deque
 from pathlib import Path
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Dict, Optional
 
 from ..config import settings
-from ..utils.logger import logger
 from .conversation_context import conversation_context_builder, ConversationContextBuilder
 
 
@@ -229,6 +227,13 @@ class SQLiteSessionStore:
             conn.execute("DELETE FROM session_turns")
             conn.execute("DELETE FROM pending_clarifications")
         conn.commit()
+
+    def close(self) -> None:
+        """关闭当前线程连接，便于隔离评测可靠清理临时目录。"""
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            self._local.conn = None
 
 
 # 全局实例（替换内存版 session_store）

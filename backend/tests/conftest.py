@@ -8,7 +8,8 @@ from pathlib import Path
 import duckdb
 
 
-TEST_ROOT = Path(__file__).parent / ".tmp"
+# 每个 pytest 进程使用独立目录，避免并行/残留 worker 争用同一个 DuckDB 文件。
+TEST_ROOT = Path(__file__).parent / ".tmp" / f"run-{os.getpid()}"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # 在 app.config 被导入前覆盖 PROJECT_ROOT，让 settings.DATA_DIR / LOG_DIR 指向测试目录。

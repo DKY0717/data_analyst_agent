@@ -8,12 +8,18 @@ const frontendDir = path.resolve(scriptDir, '..')
 const projectDir = path.resolve(frontendDir, '..')
 const backendDir = path.join(projectDir, 'backend')
 const isWindows = process.platform === 'win32'
+const backendPort = Number.parseInt(process.env.E2E_BACKEND_PORT || '18001', 10)
+const frontendPort = Number.parseInt(process.env.E2E_FRONTEND_PORT || '13000', 10)
+const backendUrl = `http://127.0.0.1:${backendPort}`
+const frontendUrl = `http://127.0.0.1:${frontendPort}`
 
 const serverEnv = {
   ...process.env,
   FORCE_COLOR: '1',
-  // E2E 托管后端使用 8001，避免和开发者本地 8000 服务冲突。
-  VITE_API_PROXY_TARGET: 'http://localhost:8001',
+  // E2E 使用独占端口并开启 strictPort，避免误连开发者正在运行的服务。
+  VITE_API_PROXY_TARGET: backendUrl,
+  VITE_DEV_PORT: String(frontendPort),
+  VITE_STRICT_PORT: 'true',
 }
 
 const children = []
@@ -115,6 +121,7 @@ async function runPlaywright(args) {
       env: {
         ...process.env,
         E2E_MANAGED_SERVERS: '1',
+        E2E_BASE_URL: frontendUrl,
       },
     })
 
@@ -133,13 +140,30 @@ async function main() {
   const args = process.argv.slice(2)
 
   // 先启动真实后端和 Vite，E2E 内部仍可按用例选择是否 Mock 接口。
-  startProcess('backend', 'python', ['-m', 'uvicorn', 'app.main:app', '--port', '8001'], backendDir)
-  startProcess('frontend', process.execPath, [path.join(frontendDir, 'node_modules', 'vite', 'bin', 'vite.js'), '--host', '0.0.0.0'], frontendDir)
+  startProcess(
+    'backend',
+    'python',
+    ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', String(backendPort)],
+    backendDir,
+  )
+  startProcess(
+    'frontend',
+    process.execPath,
+    [
+      path.join(frontendDir, 'node_modules', 'vite', 'bin', 'vite.js'),
+      '--host',
+      '127.0.0.1',
+      '--port',
+      String(frontendPort),
+      '--strictPort',
+    ],
+    frontendDir,
+  )
 
   try {
     await Promise.all([
-      waitForUrl('http://127.0.0.1:8001/health', 30000),
-      waitForUrl('http://127.0.0.1:3000', 30000),
+      waitForUrl(`${backendUrl}/health`, 30000),
+      waitForUrl(frontendUrl, 30000),
     ])
 
     const exitCode = await runPlaywright(args)

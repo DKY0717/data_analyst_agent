@@ -40,6 +40,11 @@ class SemanticLoader:
         """返回默认时间字段、默认 LIMIT 和 SQL 方言"""
         return self._data.get("defaults", {})
 
+    def get_joins(self) -> list[Dict[str, str]]:
+        """返回领域 Schema 的全局 JOIN 图，供 Grounding 计算最小连接路径。"""
+        joins = self._data.get("joins", [])
+        return joins if isinstance(joins, list) else []
+
     def find_metric(self, keyword: str) -> Optional[Dict[str, Any]]:
         """按指标 key、中文名称或别名查找指标"""
         return self._find_by_keyword(self.get_metrics(), keyword)

@@ -123,8 +123,22 @@ class SQLGuard:
                     blocked_rule=blocked_rule,
                 )
 
-            # 清理SQL
-            sanitized_sql, limit_injected = self._sanitize_sql(parsed, statement_type)
+            limit_value, limit_error = self._top_level_limit_value(parsed, statement_type)
+            if limit_error:
+                return self._result(
+                    False,
+                    sql,
+                    limit_error,
+                    audit_events,
+                    blocked_rule="block_invalid_limit",
+                )
+
+            # 清理 SQL，并把已有的超大 LIMIT 钳制到配置硬上限。
+            sanitized_sql, limit_injected, limit_clamped = self._sanitize_sql(
+                parsed,
+                statement_type,
+                limit_value,
+            )
             if limit_injected:
                 audit_events.append(
                     audit_report_builder.make_event(
@@ -136,6 +150,17 @@ class SQLGuard:
                         details={"limit_injected": True, "max_rows": self.max_rows},
                     )
                 )
+            if limit_clamped:
+                audit_events.append(
+                    audit_report_builder.make_event(
+                        "guard",
+                        "clamp_limit",
+                        "success",
+                        f"查询 LIMIT 超过上限，已钳制为 {self.max_rows}",
+                        rule_id="limit_clamped",
+                        details={"original_limit": limit_value, "max_rows": self.max_rows},
+                    )
+                )
 
             audit_events.append(
                 audit_report_builder.make_event(
@@ -143,7 +168,10 @@ class SQLGuard:
                     "validate_sql",
                     "success",
                     "SQL 通过安全校验",
-                    details={"limit_injected": limit_injected},
+                    details={
+                        "limit_injected": limit_injected,
+                        "limit_clamped": limit_clamped,
+                    },
                 )
             )
 
@@ -153,11 +181,12 @@ class SQLGuard:
                 "reason": None,
                 "audit_events": audit_events,
                 "limit_injected": limit_injected,
+                "limit_clamped": limit_clamped,
                 "blocked_rule": None,
             }
 
         except Exception as e:
-            logger.error(f"SQL验证错误: {e}")
+            logger.error("SQL 验证错误: %s", type(e).__name__)
             return self._result(
                 False,
                 sql,
@@ -194,6 +223,7 @@ class SQLGuard:
             "reason": reason,
             "audit_events": audit_events,
             "limit_injected": False,
+            "limit_clamped": False,
             "blocked_rule": blocked_rule,
         }
 
@@ -233,7 +263,37 @@ class SQLGuard:
 
         return None, None
 
-    def _sanitize_sql(self, parsed, statement_type: str) -> Tuple[str, bool]:
+    def _top_level_limit_value(
+        self,
+        parsed: exp.Expression,
+        statement_type: str,
+    ) -> Tuple[Optional[int], Optional[str]]:
+        """只接受可静态证明的非负整数 LIMIT，动态表达式一律拒绝。"""
+        if statement_type == "EXPLAIN":
+            return None, None
+
+        limit = parsed.args.get("limit")
+        if limit is None:
+            return None, None
+
+        expression = limit.expression
+        if not isinstance(expression, exp.Literal) or expression.is_string:
+            return None, "LIMIT 必须是非负整数常量"
+
+        try:
+            value = int(expression.this)
+        except (TypeError, ValueError):
+            return None, "LIMIT 必须是非负整数常量"
+        if value < 0:
+            return None, "LIMIT 不能为负数"
+        return value, None
+
+    def _sanitize_sql(
+        self,
+        parsed: exp.Expression,
+        statement_type: str,
+        limit_value: Optional[int],
+    ) -> Tuple[str, bool, bool]:
         """
         清理SQL，添加LIMIT（如果不存在）
 
@@ -242,18 +302,22 @@ class SQLGuard:
             statement_type: 已识别的语句类型
 
         Returns:
-            清理后的SQL语句
+            清理后的 SQL、是否注入 LIMIT、是否钳制 LIMIT
         """
         if statement_type == "EXPLAIN":
-            return parsed.sql(dialect=self._dialect), False
+            return parsed.sql(dialect=self._dialect), False, False
 
         # 使用 AST 判断顶层 LIMIT，避免字符串字面量或字段名里的 LIMIT 误导安全逻辑
         limit_injected = False
+        limit_clamped = False
         if not parsed.args.get("limit"):
             parsed = parsed.limit(self.max_rows)
             limit_injected = True
+        elif limit_value is not None and limit_value > self.max_rows:
+            parsed.args["limit"].set("expression", exp.Literal.number(self.max_rows))
+            limit_clamped = True
 
-        return parsed.sql(dialect=self._dialect), limit_injected
+        return parsed.sql(dialect=self._dialect), limit_injected, limit_clamped
 
 # 全局SQL Guard实例
 sql_guard = SQLGuard()

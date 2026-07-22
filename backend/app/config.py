@@ -29,6 +29,15 @@ def _get_csv_list(env_key: str, default: list[str]) -> list[str]:
     return [item.strip() for item in val.split(",") if item.strip()]
 
 
+def _get_choice(env_key: str, default: str, allowed: set[str]) -> str:
+    """读取有限枚举配置，拼写错误必须在启动时显式失败。"""
+    value = os.getenv(env_key, default).strip().lower()
+    if value not in allowed:
+        choices = ", ".join(sorted(allowed))
+        raise ValueError(f"Environment variable {env_key} must be one of: {choices}")
+    return value
+
+
 def _get_optional_non_negative_float(env_key: str) -> float | None:
     """读取可选非负价格；空值表示不进行成本估算。"""
     val = os.getenv(env_key, "").strip()
@@ -50,6 +59,11 @@ class Settings:
     APP_HOST: str = os.getenv("APP_HOST", "0.0.0.0")
     APP_PORT: int = _get_int("APP_PORT", 8000)
     DEBUG: bool = _get_bool("DEBUG", False)
+    DEPLOYMENT_PROFILE: str = _get_choice(
+        "DEPLOYMENT_PROFILE",
+        "demo",
+        {"demo", "secure"},
+    )
     # 演示登录只服务本地面试展示，默认关闭，避免生产环境暴露角色切换入口。
     AUTH_DEMO_ENABLED: bool = _get_bool("AUTH_DEMO_ENABLED", False)
     # 密码登录默认关闭；开启时必须通过环境变量显式配置管理员用户名和密码。
@@ -95,8 +109,8 @@ class Settings:
     SQL_TIMEOUT: int = _get_int("SQL_TIMEOUT", 30)
     SQL_MAX_ROWS: int = _get_int("SQL_MAX_ROWS", 1000)
     SQL_MAX_RETRIES: int = _get_int("SQL_MAX_RETRIES", 3)
-    # 生产可打开子进程沙箱隔离 SQL 执行；默认关闭，保留本地开发和测试的简单路径。
-    SANDBOX_MODE: bool = _get_bool("SANDBOX_MODE", False)
+    # 默认使用子进程沙箱；本地调试如需直连必须显式设置 SANDBOX_MODE=false。
+    SANDBOX_MODE: bool = _get_bool("SANDBOX_MODE", True)
 
     # Logging Configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

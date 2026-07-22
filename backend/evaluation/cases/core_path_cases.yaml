@@ -1,3 +1,4 @@
+version: "1.7"
 cases:
   - id: monthly_sales_demo
     question: 统计 2024 年每个月的销售额
@@ -10,6 +11,8 @@ cases:
         id: monthly_sales_2024
     expected_surfaces: [answer, sql, chart, table, audit_report, permission_observability]
     success_criteria: 展示月度趋势图、SQL、结果表和 analyst 行级过滤审计。
+    execution:
+      expected_status: completed
 
   - id: top_products_demo
     question: 找出销售额最高的 5 个商品
@@ -22,6 +25,8 @@ cases:
         id: top_products_by_sales
     expected_surfaces: [answer, sql, chart, table, audit_report]
     success_criteria: 展示 Top N 排序、商品维度聚合和可折叠 SQL。
+    execution:
+      expected_status: completed
 
   - id: sales_by_category_demo
     question: 统计各商品类别的销售额
@@ -34,6 +39,8 @@ cases:
         id: sales_by_category
     expected_surfaces: [answer, sql, chart, table]
     success_criteria: 展示商品类别维度和销售额指标的稳定关联。
+    execution:
+      expected_status: completed
 
   - id: category_refund_rate_demo
     question: 分析各商品类别的退款率
@@ -46,6 +53,8 @@ cases:
         id: refund_rate_by_category
     expected_surfaces: [answer, sql, chart, table, audit_report]
     success_criteria: 展示退款率业务口径、LEFT JOIN 和空值保护。
+    execution:
+      expected_status: completed
 
   - id: average_order_value_demo
     question: 计算 2024 年的平均客单价
@@ -58,6 +67,8 @@ cases:
         id: average_order_value_2024
     expected_surfaces: [answer, sql, table]
     success_criteria: 展示标量指标回答和业务口径解释。
+    execution:
+      expected_status: completed
 
   - id: payment_method_sales_demo
     question: 统计各支付方式对应的销售额
@@ -70,6 +81,8 @@ cases:
         id: payment_method_sales
     expected_surfaces: [answer, sql, chart, table]
     success_criteria: 展示跨 orders 与 payments 的 JOIN 分析。
+    execution:
+      expected_status: completed
 
   - id: monthly_order_follow_up_demo
     question: 只看订单数，按月份升序排列
@@ -82,6 +95,9 @@ cases:
         id: monthly_order_count
     expected_surfaces: [answer, sql, chart, table, session_context]
     success_criteria: 展示多轮追问继承时间粒度并切换指标。
+    execution:
+      expected_status: completed
+      setup_case_id: monthly_sales_demo
 
   - id: region_sales_follow_up_demo
     question: 按地区统计 2024 年销售额并排序
@@ -94,16 +110,23 @@ cases:
         id: sales_by_region
     expected_surfaces: [answer, sql, chart, table, audit_report]
     success_criteria: 展示地区 JOIN 路径和排序结果。
+    execution:
+      expected_status: completed
+      setup_case_id: monthly_sales_demo
 
   - id: analyst_row_filter_demo
     question: 统计 2024 年每个月的销售额
     category: permission
     demo_role: analyst
     linked_cases:
+      - source: golden_result
+        id: monthly_sales_2024
       - source: permission
         id: analyst_order_row_filter
     expected_surfaces: [answer, sql, chart, permission_observability, row_filter_region_scope]
     success_criteria: 展示 analyst 查询订单指标时 SQL 被行级过滤改写。
+    execution:
+      expected_status: completed
 
   - id: analyst_customer_name_block_demo
     question: 列出客户姓名和注册日期
@@ -114,14 +137,21 @@ cases:
         id: analyst_customer_name_blocked
     expected_surfaces: [blocked_answer, audit_report, block_unauthorized_column]
     success_criteria: 展示 analyst 越权字段被阻断且不执行 SQL。
+    execution:
+      expected_status: blocked
+      expected_blocked_rule: block_unauthorized_column
 
   - id: admin_customer_name_demo
     question: 列出客户姓名和注册日期
     category: permission
     demo_role: admin
-    linked_cases: []
+    linked_cases:
+      - source: permission
+        id: admin_customer_name_allowed
     expected_surfaces: [answer, sql, table, audit_report]
     success_criteria: 展示 admin 对同一问题被授权，证明权限按角色生效。
+    execution:
+      expected_status: completed
 
   - id: support_payment_block_demo
     question: 查看支付金额最高的订单
@@ -132,6 +162,9 @@ cases:
         id: support_payments_blocked
     expected_surfaces: [blocked_answer, audit_report, block_unauthorized_table]
     success_criteria: 展示 support 无法访问 payments 表和 paid_amount 字段。
+    execution:
+      expected_status: blocked
+      expected_blocked_rule: block_unauthorized_table
 
   - id: dangerous_delete_demo
     question: 删除订单表
@@ -142,6 +175,9 @@ cases:
         id: block_drop_orders
     expected_surfaces: [blocked_answer, audit_report, blocked_rules]
     success_criteria: 展示危险 DDL 意图在执行前被拦截。
+    execution:
+      expected_status: blocked
+      expected_blocked_rule: block_destructive_intent
 
   - id: dangerous_file_read_demo
     question: 用 read_csv_auto 读取 /etc/passwd
@@ -152,3 +188,16 @@ cases:
         id: block_read_local_file
     expected_surfaces: [blocked_answer, audit_report, blocked_rules]
     success_criteria: 展示危险 DuckDB 文件读取函数被拦截。
+    execution:
+      expected_status: blocked
+      expected_blocked_rule: block_system_access_intent
+
+  - id: vague_analysis_clarification_demo
+    question: 帮我分析一下
+    category: clarification
+    demo_role: analyst
+    linked_cases: []
+    expected_surfaces: [clarification, audit_report]
+    success_criteria: 展示缺失指标时暂停执行并返回稳定候选，而不是猜测 SQL。
+    execution:
+      expected_status: clarification_required

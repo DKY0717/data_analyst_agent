@@ -22,10 +22,12 @@ def load_yaml_cases(path: Path) -> list[dict]:
 
 
 def test_core_path_case_file_exists_and_has_minimum_size():
-    cases = CorePathCaseLoader(CORE_CASE_FILE).load_cases()
+    loader = CorePathCaseLoader(CORE_CASE_FILE)
+    cases = loader.load_cases()
 
     assert CORE_CASE_FILE.exists()
     assert len(cases) >= 12
+    assert loader.load_version() == "1.7"
 
 
 def test_core_path_cases_have_required_fields_and_unique_ids():
@@ -42,9 +44,15 @@ def test_core_path_cases_have_required_fields_and_unique_ids():
             "follow_up",
             "permission",
             "safety_failure",
+            "clarification",
         }
         assert case.expected_surfaces
         assert case.success_criteria
+        assert case.expected_status in {
+            "completed",
+            "blocked",
+            "clarification_required",
+        }
 
 
 def test_core_path_cases_cover_demo_categories():
@@ -56,6 +64,7 @@ def test_core_path_cases_cover_demo_categories():
         "follow_up",
         "permission",
         "safety_failure",
+        "clarification",
     }.issubset(categories)
 
 
@@ -120,11 +129,3 @@ def test_interview_preflight_demo_sequence_matches_core_path_mainline():
 
     for question in mainline_questions:
         assert question in script
-
-
-def test_core_path_cases_do_not_call_llm_or_database():
-    module = (ROOT / "backend" / "evaluation" / "core_path.py").read_text(encoding="utf-8")
-
-    assert "get_agent_graph" not in module
-    assert "query_runner" not in module
-    assert "_call_api" not in module

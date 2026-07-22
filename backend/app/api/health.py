@@ -5,11 +5,13 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import List
+from ..config import settings
 from ..models.schemas import SuccessResponse
 from ..services.query_cache import query_cache
 from ..services.prompt_registry import prompt_registry
 from ..services.ab_test import ab_test_registry, ABTest, ABTestVariant
 from ..db.connection import db_connection
+from ..security import auth as auth_security
 from ..security.auth import AuthUser, require_management_user
 
 router = APIRouter()
@@ -37,6 +39,29 @@ REQUIRED_NON_EMPTY_TABLES = (
     "order_items",
     "payments",
 )
+
+
+def _secure_profile_errors() -> list[str]:
+    """受保护部署缺少认证或隔离时拒绝 readiness，不静默降级为开放模式。"""
+    if settings.DEPLOYMENT_PROFILE != "secure":
+        return []
+
+    errors = []
+    if not settings.SANDBOX_MODE:
+        errors.append("sandbox_disabled")
+    if not auth_security.has_secure_auth_configuration():
+        errors.append("authentication_missing_or_weak")
+    if settings.AUTH_DEMO_ENABLED:
+        errors.append("demo_auth_enabled")
+    if settings.AUTH_PASSWORD_LOGIN_ENABLED:
+        weak_passwords = {"admin", "password", "changeme", "123456"}
+        if (
+            not settings.AUTH_ADMIN_USERNAME
+            or len(settings.AUTH_ADMIN_PASSWORD) < 12
+            or settings.AUTH_ADMIN_PASSWORD.casefold() in weak_passwords
+        ):
+            errors.append("admin_credentials_missing_or_weak")
+    return errors
 
 
 class ABTestVariantCreateRequest(BaseModel):
@@ -123,6 +148,8 @@ async def health_check():
 @router.get("/health/readiness", response_model=SuccessResponse)
 async def readiness_check():
     """就绪检查端点：确认 API 进程、数据库结构和演示数据均可用。"""
+    if _secure_profile_errors():
+        raise HTTPException(status_code=503, detail="服务未就绪")
     try:
         with db_connection.get_session() as conn:
             _execute_fetchone(conn, db_connection.backend, "SELECT 1")
@@ -135,6 +162,12 @@ async def readiness_check():
         message="success",
         data={
             "status": "ready",
+            "deployment_profile": settings.DEPLOYMENT_PROFILE,
+            "sql_execution": {
+                "mode": "sandbox" if settings.SANDBOX_MODE else "direct",
+                "timeout_seconds": settings.SQL_TIMEOUT,
+                "isolated": settings.SANDBOX_MODE,
+            },
             "database": {
                 "ok": True,
                 "backend": db_connection.backend,

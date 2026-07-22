@@ -14,7 +14,7 @@
       </div>
       <div>
         <span>重试次数</span>
-        <strong>{{ report?.retry_count ?? '-' }}</strong>
+        <strong>{{ result?.retry_count ?? '-' }}</strong>
       </div>
     </div>
 
@@ -29,15 +29,15 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  report: {
+  result: {
     type: Object,
     default: null,
   },
 })
 
-const suggestions = computed(() => props.report?.optimization_suggestions || [])
+const suggestions = computed(() => props.result?.optimization_suggestions || [])
 const executionTime = computed(() =>
-  props.report?.execution_time_ms === undefined ? '-' : `${props.report.execution_time_ms}ms`,
+  props.result?.execution_time_ms === undefined ? '-' : `${props.result.execution_time_ms}ms`,
 )
 </script>
 

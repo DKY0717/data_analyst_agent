@@ -2,12 +2,10 @@
 # 测试 QwenAPIClient 的核心功能：JSON 解析、结果格式化、异常处理
 
 import pytest
-import json
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.llm_service import QwenAPIClient
 from app.services.llm_observability import get_calls, start_trace
-from app.utils.exceptions import LLMError, LLMTimeoutError, LLMResponseError
+from app.utils.exceptions import LLMError, LLMResponseError
 
 
 @pytest.fixture
@@ -38,6 +36,7 @@ class TestParseJsonResponse:
         with pytest.raises(LLMResponseError) as exc_info:
             client._parse_json_response(content, "测试")
         assert "不是有效的 JSON" in str(exc_info.value)
+        assert content not in str(exc_info.value)
 
 
 class TestFormatQueryResult:
@@ -117,6 +116,7 @@ class TestGenerateSQLPrompt:
         assert "业务指标口径" in system_prompt
         assert "稳定英文 key 作为输出别名" in system_prompt
         assert "粒度覆盖表达式" in system_prompt
+        assert "不得把 AND、OR 用作裸别名" in system_prompt
         assert "业务语义层" in user_prompt
 
     @pytest.mark.asyncio
@@ -303,7 +303,83 @@ class TestCallAPIObservability:
         assert get_calls()[0]["success"] is True
 
     @pytest.mark.asyncio
-    async def test_final_failure_records_error_type_without_error_message(self, client, monkeypatch):
+    async def test_reasoning_only_responses_stop_at_shared_attempt_budget(
+        self, client, monkeypatch
+    ):
+        """推理模型连续返回空 content 时必须在统一预算内终止。"""
+        start_trace()
+        attempts = {"count": 0}
+        response = FakeHTTPResponse(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "reasoning_content": "internal reasoning",
+                        }
+                    }
+                ]
+            }
+        )
+
+        class RepeatingAsyncClient(FakeAsyncClient):
+            async def post(self, *args, **kwargs):
+                attempts["count"] += 1
+                return response
+
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: RepeatingAsyncClient([]),
+        )
+
+        with pytest.raises(LLMResponseError, match="最大重试次数"):
+            await client._call_api([], 0.1, stage="generate_sql")
+
+        assert attempts["count"] == client.max_retries
+        assert len(get_calls()) == 1
+        assert get_calls()[0]["attempt_count"] == client.max_retries
+        assert get_calls()[0]["error_type"] == "LLMResponseError"
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_responses_share_the_same_attempt_budget(
+        self, client, monkeypatch
+    ):
+        """429 不得通过独立计数器绕过一次逻辑调用的总尝试次数。"""
+        start_trace()
+        attempts = {"count": 0}
+        response = FakeHTTPResponse(
+            {"error": {"code": "rate_limit", "type": "rate_limit_error"}},
+            status_code=429,
+        )
+
+        class RepeatingAsyncClient(FakeAsyncClient):
+            async def post(self, *args, **kwargs):
+                attempts["count"] += 1
+                return response
+
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: RepeatingAsyncClient([]),
+        )
+
+        async def no_sleep(seconds):
+            return None
+
+        monkeypatch.setattr("asyncio.sleep", no_sleep)
+
+        with pytest.raises(LLMResponseError, match="最大重试次数") as exc_info:
+            await client._call_api([], 0.1, stage="generate_sql")
+
+        assert attempts["count"] == client.max_retries
+        assert exc_info.value.status_code == 429
+        assert len(get_calls()) == 1
+        assert get_calls()[0]["attempt_count"] == client.max_retries
+        assert get_calls()[0]["error_type"] == "LLMResponseError"
+
+    @pytest.mark.asyncio
+    async def test_final_failure_records_error_type_without_error_message(
+        self, client, monkeypatch, caplog
+    ):
         start_trace()
         outcomes = [RuntimeError("secret server response")] * client.max_retries
         monkeypatch.setattr(
@@ -324,3 +400,36 @@ class TestCallAPIObservability:
         assert call["attempt_count"] == client.max_retries
         assert call["error_type"] == "RuntimeError"
         assert "secret server response" not in str(call)
+        assert "secret server response" not in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_non_200_exposes_only_sanitized_provider_error_metadata(
+        self, client, monkeypatch
+    ):
+        """保留供应商错误码用于诊断，但不传播可能包含输入数据的 message。"""
+        response = FakeHTTPResponse(
+            {
+                "error": {
+                    "code": "data_inspection_failed",
+                    "type": "invalid_request_error",
+                    "message": "private customer value",
+                }
+            },
+            status_code=400,
+        )
+        monkeypatch.setattr(
+            "app.services.llm_service.httpx.AsyncClient",
+            lambda: FakeAsyncClient([response]),
+        )
+
+        with pytest.raises(LLMResponseError) as exc_info:
+            await client._call_api([], 0.1, stage="generate_answer")
+
+        message = str(exc_info.value)
+        assert "400" in message
+        assert "data_inspection_failed" in message
+        assert "invalid_request_error" in message
+        assert "private customer value" not in message
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.provider_code == "data_inspection_failed"
+        assert exc_info.value.provider_type == "invalid_request_error"

@@ -14,6 +14,7 @@ from .grounding import schema_grounder
 from .clarification import clarification_engine
 from .session_store import session_store
 from .audit import audit_report_builder
+from .progress_notifier import notify_progress, notify_progress_sync
 from ..analysis_intent.models import AnalysisIntent
 from ..analysis_intent.rule_parser import AnalysisIntentRuleParser
 from ..analysis_intent.llm_parser import AnalysisIntentLLMParser
@@ -25,18 +26,35 @@ from ..security.data_permission import data_permission_guard
 from ..db.query_runner import query_runner
 from ..config import settings
 from ..services.llm_observability import get_calls, start_trace
-from ..services.tracing import trace_node, add_span_attributes, record_span_event
+from ..services.tracing import trace_node
+from ..utils.exceptions import LLMError
 from ..utils.logger import logger
 
 
 class AgentGraph:
     """LangGraph Agent 工作流，编排整个数据分析 pipeline"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        llm_parser: AnalysisIntentLLMParser | None = None,
+        sql_generator_service=None,
+        answer_generator_service=None,
+        schema_loader_service=None,
+        query_runner_service=None,
+        sql_optimizer_service=None,
+        session_store_service=None,
+    ):
         # 构建并编译工作流图
         self.rule_parser = AnalysisIntentRuleParser()
-        self.llm_parser = AnalysisIntentLLMParser()
+        self.llm_parser = llm_parser or AnalysisIntentLLMParser()
         self.intent_merger = AnalysisIntentMerger()
+        self._sql_generator = sql_generator_service
+        self._answer_generator = answer_generator_service
+        self._schema_loader = schema_loader_service
+        self._query_runner = query_runner_service
+        self._sql_optimizer = sql_optimizer_service
+        self._session_store = session_store_service
         self.graph = self._build_graph()
 
     def _build_graph(self) -> Any:
@@ -197,7 +215,10 @@ class AgentGraph:
         # 规则层：快速、确定性，提取年份、Top-N、显式业务别名
         rule_intent = self.rule_parser.parse(question)
 
-        # LLM 层：补充复杂、隐式和多意图场景（独立追踪，不污染主 llm_calls）
+        # 恢复请求级轨迹；LangGraph 节点切换后仍要保留意图解析的调用指标。
+        start_trace(state.get("llm_calls") or [])
+
+        # LLM 层：补充复杂、隐式和多意图场景，失败时降级但仍保留失败调用记录。
         llm_intent = None
         try:
             llm_intent = await self.llm_parser.parse(question)
@@ -213,6 +234,7 @@ class AgentGraph:
         return {
             "status": "completed",
             "analysis_intent": merged.model_dump(),
+            "llm_calls": get_calls(),
             "audit_events": self._append_audit_event(
                 state,
                 "intent",
@@ -311,7 +333,7 @@ class AgentGraph:
         """加载数据库 Schema，供后续 SQL 生成使用"""
         logger.info("节点: load_schema - 加载数据库 Schema")
         await self._emit_progress(state, "加载数据库 Schema...", 50)
-        schema = schema_loader.get_full_schema()
+        schema = (self._schema_loader or schema_loader).get_full_schema()
         return {
             "schema_context": schema,
             "audit_events": self._append_audit_event(
@@ -330,7 +352,7 @@ class AgentGraph:
         logger.info("节点: generate_sql - 生成 SQL")
         await self._emit_progress(state, "生成 SQL 查询...", 65)
         start_trace(state.get("llm_calls") or [])
-        output = await sql_generator.generate(
+        output = await (self._sql_generator or sql_generator).generate(
             state["question"],
             state["schema_context"],
             state.get("conversation_context") or "",
@@ -399,12 +421,12 @@ class AgentGraph:
         """执行已通过校验的 SQL 查询"""
         logger.info("节点: execute_sql - 执行 SQL 查询")
         await self._emit_progress(state, "执行 SQL 查询...", 85)
-        result = query_runner.execute(state["validated_sql"])
+        result = (self._query_runner or query_runner).execute(state["validated_sql"])
         status = "success" if result["success"] else "failed"
         return {
             "execution_success": result["success"],
             "query_result": result,
-            "execution_error": result.get("error"),
+            "execution_error": result.get("diagnostic_error") or result.get("error"),
             "execution_error_type": result.get("error_type"),
             "audit_events": self._append_audit_event(
                 state,
@@ -416,6 +438,7 @@ class AgentGraph:
                     "execution_time_ms": result.get("execution_time_ms", 0),
                     "row_count": result.get("row_count", len(result.get("rows", []))),
                     "error_type": result.get("error_type"),
+                    "execution_mode": result.get("execution_mode", "unknown"),
                 },
             ),
         }
@@ -460,7 +483,7 @@ class AgentGraph:
         """基于执行结果和 EXPLAIN 生成 SQL 优化建议"""
         logger.info("节点: optimize_sql - 生成 SQL 优化建议")
         await self._emit_progress(state, "生成优化建议...", 90)
-        suggestions = sql_optimizer.optimize(
+        suggestions = (self._sql_optimizer or sql_optimizer).optimize(
             state["validated_sql"],
             state["query_result"]
         )
@@ -482,13 +505,38 @@ class AgentGraph:
         logger.info("节点: generate_answer - 生成答案")
         await self._emit_progress(state, "生成分析结果...", 95)
         start_trace(state.get("llm_calls") or [])
-        answer = await answer_generator.generate(
-            state["question"],
-            state["validated_sql"],
-            state["query_result"]
-        )
+        try:
+            answer = await (self._answer_generator or answer_generator).generate(
+                state["question"],
+                state["validated_sql"],
+                state["query_result"]
+            )
+        except LLMError as exc:
+            # SQL 已经安全执行时，展示层故障只降级答案，不能让可靠的结构化结果丢失。
+            logger.warning("自然语言答案生成降级: %s", type(exc).__name__)
+            query_result = state.get("query_result") or {}
+            row_count = query_result.get(
+                "row_count", len(query_result.get("rows") or [])
+            )
+            return {
+                "answer": (
+                    f"查询已成功执行，共返回 {row_count} 条记录；"
+                    "自然语言解读暂时不可用。"
+                ),
+                "answer_error": "自然语言答案生成暂时不可用",
+                "llm_calls": get_calls(),
+                "audit_events": self._append_audit_event(
+                    state,
+                    "answer",
+                    "generate_answer",
+                    "degraded",
+                    "自然语言答案生成失败，已保留结构化查询结果",
+                    details={"error_type": type(exc).__name__},
+                ),
+            }
         return {
             "answer": answer,
+            "answer_error": None,
             "llm_calls": get_calls(),
             "audit_events": self._append_audit_event(
                 state,
@@ -523,27 +571,9 @@ class AgentGraph:
         """合并已有审计事件和节点新事件。"""
         return list(state.get("audit_events") or []) + new_events
 
-    @staticmethod
-    async def _emit_progress(state: AgentState, stage: str, progress: int) -> None:
-        """调用进度回调（如果存在），用于 SSE 流式推送。"""
-        cb = state.get("_on_progress")
-        if cb:
-            try:
-                result = cb(stage, progress)
-                if hasattr(result, '__await__'):
-                    await result
-            except Exception:
-                pass
-
-    @staticmethod
-    def _emit_progress_sync(state: AgentState, stage: str, progress: int) -> None:
-        """同步版本的进度回调，用于 LangGraph 在独立线程中运行的同步节点。"""
-        cb = state.get("_on_progress")
-        if cb:
-            try:
-                cb(stage, progress)
-            except Exception:
-                pass
+    # 保留类内调用名以缩小冻结期改动面，具体同步/异步边界统一由独立模块实现。
+    _emit_progress = staticmethod(notify_progress)
+    _emit_progress_sync = staticmethod(notify_progress_sync)
 
     @staticmethod
     def _analysis_intent_from_state(state: AgentState) -> AnalysisIntent:
@@ -633,8 +663,10 @@ class AgentGraph:
         Returns:
             最终的 AgentState，包含 answer 或错误信息
         """
+        active_session_store = self._session_store or session_store
+
         if clarification_response:
-            resolved = session_store.resolve_pending_clarification(
+            resolved = active_session_store.resolve_pending_clarification(
                 session_id,
                 clarification_response["clarification_id"],
                 candidate_id=clarification_response.get("candidate_id"),
@@ -645,7 +677,7 @@ class AgentGraph:
             question = resolved["resolved_question"]
 
         # 在图执行前读取历史摘要，作为显式 state 传入后续节点，避免节点直接访问外部会话存储。
-        conversation_context = session_store.get_context(session_id)
+        conversation_context = active_session_store.get_context(session_id)
         start_trace()
 
         # 初始化状态，所有字段设为默认值
@@ -672,6 +704,7 @@ class AgentGraph:
             "execution_error_type": None,
             "retry_count": 0,
             "answer": None,
+            "answer_error": None,
             "optimization_suggestions": [],
             "audit_events": [],
             "audit_report": None,
@@ -696,7 +729,7 @@ class AgentGraph:
         )
 
         if final_state.get("status") == "clarification_required":
-            session_store.save_pending_clarification(
+            active_session_store.save_pending_clarification(
                 session_id,
                 final_state["question"],
                 final_state.get("clarification_request") or {},
@@ -708,7 +741,7 @@ class AgentGraph:
             return final_state
 
         # 图完成后再写回本轮摘要；失败轮也保留问题和 SQL，方便下一轮提示用户换问法或继续修复。
-        session_store.append_turn(session_id, final_state)
+        active_session_store.append_turn(session_id, final_state)
 
         return final_state
 
@@ -748,6 +781,7 @@ class AgentGraph:
             "execution_error_type": None,
             "retry_count": 0,
             "answer": "澄清请求已过期或候选无效，请重新提问。",
+            "answer_error": None,
             "optimization_suggestions": [],
             "audit_events": [event],
             "audit_report": None,

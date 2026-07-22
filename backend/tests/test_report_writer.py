@@ -112,3 +112,42 @@ def test_report_writer_uses_environment_report_directory(monkeypatch, tmp_path):
 
     assert paths["json"].parent == tmp_path
     assert paths["markdown"].parent == tmp_path
+
+
+def test_report_writer_surfaces_permission_failure_without_policy_dump():
+    """Markdown 应展示权限规则和脱敏原因，但不得包含策略表达式或身份数据。"""
+    report = sample_report()
+    report["results"] = [
+        {
+            "case_id": "permission_block",
+            "question": "查询客户姓名",
+            "category": "permission",
+            "safety_expected": "safe",
+            "generation_success": True,
+            "guard_passed": True,
+            "permission_allowed": False,
+            "permission_rule_id": "block_unauthorized_column",
+            "execution_success": False,
+            "repair_success": False,
+            "safety_expectation_met": False,
+            "blocked_stage": "permission_guard",
+            "intent_rule_id": None,
+            "retry_count": 0,
+            "execution_time_ms": 0,
+            "sql": "SELECT customer_name FROM customers LIMIT 1000",
+            "error": "当前角色无权访问字段: customers.customer_name",
+            "llm_call_count": 2,
+            "llm_total_tokens": 1000,
+            "llm_latency_ms": 2000,
+            "llm_estimated_cost": None,
+        }
+    ]
+
+    markdown = ReportWriter(timestamp="permission").to_markdown(report)
+
+    assert "Permission Rule" in markdown
+    assert "permission_guard" in markdown
+    assert "block_unauthorized_column" in markdown
+    assert "当前角色无权访问字段: customers.customer_name" in markdown
+    assert "region_id IN (1, 2)" not in markdown
+    assert "user_id" not in markdown

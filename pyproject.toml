@@ -1,0 +1,25 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = ["user_docs"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["backend/app", "backend/evaluation"]
+omit = ["backend/tests/*"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]

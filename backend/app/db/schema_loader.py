@@ -12,8 +12,14 @@ from ..utils.exceptions import SchemaLoadError
 class SchemaLoader:
     """数据库Schema加载器（双后端支持）"""
 
-    def __init__(self):
-        self.db = db_connection
+    def __init__(self, db=None):
+        # Core-path 等确定性评测可注入隔离连接；生产使用全局数据库连接。
+        self._db = db
+
+    @property
+    def db(self):
+        """未注入时动态读取全局连接，保留运行时后端切换和测试替换能力。"""
+        return self._db or db_connection
 
     @property
     def _is_pg(self) -> bool:
@@ -39,8 +45,8 @@ class SchemaLoader:
                 )
                 return [row[0] for row in cur.fetchall()]
         except Exception as e:
-            logger.error(f"获取表列表失败: {e}")
-            raise SchemaLoadError(f"获取表列表失败: {e}")
+            logger.error("获取表列表失败: %s", type(e).__name__)
+            raise SchemaLoadError("获取表列表失败") from e
 
     def get_table_schema(self, table_name: str) -> Dict[str, Any]:
         """获取指定表的结构信息"""
@@ -80,8 +86,8 @@ class SchemaLoader:
                     "foreign_keys": foreign_keys,
                 }
         except Exception as e:
-            logger.error(f"获取表 {table_name} 结构失败: {e}")
-            raise SchemaLoadError(f"获取表 {table_name} 结构失败: {e}")
+            logger.error("获取表结构失败: %s", type(e).__name__)
+            raise SchemaLoadError("获取表结构失败") from e
 
     def _get_pg_constraints(self, conn, table_name: str) -> tuple:
         """PostgreSQL 约束查询"""
@@ -147,8 +153,8 @@ class SchemaLoader:
                 schema[table] = self.get_table_schema(table)
             return {"tables": schema}
         except Exception as e:
-            logger.error(f"获取完整Schema失败: {e}")
-            raise SchemaLoadError(f"获取完整Schema失败: {e}")
+            logger.error("获取完整 Schema 失败: %s", type(e).__name__)
+            raise SchemaLoadError("获取完整 Schema 失败") from e
 
     @staticmethod
     def _parse_constraints(constraints: List[tuple]) -> tuple:

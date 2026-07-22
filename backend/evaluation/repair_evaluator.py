@@ -1,7 +1,9 @@
 # SQL Repair 故障注入评测器
 # 用固定安全错误 SQL 获取真实数据库错误，再独立量化 Repair 的安全性、可执行性和意图保持能力。
 
+import argparse
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
@@ -12,7 +14,16 @@ from app.db.query_runner import query_runner
 from app.db.schema_loader import schema_loader
 from app.security.sql_guard import sql_guard
 from app.services.llm_observability import start_trace, summarize
+from app.utils.logger import logger
 from evaluation.repair_report_writer import RepairReportWriter
+from evaluation.shard_support import (
+    AtomicCheckpointWriter,
+    ShardCliOptions,
+    ShardSpec,
+    add_shard_cli_arguments,
+    resolve_shard_cli_options,
+    run_evaluation_shard,
+)
 
 
 class RepairEvaluationRunner:
@@ -99,17 +110,45 @@ class RepairEvaluationRunner:
         )
         return self._with_llm_metrics(result)
 
-    async def evaluate_all(self) -> Dict[str, Any]:
-        """逐条运行 case；任一 case 的结构化失败不会终止整批。"""
+    async def _evaluate_case_isolated(self, case: Dict[str, Any]) -> Dict[str, Any]:
+        """把依赖层意外异常转换为稳定结果，让完整模式和分片模式行为一致。"""
+        try:
+            return await self.evaluate_case(case)
+        except Exception as exc:
+            failed_result = self._empty_result(case)
+            failed_result["error"] = str(exc)
+            return failed_result
+
+    async def evaluate_all(
+        self,
+        *,
+        shard: ShardSpec | None = None,
+        checkpoint_output: str | Path | None = None,
+        head_sha: str = "",
+        provider: str = "",
+        model: str = "",
+    ) -> Dict[str, Any]:
+        """逐条运行完整 case pack，或运行一个可恢复的固定分片。"""
+        cases = self.load_cases()
+        if shard is not None:
+            if checkpoint_output is None:
+                raise ValueError("分片评测必须提供 checkpoint 输出路径")
+            return await run_evaluation_shard(
+                cases=cases,
+                evaluate_case=self._evaluate_case_isolated,
+                summarize=self.summarize_results,
+                shard=shard,
+                suite="repair",
+                case_file=self.case_file,
+                checkpoint_writer=AtomicCheckpointWriter(checkpoint_output).write,
+                head_sha=head_sha,
+                provider=provider,
+                model=model,
+            )
+
         results = []
-        for case in self.load_cases():
-            try:
-                results.append(await self.evaluate_case(case))
-            except Exception as exc:
-                # 依赖层意外异常也转换为稳定结果，保证真实长批次不会丢失后续 case。
-                failed_result = self._empty_result(case)
-                failed_result["error"] = str(exc)
-                results.append(failed_result)
+        for case in cases:
+            results.append(await self._evaluate_case_isolated(case))
         return {"summary": self.summarize_results(results), "results": results}
 
     def check_intent(self, repaired_sql: str, case: Dict[str, Any]) -> Dict[str, bool]:
@@ -231,16 +270,37 @@ class RepairEvaluationRunner:
         return result
 
 
-async def main_async() -> None:
-    """CLI 入口：运行完整 Repair 评测并写入独立报告。"""
-    runner = RepairEvaluationRunner()
-    report = await runner.evaluate_all()
-    RepairReportWriter().write(report)
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="运行 SQL Repair 真实模型评测")
+    add_shard_cli_arguments(parser)
+    return parser.parse_args(argv)
 
 
-def main() -> None:
-    asyncio.run(main_async())
+async def main_async(options: ShardCliOptions | None = None) -> Dict[str, Any]:
+    """完整模式写正式报告，分片模式只维护固定 checkpoint。"""
+    options = options or ShardCliOptions(None, None, None)
+    runner = RepairEvaluationRunner(case_file=options.case_file)
+    report = await runner.evaluate_all(
+        shard=options.shard,
+        checkpoint_output=options.checkpoint_output,
+        head_sha=os.getenv("EVALUATION_HEAD_SHA", ""),
+        provider=os.getenv("LLM_PROVIDER", ""),
+        model=os.getenv("QWEN_MODEL", ""),
+    )
+    if options.shard is None:
+        RepairReportWriter().write(report)
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        options = resolve_shard_cli_options(parse_args(argv))
+        asyncio.run(main_async(options))
+        return 0
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        logger.error("SQL Repair 评测初始化失败，异常类型=%s", type(exc).__name__)
+        return 2
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

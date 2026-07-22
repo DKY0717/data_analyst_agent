@@ -1,9 +1,12 @@
 # Evaluator 测试
 # 使用 fake runner 让评测指标可稳定测试，不依赖真实 Qwen API。
 
+import json
+
 import pytest
 
-from evaluation.evaluator import EvaluationRunner
+from evaluation.evaluator import EvaluationRunner, parse_args
+from evaluation.shard_support import ShardSpec, resolve_shard_cli_options
 
 
 async def fake_runner_success(question: str):
@@ -47,6 +50,7 @@ async def fake_runner_unsafe(question: str):
         "answer": None,
         "optimization_suggestions": [],
         "audit_report": {
+            "blocked_rules": ["block_statement_type"],
             "llm_observability": {
                 "call_count": 1,
                 "total_tokens": 800,
@@ -72,6 +76,33 @@ async def fake_runner_intent_blocked(question: str):
         "retry_count": 0,
         "answer": "请求已被安全策略阻断",
         "audit_report": {"llm_observability": {"call_count": 0}},
+    }
+
+
+async def fake_runner_permission_blocked(question: str):
+    return {
+        "question": question,
+        "intent_is_safe": True,
+        "generated_sql": "SELECT c.customer_name FROM customers c",
+        "validated_sql": "SELECT c.customer_name FROM customers c LIMIT 1000",
+        "is_sql_safe": True,
+        "permission_allowed": False,
+        "permission_error": "当前角色无权访问字段: customers.customer_name",
+        "execution_success": False,
+        "query_result": None,
+        "retry_count": 0,
+        "answer": "请求已被数据权限策略阻断",
+        "audit_report": {
+            "events": [
+                {
+                    "stage": "authorization",
+                    "status": "blocked",
+                    "rule_id": "block_unauthorized_column",
+                }
+            ],
+            "blocked_rules": ["block_unauthorized_column"],
+            "llm_observability": {"call_count": 2},
+        },
     }
 
 
@@ -120,6 +151,8 @@ async def test_evaluate_unsafe_case_blocked_successfully():
     assert result["intent_is_safe"] is True
     assert result["intent_blocked"] is False
     assert result["blocked_stage"] == "sql_guard"
+    assert result["permission_allowed"] is True
+    assert result["permission_rule_id"] is None
 
 
 @pytest.mark.asyncio
@@ -139,6 +172,44 @@ async def test_evaluate_unsafe_case_blocked_by_intent_guard():
     assert result["intent_rule_id"] == "block_destructive_intent"
     assert result["blocked_stage"] == "intent_guard"
     assert result["safety_expectation_met"] is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_permission_block_surfaces_stage_rule_and_reason():
+    """权限误阻断必须在报告中可诊断，但不能被算作正常 case 成功。"""
+    runner = EvaluationRunner(agent_runner=fake_runner_permission_blocked)
+    case = {
+        "id": "customer_name_permission_block",
+        "question": "查询客户姓名",
+        "category": "permission",
+        "safety_expected": "safe",
+    }
+
+    result = await runner.evaluate_case(case)
+
+    assert result["blocked_stage"] == "permission_guard"
+    assert result["permission_allowed"] is False
+    assert result["permission_rule_id"] == "block_unauthorized_column"
+    assert result["error"] == "当前角色无权访问字段: customers.customer_name"
+    assert result["execution_success"] is False
+    assert result["safety_expectation_met"] is False
+
+
+@pytest.mark.asyncio
+async def test_permission_guard_cannot_substitute_for_unsafe_sql_block():
+    """危险 case 只能由 Intent/SQL Guard 证明安全，权限阻断不能掩盖 SQL 风险。"""
+    runner = EvaluationRunner(agent_runner=fake_runner_permission_blocked)
+    case = {
+        "id": "unsafe_permission_only",
+        "question": "危险查询",
+        "category": "safety",
+        "safety_expected": "unsafe",
+    }
+
+    result = await runner.evaluate_case(case)
+
+    assert result["blocked_stage"] == "permission_guard"
+    assert result["safety_expectation_met"] is False
 
 
 def test_summarize_results_calculates_rates():
@@ -347,3 +418,92 @@ cases:
     assert report["summary"]["total_cases"] == 2
     assert report["summary"]["safety_expectation_met_rate"] == 1.0
     assert [item["case_id"] for item in report["results"]] == ["order_count", "block_drop"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_all_isolates_agent_exception_and_keeps_complete_report(tmp_path):
+    """单条外部模型异常必须记为失败并继续后续 case，不能让整批报告消失。"""
+    case_file = tmp_path / "cases.yaml"
+    case_file.write_text(
+        """
+cases:
+  - id: transient_failure
+    question: 触发外部模型异常
+    category: reliability
+    safety_expected: safe
+  - id: order_count
+    question: 统计订单数
+    category: aggregation
+    safety_expected: safe
+""",
+        encoding="utf-8",
+    )
+
+    async def flaky_runner(question: str):
+        if "异常" in question:
+            raise RuntimeError("private provider response")
+        return await fake_runner_success(question)
+
+    runner = EvaluationRunner(agent_runner=flaky_runner, case_file=case_file)
+    report = await runner.evaluate_all()
+
+    assert report["summary"]["total_cases"] == 2
+    assert report["summary"]["safe_execution_success_rate"] == 0.5
+    assert report["results"][0]["blocked_stage"] == "agent_error"
+    assert report["results"][0]["evaluation_error_type"] == "RuntimeError"
+    assert "private provider response" not in str(report["results"][0])
+    assert report["results"][1]["execution_success"] is True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_all_runs_only_selected_shard_and_writes_checkpoint(tmp_path):
+    case_file = tmp_path / "cases.yaml"
+    case_file.write_text(
+        """
+cases:
+  - {id: case_0, question: 问题0, category: aggregation, safety_expected: safe}
+  - {id: case_1, question: 问题1, category: aggregation, safety_expected: safe}
+  - {id: case_2, question: 问题2, category: aggregation, safety_expected: safe}
+  - {id: case_3, question: 问题3, category: aggregation, safety_expected: safe}
+""",
+        encoding="utf-8",
+    )
+    calls = []
+
+    async def recording_runner(question):
+        calls.append(question)
+        return await fake_runner_success(question)
+
+    checkpoint = tmp_path / "nl2sql-shard.json"
+    runner = EvaluationRunner(agent_runner=recording_runner, case_file=case_file)
+
+    report = await runner.evaluate_all(
+        shard=ShardSpec(index=1, count=2),
+        checkpoint_output=checkpoint,
+        head_sha="abc123",
+        provider="mimo",
+        model="mimo-v2.5-pro",
+        inter_case_delay_seconds=0,
+    )
+
+    assert calls == ["问题1", "问题3"]
+    assert [item["case_id"] for item in report["results"]] == ["case_1", "case_3"]
+    assert json.loads(checkpoint.read_text(encoding="utf-8")) == report
+    assert report["shard"]["complete"] is True
+
+
+def test_nl2sql_cli_exposes_shared_shard_contract():
+    args = parse_args(
+        [
+            "--case-file",
+            "cases.yaml",
+            "--shard-index",
+            "0",
+            "--shard-count",
+            "2",
+            "--checkpoint-output",
+            "checkpoint.json",
+        ]
+    )
+
+    assert resolve_shard_cli_options(args).shard == ShardSpec(index=0, count=2)

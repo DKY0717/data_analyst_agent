@@ -60,6 +60,38 @@ def test_sql_guard_add_limit():
     assert result["limit_injected"] is True
     assert any(event["action"] == "inject_limit" for event in result["audit_events"])
 
+
+def test_sql_guard_clamps_existing_limit_above_maximum():
+    """已有 LIMIT 也不能绕过 SQL_MAX_ROWS 硬上限。"""
+    guard = SQLGuard(max_rows=1000)
+
+    result = guard.validate("SELECT * FROM orders LIMIT 5000")
+
+    assert result["is_safe"] is True
+    assert "LIMIT 1000" in result["sanitized_sql"].upper()
+    assert result["limit_injected"] is False
+    assert result["limit_clamped"] is True
+    clamp_event = next(event for event in result["audit_events"] if event["action"] == "clamp_limit")
+    assert clamp_event["details"] == {"original_limit": 5000, "max_rows": 1000}
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM orders LIMIT ?",
+        "SELECT * FROM orders LIMIT -1",
+        "SELECT * FROM orders LIMIT ALL",
+        "SELECT * FROM orders LIMIT 10 + 1",
+    ],
+)
+def test_sql_guard_blocks_dynamic_or_invalid_limit(sql):
+    """无法静态证明安全上限的 LIMIT 必须 fail-closed。"""
+    result = SQLGuard(max_rows=1000).validate(sql)
+
+    assert result["is_safe"] is False
+    assert result["blocked_rule"] == "block_invalid_limit"
+    assert "LIMIT" in result["reason"]
+
 def test_sql_guard_adds_limit_when_limit_only_appears_in_string_literal():
     """字符串里出现 LIMIT 不能骗过顶层 LIMIT 注入"""
     guard = SQLGuard()

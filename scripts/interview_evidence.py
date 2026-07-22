@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-DEFAULT_ARTIFACT_DIR_TEMPLATE = "artifacts/real-qwen-evaluation-{run_id}"
+DEFAULT_ARTIFACT_DIR_TEMPLATE = "artifacts/real-llm-evaluation-{run_id}"
 
 
 def build_evidence_checklist(
@@ -32,14 +32,14 @@ def build_evidence_checklist(
         "cd backend && python -m evaluation.security_audit_exporter --write-report",
         "```",
         "",
-        "## 2. 远端真实 Qwen 评测证据",
+        "## 2. 远端真实模型评测证据",
         "",
         "```bash",
         "gh run list --workflow real-qwen-evaluation.yml --limit 5",
         f"gh run view {resolved_run_id} --json status,conclusion,url",
         (
             f"gh run download {resolved_run_id} "
-            f"--name real-qwen-evaluation-{resolved_run_id} "
+            f"--name real-llm-evaluation-{resolved_run_id} "
             f"--dir {resolved_artifact_dir}"
         ),
         "```",
@@ -53,11 +53,13 @@ def build_evidence_checklist(
         "- `result-correctness-evaluation-*.md/json`",
         "- `intent-grounding-evaluation-*.md/json`",
         "- `permission-evaluation-*.md/json`",
+        "- `run-metadata.md/json`",
+        "- `real-model-smoke.json`",
         "",
         "## 3. 面试展示顺序",
         "",
         "1. 先展示基础 CI 全绿，证明普通 push 不依赖真实 LLM secret。",
-        "2. 再展示 Real Qwen workflow artifact，证明真实模型闭环可复现。",
+        "2. 再展示 Real LLM workflow artifact，核对 provider/model/HEAD 后证明真实模型闭环可复现。",
         "3. 打开 `security-audit-*.md/json`，讲清输入完整性、质量门禁和安全证据矩阵。",
         "4. 最后切到前端权限演示，展示 analyst 行级过滤、越权阻断和 admin 对照。",
         "",
@@ -68,7 +70,7 @@ def build_evidence_checklist(
 def main(argv: list[str] | None = None) -> int:
     """CLI 入口；默认写 stdout，可选写入 Markdown 文件。"""
     parser = argparse.ArgumentParser(description="生成 Data Analyst Agent 面试证据包清单")
-    parser.add_argument("--run-id", help="真实 Qwen workflow 的 GitHub Actions run id")
+    parser.add_argument("--run-id", help="真实模型 workflow 的 GitHub Actions run id")
     parser.add_argument("--artifact-dir", help="下载 artifact 的目标目录")
     parser.add_argument("--output", type=Path, help="可选 Markdown 输出路径")
     args = parser.parse_args(argv)

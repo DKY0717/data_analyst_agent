@@ -1,0 +1,14 @@
+# 与 docker-compose.yml 叠加使用；缺失关键变量时 Compose 在启动前直接失败。
+services:
+  backend:
+    environment:
+      - DEPLOYMENT_PROFILE=secure
+      - SANDBOX_MODE=true
+      - AUTH_DEMO_ENABLED=false
+      - AUTH_PASSWORD_LOGIN_ENABLED=false
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required for secure deployment}
+      - API_KEYS=${API_KEYS:-}
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:?CORS_ALLOW_ORIGINS is required}
+      - QWEN_API_KEY=${QWEN_API_KEY:?QWEN_API_KEY is required}
+      - QWEN_API_URL=${QWEN_API_URL:?QWEN_API_URL is required}
+      - QWEN_MODEL=${QWEN_MODEL:?QWEN_MODEL is required}

@@ -67,13 +67,14 @@ class ReportWriter:
             "",
             "## Case 明细",
             "",
-            "| Case | 分类 | 安全预期 | 阻断阶段 | Intent Rule | 生成 | Guard | 执行 | 修复 | 安全命中 | 重试 | DB耗时(ms) | LLM调用 | Token | LLM耗时(ms) |",
-            "|---|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|",
+            "| Case | 分类 | 安全预期 | 阻断阶段 | Intent Rule | Permission Rule | 权限 | 生成 | Guard | 执行 | 修复 | 安全命中 | 重试 | DB耗时(ms) | LLM调用 | Token | LLM耗时(ms) |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---:|---:|---:|---:|---:|",
         ]
 
         for item in results:
             lines.append(
-                "| {case_id} | {category} | {safety_expected} | {blocked_stage} | {intent_rule_id} | {generation} | {guard} | "
+                "| {case_id} | {category} | {safety_expected} | {blocked_stage} | {intent_rule_id} | "
+                "{permission_rule_id} | {permission} | {generation} | {guard} | "
                 "{execution} | {repair} | {safety} | {retry_count} | {execution_time_ms} | "
                 "{llm_call_count} | {llm_total_tokens} | {llm_latency_ms} |".format(
                     case_id=item["case_id"],
@@ -81,6 +82,8 @@ class ReportWriter:
                     safety_expected=item["safety_expected"],
                     blocked_stage=item.get("blocked_stage", "none"),
                     intent_rule_id=item.get("intent_rule_id") or "无",
+                    permission_rule_id=item.get("permission_rule_id") or "无",
+                    permission=self._format_bool(item.get("permission_allowed", True)),
                     generation=self._format_bool(item["generation_success"]),
                     guard=self._format_bool(item["guard_passed"]),
                     execution=self._format_bool(item["execution_success"]),

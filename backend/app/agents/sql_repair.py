@@ -7,6 +7,7 @@ from ..services.llm_service import llm_client
 from ..models.schemas import SQLRepairOutput
 from ..utils.schema_formatter import format_physical_schema
 from ..utils.logger import logger
+from ..services.tracing import build_sql_metadata
 from ..utils.exceptions import SQLRepairError
 from ..security.error_classifier import classify_sql_error, SQLErrorCategory
 
@@ -118,7 +119,7 @@ class SQLRepairAgent:
 
         # 1. 错误分类
         classified = classify_sql_error(error_message, error_type)
-        logger.info(f"SQL 错误分类: {classified.category.value}, 目标: {classified.extracted_target}")
+        logger.info("SQL 错误分类: %s", classified.category.value)
 
         # 2. 选择修复策略
         strategy = _REPAIR_STRATEGIES.get(classified.category, _DEFAULT_STRATEGY)
@@ -140,15 +141,22 @@ class SQLRepairAgent:
                 repair_reason=repair_reason,
             )
 
-            logger.info(f"SQL 修复成功 ({classified.category.value}): {output.repaired_sql[:100]}...")
+            metadata = build_sql_metadata(output.repaired_sql)
+            logger.info(
+                "SQL 修复成功 (%s): hash=%s type=%s tables=%s",
+                classified.category.value,
+                metadata["hash"],
+                metadata["statement_type"],
+                metadata["tables"],
+            )
             return output
 
         except (KeyError, TypeError) as e:
-            logger.error(f"SQL 修复结果格式错误: {e}")
-            raise SQLRepairError(f"SQL 修复结果格式错误: {e}")
+            logger.error("SQL 修复结果格式错误: %s", type(e).__name__)
+            raise SQLRepairError("SQL 修复结果格式错误") from e
         except Exception as e:
-            logger.error(f"SQL 修复异常: {e}")
-            raise SQLRepairError(f"SQL 修复失败: {e}")
+            logger.error("SQL 修复异常: %s", type(e).__name__)
+            raise SQLRepairError("SQL 修复失败") from e
 
     def _format_schema(self, schema_context: Dict[str, Any]) -> str:
         return format_physical_schema(schema_context)

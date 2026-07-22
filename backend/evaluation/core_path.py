@@ -15,7 +15,10 @@ CORE_PATH_CATEGORIES = {
     "follow_up",
     "permission",
     "safety_failure",
+    "clarification",
 }
+
+EXECUTION_STATUSES = {"completed", "blocked", "clarification_required"}
 
 
 class CorePathCaseError(ValueError):
@@ -33,6 +36,9 @@ class CorePathCase:
     linked_cases: list[dict[str, str]]
     expected_surfaces: list[str]
     success_criteria: str
+    expected_status: str
+    expected_blocked_rule: str | None
+    setup_case_id: str | None
 
 
 class CorePathCaseLoader:
@@ -63,6 +69,13 @@ class CorePathCaseLoader:
             grouped[case.category].append(case)
         return grouped
 
+    def load_version(self) -> str:
+        """返回 case pack 版本，供本地和真实模型报告绑定同一评测口径。"""
+        version = self._load_payload().get("version")
+        if not isinstance(version, str) or not version.strip():
+            raise CorePathCaseError("core path case pack must define a version")
+        return version.strip()
+
     def _load_payload(self) -> dict[str, Any]:
         if not self.case_file.exists():
             raise CorePathCaseError(f"core path case file not found: {self.case_file}")
@@ -92,6 +105,15 @@ class CorePathCaseLoader:
         if not isinstance(expected_surfaces, list) or not expected_surfaces:
             raise CorePathCaseError(f"{case_id}: expected_surfaces must be a non-empty list")
 
+        execution = raw_case.get("execution")
+        if not isinstance(execution, dict):
+            raise CorePathCaseError(f"{case_id}: execution must be a mapping")
+        expected_status = self._required_string(execution, "expected_status")
+        if expected_status not in EXECUTION_STATUSES:
+            raise CorePathCaseError(
+                f"{case_id}: unsupported execution status {expected_status}"
+            )
+
         return CorePathCase(
             case_id=case_id,
             question=self._required_string(raw_case, "question"),
@@ -100,6 +122,9 @@ class CorePathCaseLoader:
             linked_cases=linked_cases,
             expected_surfaces=[str(item) for item in expected_surfaces],
             success_criteria=self._required_string(raw_case, "success_criteria"),
+            expected_status=expected_status,
+            expected_blocked_rule=execution.get("expected_blocked_rule"),
+            setup_case_id=execution.get("setup_case_id"),
         )
 
     @staticmethod
@@ -116,3 +141,10 @@ class CorePathCaseLoader:
             if case.case_id in seen:
                 raise CorePathCaseError(f"duplicate core path case id: {case.case_id}")
             seen.add(case.case_id)
+
+        case_ids = {case.case_id for case in cases}
+        for case in cases:
+            if case.setup_case_id and case.setup_case_id not in case_ids:
+                raise CorePathCaseError(
+                    f"{case.case_id}: unknown setup case {case.setup_case_id}"
+                )

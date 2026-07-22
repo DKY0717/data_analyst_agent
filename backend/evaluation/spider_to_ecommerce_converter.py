@@ -1,10 +1,9 @@
 # Spider → 电商 Schema 转换器
 # 将 Spider 数据集的 NL2SQL case 转换为适配电商 schema 的版本
 
-import json
 import yaml
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 SPIDER_CASES_FILE = Path(__file__).parent / "cases" / "spider_nl2sql_cases.yaml"
 OUTPUT_FILE = Path(__file__).parent / "cases" / "ecommerce_spider_cases.yaml"

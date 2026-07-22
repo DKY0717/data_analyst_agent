@@ -1,14 +1,25 @@
 # NL2SQL 评测运行器
 # 用固定 case 集量化 Agent 的生成、校验、执行、修复和安全表现。
 
+import argparse
 import asyncio
+import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List
 
 import yaml
 
 from app.agents.graph import get_agent_graph
+from app.utils.logger import logger
 from evaluation.report_writer import ReportWriter
+from evaluation.shard_support import (
+    AtomicCheckpointWriter,
+    ShardCliOptions,
+    ShardSpec,
+    add_shard_cli_arguments,
+    resolve_shard_cli_options,
+    run_evaluation_shard,
+)
 
 
 AgentRunner = Callable[[str], Awaitable[Dict[str, Any]]]
@@ -28,7 +39,11 @@ class EvaluationRunner:
 
     async def evaluate_case(self, case: Dict[str, Any]) -> Dict[str, Any]:
         """运行单条 case，返回结构化评测结果"""
-        final_state = await self.agent_runner(case["question"])
+        try:
+            final_state = await self.agent_runner(case["question"])
+        except Exception as exc:
+            # 外部模型/网络的单条异常必须计入失败，但不能阻断剩余固定 case 和报告落盘。
+            return self._failed_case_result(case, type(exc).__name__)
         query_result = final_state.get("query_result") or {}
         generated_sql = final_state.get("generated_sql") or ""
         validated_sql = final_state.get("validated_sql") or ""
@@ -45,11 +60,19 @@ class EvaluationRunner:
         intent_is_safe = bool(final_state.get("intent_is_safe", True))
         intent_blocked = not intent_is_safe
         intent_rule_id = final_state.get("intent_rule_id")
+        permission_allowed = final_state.get("permission_allowed") is not False
+        permission_rule_id = (
+            self._permission_rule_id(final_state)
+            if not permission_allowed
+            else None
+        )
         blocked_stage = (
             "intent_guard"
             if intent_blocked
             else "sql_guard"
             if not guard_passed
+            else "permission_guard"
+            if not permission_allowed
             else "none"
         )
         safety_expectation_met = (
@@ -69,6 +92,8 @@ class EvaluationRunner:
             "blocked_stage": blocked_stage,
             "generation_success": generation_success,
             "guard_passed": guard_passed,
+            "permission_allowed": permission_allowed,
+            "permission_rule_id": permission_rule_id,
             "execution_success": execution_success,
             "repair_success": repair_success,
             "safety_expectation_met": safety_expectation_met,
@@ -80,21 +105,98 @@ class EvaluationRunner:
             "llm_estimated_cost": llm_observability.get("estimated_cost"),
             "llm_cost_available": bool(llm_observability.get("cost_available", False)),
             "sql": validated_sql or generated_sql,
+            "evaluation_error_type": None,
             "error": (
                 final_state.get("intent_error")
-                or final_state.get("execution_error")
                 or final_state.get("validation_error")
+                or final_state.get("permission_error")
+                or final_state.get("execution_error")
             ),
         }
 
-    async def evaluate_all(self) -> Dict[str, Any]:
-        """运行全部 case 并生成 summary + results"""
-        results = []
+    @staticmethod
+    def _failed_case_result(
+        case: Dict[str, Any], error_type: str
+    ) -> Dict[str, Any]:
+        """把单 case 异常转换成不含供应商原始响应的稳定失败记录。"""
+        return {
+            "case_id": case["id"],
+            "question": case["question"],
+            "category": case["category"],
+            "safety_expected": case.get("safety_expected", "safe"),
+            "intent_is_safe": False,
+            "intent_blocked": False,
+            "intent_rule_id": None,
+            "blocked_stage": "agent_error",
+            "generation_success": False,
+            "guard_passed": False,
+            "permission_allowed": False,
+            "permission_rule_id": None,
+            "execution_success": False,
+            "repair_success": False,
+            "safety_expectation_met": False,
+            "retry_count": 0,
+            "execution_time_ms": 0,
+            "llm_call_count": 0,
+            "llm_total_tokens": 0,
+            "llm_latency_ms": 0,
+            "llm_estimated_cost": None,
+            "llm_cost_available": False,
+            "sql": "",
+            "evaluation_error_type": error_type,
+            "error": f"Agent 执行异常: {error_type}",
+        }
+
+    @staticmethod
+    def _permission_rule_id(final_state: Dict[str, Any]) -> str | None:
+        """只提取权限阻断规则 ID，不把身份或完整策略写入评测报告。"""
+        audit_report = final_state.get("audit_report") or {}
+        for event in reversed(audit_report.get("events") or []):
+            if (
+                event.get("stage") == "authorization"
+                and event.get("status") == "blocked"
+                and event.get("rule_id")
+            ):
+                return str(event["rule_id"])
+
+        # 兼容精简 runner 只提供 blocked_rules 的情况；完整 Agent 报告优先使用阶段事件。
+        blocked_rules = audit_report.get("blocked_rules") or []
+        return str(blocked_rules[-1]) if blocked_rules else None
+
+    async def evaluate_all(
+        self,
+        *,
+        shard: ShardSpec | None = None,
+        checkpoint_output: str | Path | None = None,
+        head_sha: str = "",
+        provider: str = "",
+        model: str = "",
+        inter_case_delay_seconds: float = 3,
+    ) -> Dict[str, Any]:
+        """运行完整 case pack，或运行一个带增量 checkpoint 的固定分片。"""
         cases = self.load_cases()
+        if shard is not None:
+            if checkpoint_output is None:
+                raise ValueError("分片评测必须提供 checkpoint 输出路径")
+            return await run_evaluation_shard(
+                cases=cases,
+                evaluate_case=self.evaluate_case,
+                summarize=self.summarize_results,
+                shard=shard,
+                suite="nl2sql",
+                case_file=self.case_file,
+                checkpoint_writer=AtomicCheckpointWriter(checkpoint_output).write,
+                head_sha=head_sha,
+                provider=provider,
+                model=model,
+                inter_case_delay_seconds=inter_case_delay_seconds,
+            )
+
+        results = []
         for i, case in enumerate(cases):
             results.append(await self.evaluate_case(case))
             if i < len(cases) - 1:
-                await asyncio.sleep(3)
+                await asyncio.sleep(inter_case_delay_seconds)
 
         return {
             "summary": self.summarize_results(results),
@@ -179,17 +281,38 @@ class EvaluationRunner:
         return sum(1 for item in results if item.get(key) == value) / len(results)
 
 
-async def main_async() -> None:
-    """命令行入口：运行评测并输出报告"""
-    runner = EvaluationRunner()
-    report = await runner.evaluate_all()
-    writer = ReportWriter()
-    writer.write(report)
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="运行 NL2SQL 真实模型评测")
+    add_shard_cli_arguments(parser)
+    return parser.parse_args(argv)
 
 
-def main() -> None:
-    asyncio.run(main_async())
+async def main_async(options: ShardCliOptions | None = None) -> Dict[str, Any]:
+    """命令行入口：完整模式写正式报告，分片模式只写稳定 checkpoint。"""
+    options = options or ShardCliOptions(None, None, None)
+    runner = EvaluationRunner(case_file=options.case_file)
+    report = await runner.evaluate_all(
+        shard=options.shard,
+        checkpoint_output=options.checkpoint_output,
+        head_sha=os.getenv("EVALUATION_HEAD_SHA", ""),
+        provider=os.getenv("LLM_PROVIDER", ""),
+        model=os.getenv("QWEN_MODEL", ""),
+    )
+    if options.shard is None:
+        ReportWriter().write(report)
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        options = resolve_shard_cli_options(parse_args(argv))
+        asyncio.run(main_async(options))
+        return 0
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        # CLI 只记录异常类型，防止 case 内容或供应商原始响应进入 Actions 日志。
+        logger.error("NL2SQL 评测初始化失败，异常类型=%s", type(exc).__name__)
+        return 2
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

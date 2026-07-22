@@ -5,10 +5,12 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.agents.graph import AgentGraph
-from app.analysis_intent.models import AnalysisIntent
+from app.analysis_intent.llm_parser import AnalysisIntentLLMParser
+from app.analysis_intent.models import AnalysisIntent, IntentSlot
 from app.models.schemas import SQLGeneratorOutput, SQLRepairOutput
 from app.security.data_permission import DataPermissionResult
-from app.services.llm_observability import record_call
+from app.services.llm_observability import record_call, start_trace
+from app.utils.exceptions import LLMError
 
 
 # ---- 测试用 fixtures ----
@@ -50,6 +52,54 @@ def make_query_result_failure():
         "error": "Table 'nonexistent' not found",
         "error_type": "CatalogException"
     }
+
+
+@pytest.mark.asyncio
+async def test_answer_generation_failure_degrades_without_losing_query_result():
+    """展示层 LLM 故障不能抹掉已经成功执行的查询。"""
+    mock_answer = MagicMock()
+    mock_answer.generate = AsyncMock(side_effect=LLMError("答案生成失败"))
+    graph = AgentGraph(answer_generator_service=mock_answer)
+    state = {
+        "question": "统计订单数",
+        "validated_sql": "SELECT COUNT(*) FROM orders LIMIT 1000",
+        "query_result": make_query_result_success(),
+        "audit_events": [],
+        "llm_calls": [],
+    }
+
+    result = await graph._generate_answer(state)
+
+    assert result["answer"] == "查询已成功执行，共返回 2 条记录；自然语言解读暂时不可用。"
+    assert result["answer_error"] == "自然语言答案生成暂时不可用"
+    assert result["audit_events"][-1]["status"] == "degraded"
+    assert result["audit_events"][-1]["action"] == "generate_answer"
+
+
+@pytest.fixture(autouse=True)
+def block_unmocked_intent_llm(monkeypatch):
+    """AgentGraph 单测默认禁止真实模型调用，显式 mock 的用例仍可覆盖该边界。"""
+
+    async def fail_fast(_self, _question):
+        # 这些测试验证图编排而非外部模型；遗漏 mock 时必须立即失败降级，不能等待网络重试。
+        raise RuntimeError("intent llm must be mocked in AgentGraph tests")
+
+    monkeypatch.setattr(AnalysisIntentLLMParser, "parse", fail_fast)
+
+
+@pytest.mark.asyncio
+async def test_agent_graph_suite_blocks_unmocked_intent_llm():
+    """回归保护：测试默认路径不能触发 OpenAI-compatible API。"""
+    graph = AgentGraph()
+
+    with patch(
+        "app.analysis_intent.llm_parser.llm_client.parse_analysis_intent",
+        new_callable=AsyncMock,
+    ) as mock_api:
+        with pytest.raises(RuntimeError, match="must be mocked"):
+            await graph.llm_parser.parse("统计销售额")
+
+    mock_api.assert_not_called()
 
 
 # ---- 测试用例 ----
@@ -117,6 +167,26 @@ class TestAgentGraphHappyPath:
             explanation="统计订单数",
         )
 
+        async def parse_with_metrics(*args):
+            record_call(
+                {
+                    "stage": "parse_analysis_intent",
+                    "model": "qwen-plus",
+                    "input_tokens": 60,
+                    "output_tokens": 10,
+                    "total_tokens": 70,
+                    "latency_ms": 200,
+                    "attempt_count": 1,
+                    "estimated_cost": None,
+                    "success": True,
+                    "error_type": None,
+                }
+            )
+            return AnalysisIntent(
+                metrics=[IntentSlot(concept="order_count", confidence=0.95)],
+                overall_confidence=0.95,
+            )
+
         async def generate_with_metrics(*args):
             record_call(
                 {
@@ -157,7 +227,12 @@ class TestAgentGraphHappyPath:
              patch("app.agents.graph.sql_guard") as mock_guard, \
              patch("app.agents.graph.query_runner") as mock_runner, \
              patch("app.agents.graph.sql_optimizer") as mock_optimizer, \
-             patch("app.agents.graph.answer_generator") as mock_answer:
+             patch("app.agents.graph.answer_generator") as mock_answer, \
+             patch.object(
+                 graph.llm_parser,
+                 "parse",
+                 new=AsyncMock(side_effect=parse_with_metrics),
+             ):
             mock_loader.get_full_schema.return_value = mock_schema
             mock_intent_guard.validate.return_value = {
                 "is_safe": True,
@@ -177,9 +252,13 @@ class TestAgentGraphHappyPath:
 
             result = await graph.run("统计订单数")
 
-        assert len(result["llm_calls"]) == 2
-        assert result["audit_report"]["llm_observability"]["call_count"] == 2
-        assert result["audit_report"]["llm_observability"]["total_tokens"] == 230
+        assert [call["stage"] for call in result["llm_calls"]] == [
+            "parse_analysis_intent",
+            "generate_sql",
+            "generate_answer",
+        ]
+        assert result["audit_report"]["llm_observability"]["call_count"] == 3
+        assert result["audit_report"]["llm_observability"]["total_tokens"] == 300
 
 
 class TestAgentGraphValidationFailure:
@@ -491,6 +570,37 @@ class TestAgentGraphExecutionFailure:
     """测试 SQL 执行失败后的修复流程"""
 
     @pytest.mark.asyncio
+    async def test_execute_node_keeps_diagnostic_internal_and_audit_message_generic(self):
+        """Repair 可用详细诊断，但对外审计事件不能复制数据库错误原文。"""
+        graph = AgentGraph()
+        diagnostic = "Catalog Error: secret_table does not exist"
+
+        with patch("app.agents.graph.query_runner") as mock_runner:
+            mock_runner.execute.return_value = {
+                "success": False,
+                "columns": [],
+                "rows": [],
+                "execution_time_ms": 3,
+                "error": "查询执行失败",
+                "diagnostic_error": diagnostic,
+                "error_type": "CatalogException",
+                "execution_mode": "sandbox",
+            }
+
+            result = await graph._execute_sql(
+                {
+                    "question": "查询订单",
+                    "validated_sql": "SELECT * FROM orders LIMIT 1000",
+                    "audit_events": [],
+                }
+            )
+
+        assert result["execution_error"] == diagnostic
+        assert result["audit_events"][0]["message"] == "查询执行失败"
+        assert result["audit_events"][0]["details"]["execution_mode"] == "sandbox"
+        assert diagnostic not in repr(result["audit_events"])
+
+    @pytest.mark.asyncio
     async def test_execute_fail_then_repair_success(self):
         """校验通过 → 执行失败 → 修复 → 校验 → 执行成功"""
         graph = AgentGraph()
@@ -797,6 +907,60 @@ class TestAgentGraphClarification:
         assert "grounding" not in result["analysis_intent"]
         assert "clarification" not in result["analysis_intent"]
         assert result["status"] == "completed"
+
+    @pytest.mark.asyncio
+    async def test_parse_intent_preserves_failed_llm_call_when_falling_back_to_rules(self):
+        """LLM 意图解析失败也必须进入请求轨迹，便于解释降级原因。"""
+        graph = AgentGraph()
+        rule_intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="order_count", confidence=0.9)],
+            overall_confidence=0.9,
+        )
+
+        async def fail_with_metrics(*args):
+            record_call(
+                {
+                    "stage": "parse_analysis_intent",
+                    "model": "qwen-plus",
+                    "input_tokens": 0,
+                    "output_tokens": 0,
+                    "total_tokens": 0,
+                    "latency_ms": 50,
+                    "attempt_count": 1,
+                    "estimated_cost": None,
+                    "success": False,
+                    "error_type": "TimeoutError",
+                }
+            )
+            raise TimeoutError("intent parser timeout")
+
+        start_trace()
+        with patch.object(graph, "rule_parser") as mock_rule, \
+             patch.object(
+                 graph.llm_parser,
+                 "parse",
+                 new=AsyncMock(side_effect=fail_with_metrics),
+             ):
+            mock_rule.parse.return_value = rule_intent
+            result = await graph._parse_intent(
+                {"question": "统计订单数", "audit_events": []}
+            )
+
+        assert result["analysis_intent"]["metrics"][0]["concept"] == "order_count"
+        assert result["llm_calls"] == [
+            {
+                "stage": "parse_analysis_intent",
+                "model": "qwen-plus",
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "latency_ms": 50,
+                "attempt_count": 1,
+                "estimated_cost": None,
+                "success": False,
+                "error_type": "TimeoutError",
+            }
+        ]
 
     def test_ground_schema_adds_grounding_without_deciding_clarification(self):
         graph = AgentGraph()

@@ -26,14 +26,36 @@ def test_find_metric_by_business_alias():
 
 
 def test_find_dimension_by_alias():
-    """能通过别名找到地区维度和它需要的 JOIN 关系"""
+    """地域别名必须命中最小粒度维度，不能把地区、省份和城市同时展开。"""
     loader = SemanticLoader()
 
-    dimension = loader.find_dimension("城市")
+    region = loader.find_dimension("地区")
+    province = loader.find_dimension("省份")
+    city = loader.find_dimension("城市")
 
-    assert dimension["key"] == "region"
-    assert "regions.city" in dimension["fields"]
-    assert "orders.customer_id = customers.customer_id" in dimension["required_joins"]
+    assert region["key"] == "region"
+    assert region["candidate_id"] == "region_name"
+    assert region["fields"] == ["regions.region_name"]
+    assert province["key"] == "province"
+    assert province["candidate_id"] == "province"
+    assert province["fields"] == ["regions.province"]
+    assert city["key"] == "city"
+    assert city["candidate_id"] == "city"
+    assert city["fields"] == ["regions.city"]
+    assert "orders.customer_id = customers.customer_id" in city["required_joins"]
+
+
+def test_product_dimension_is_distinct_from_category():
+    """商品排名必须落到 product_name，不能退化为 category_name 粒度。"""
+    loader = SemanticLoader()
+
+    product = loader.find_dimension("商品")
+    category = loader.find_dimension("商品类别")
+
+    assert product["key"] == "product"
+    assert product["candidate_id"] == "product_name"
+    assert product["fields"] == ["products.product_name"]
+    assert category["key"] == "category"
 
 
 def test_defaults_include_time_field_and_limit():
@@ -56,7 +78,9 @@ def test_format_for_prompt_contains_metrics_dimensions_and_defaults():
     assert "销售额 = SUM(orders.total_amount)" in summary
     assert "退款率 =" in summary
     assert "业务维度:" in summary
-    assert "地区:" in summary
+    assert "- 地区: regions.region_name" in summary
+    assert "- 省份: regions.province" in summary
+    assert "- 城市: regions.city" in summary
     assert "默认时间字段: orders.order_date" in summary
 
 
@@ -93,3 +117,17 @@ def test_semantic_items_expose_stable_candidate_ids():
     assert metric["candidate_id"] == "sales_by_order_total"
     assert metric["dimension_overrides"]["category"]["candidate_id"] == "sales_by_item_amount"
     assert dimension["candidate_id"] == "region_name"
+
+
+def test_semantic_layer_exposes_global_physical_join_graph():
+    """Grounding 必须能读取独立于单个指标/维度的完整物理 JOIN 图。"""
+    loader = SemanticLoader()
+
+    joins = loader.get_joins()
+
+    assert {tuple(sorted((edge["left"], edge["right"]))) for edge in joins} >= {
+        tuple(sorted(("orders.customer_id", "customers.customer_id"))),
+        tuple(sorted(("customers.region_id", "regions.region_id"))),
+        tuple(sorted(("order_items.product_id", "products.product_id"))),
+        tuple(sorted(("products.category_id", "categories.category_id"))),
+    }

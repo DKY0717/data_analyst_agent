@@ -85,6 +85,15 @@ test.describe('Data Analyst Agent - 查询流程', () => {
   })
 
   test('提交查询后显示加载状态', async ({ page }) => {
+    // 加载态测试使用可控慢响应，避免本地认证或真实 LLM 状态影响 UI 断言。
+    await page.route('**/api/chat/query/stream', async route => {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: 'data: {"type":"progress","stage":"生成 SQL","progress":65}\n\n',
+      })
+    })
     const textarea = page.locator('.query-card textarea')
     await textarea.fill('统计 2024 年每个月的销售额')
 

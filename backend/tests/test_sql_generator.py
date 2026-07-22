@@ -1,11 +1,18 @@
 # SQL Generator Agent 测试
 # 测试 SQL 生成 Agent 的核心功能：Schema 格式化、列名提取、异常处理
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
+import sqlglot
+
+from app.agents.grounding import SchemaGrounder
 from app.agents.sql_generator import SQLGenerator, llm_client
+from app.analysis_intent.models import AnalysisIntent, IntentSlot
+from app.analysis_intent.rule_parser import AnalysisIntentRuleParser
 from app.models.schemas import SQLGeneratorOutput
+from app.security.data_permission import DataPermissionGuard
+from app.security.sql_guard import SQLGuard
 from app.utils.exceptions import LLMError
 
 
@@ -83,6 +90,34 @@ class TestFormatSchema:
         assert "销售额 = SUM(orders.total_amount)" in result
         assert "默认时间字段: orders.order_date" in result
 
+    def test_format_schema_keeps_geographic_dimensions_minimal(self, generator, mock_schema):
+        """SQL Prompt 必须给出三个独立地域粒度，避免模型自动增加省份和城市。"""
+        result = generator._format_schema(mock_schema)
+
+        assert "- 地区: regions.region_name" in result
+        assert "- 省份: regions.province" in result
+        assert "- 城市: regions.city" in result
+        region_line = next(line for line in result.splitlines() if line.startswith("- 地区:"))
+        assert "province" not in region_line
+        assert "city" not in region_line
+
+    def test_format_intent_keeps_region_grounding_minimal(self, generator):
+        """结构化 Grounding Prompt 也必须只把地区绑定到 region_name。"""
+        intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="sales_amount", confidence=0.95)],
+            dimensions=[IntentSlot(concept="region", confidence=0.95)],
+            overall_confidence=0.95,
+        )
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = generator._format_intent(payload)
+
+        region_line = next(line for line in result.splitlines() if "region:" in line)
+        assert "regions.region_name" in region_line
+        assert "regions.province" not in region_line
+        assert "regions.city" not in region_line
+
     def test_format_schema_empty_tables(self, generator):
         """测试空 Schema 的格式化"""
         schema = {"tables": {}}
@@ -148,11 +183,11 @@ class TestGenerate:
     """测试 SQL 生成功能"""
 
     @pytest.mark.asyncio
-    async def test_generate_success(self, generator, mock_schema):
+    async def test_generate_success(self, generator, mock_schema, caplog):
         """测试成功生成 SQL"""
         # Mock LLM 返回
         mock_response = {
-            "sql": "SELECT COUNT(*) AS order_count FROM orders",
+            "sql": "SELECT COUNT(*) AS order_count FROM orders WHERE customer_name = 'private-customer'",
             "tables": ["orders"],
             "explanation": "统计订单总数"
         }
@@ -164,12 +199,174 @@ class TestGenerate:
 
             # 验证返回结果
             assert isinstance(result, SQLGeneratorOutput)
-            assert result.sql == "SELECT COUNT(*) AS order_count FROM orders"
+            assert "private-customer" in result.sql
             assert "orders" in result.tables
             assert result.explanation == "统计订单总数"
+            assert "private-customer" not in caplog.text
+            assert "hash=" in caplog.text
 
             # 验证 LLM 被正确调用
             mock_llm.generate_sql.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_enforces_grounded_dimension_output_alias(
+        self, mock_schema
+    ):
+        """模型自由改写维度别名时，必须恢复 Grounding 的稳定结果列契约。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "SELECT categories.category_name AS category, "
+                "COUNT(DISTINCT refunds.refund_id) * 1.0 "
+                "/ COUNT(DISTINCT orders.order_id) AS refund_rate "
+                "FROM orders "
+                "JOIN order_items ON orders.order_id = order_items.order_id "
+                "JOIN products ON order_items.product_id = products.product_id "
+                "JOIN categories ON products.category_id = categories.category_id "
+                "LEFT JOIN refunds ON orders.order_id = refunds.order_id "
+                "GROUP BY categories.category_name"
+            ),
+            "tables": [
+                "orders",
+                "order_items",
+                "products",
+                "categories",
+                "refunds",
+            ],
+            "explanation": "按商品类别统计退款率",
+        }
+        generator = SQLGenerator(client=client)
+        intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="refund_rate", confidence=0.95)],
+            dimensions=[IntentSlot(concept="category", confidence=0.95)],
+            overall_confidence=0.95,
+        )
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = await generator.generate(
+            "统计各商品类别的退款率",
+            mock_schema,
+            analysis_intent=payload,
+        )
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        first_projection = parsed.expressions[0]
+        assert first_projection.alias == "category_name"
+        assert first_projection.this.sql(dialect="duckdb") == "categories.category_name"
+
+        unrelated_sql = "SELECT archive.category_name AS category FROM archive"
+        assert (
+            generator._enforce_grounded_dimension_aliases(unrelated_sql, payload)
+            == unrelated_sql
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_corrects_product_dimension_drift(self, mock_schema):
+        """模型把商品错写成类别时，Grounding 应同步修正投影和 GROUP BY。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "SELECT c.category_name, "
+                "SUM(oi.quantity * oi.unit_price) AS sales_amount "
+                "FROM order_items oi "
+                "JOIN products p ON oi.product_id = p.product_id "
+                "JOIN categories c ON p.category_id = c.category_id "
+                "WHERE c.category_name = '电子产品' "
+                "GROUP BY c.category_name ORDER BY sales_amount DESC LIMIT 5"
+            ),
+            "tables": ["order_items", "products", "categories"],
+            "explanation": "按商品统计销售额",
+        }
+        generator = SQLGenerator(client=client)
+        intent = AnalysisIntentRuleParser().parse("找出销售额最高的 5 个商品")
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = await generator.generate(
+            "找出销售额最高的 5 个商品",
+            mock_schema,
+            analysis_intent=payload,
+        )
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        assert parsed.expressions[0].alias_or_name == "product_name"
+        assert parsed.expressions[0].sql(dialect="duckdb") == "p.product_name"
+        assert parsed.args["group"].sql(dialect="duckdb") == "GROUP BY p.product_name"
+        assert parsed.args["where"].sql(dialect="duckdb") == (
+            "WHERE c.category_name = '电子产品'"
+        )
+
+    @pytest.mark.asyncio
+    async def test_generate_normalizes_reserved_table_alias(self, mock_schema):
+        """AND/OR 不能作为裸表别名，进入 SQL Guard 前必须确定性改名。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "WITH order_refunds AS ("
+                "SELECT order_id, SUM(refund_amount) AS total_refund_amount "
+                "FROM refunds GROUP BY order_id) "
+                "SELECT COALESCE(or.total_refund_amount, 0) AS refund_amount, "
+                "'or.total_refund_amount' AS note "
+                "FROM orders o LEFT JOIN order_refunds or ON o.order_id = or.order_id"
+            ),
+            "tables": ["orders", "refunds"],
+            "explanation": "汇总退款金额",
+        }
+        generator = SQLGenerator(client=client)
+
+        result = await generator.generate("统计退款金额", mock_schema)
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        assert parsed is not None
+        assert "coalesce(or." not in result.sql.casefold()
+        assert "or_table." in result.sql.casefold()
+        assert "'or.total_refund_amount'" in result.sql
+        assert SQLGuard().validate(result.sql)["is_safe"] is True
+
+    @pytest.mark.asyncio
+    async def test_generate_rewrites_stale_dimension_alias_in_order_by(self, mock_schema):
+        """ORDER BY 使用语义概念名时，应同步到已经投影的稳定 Grounding 别名。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "SELECT regions.region_name AS region_name, "
+                "STRFTIME(orders.order_date, '%Y-%m') AS month, "
+                "COUNT(DISTINCT orders.order_id) AS order_count "
+                "FROM orders "
+                "JOIN customers ON orders.customer_id = customers.customer_id "
+                "JOIN regions ON customers.region_id = regions.region_id "
+                "GROUP BY regions.region_name, STRFTIME(orders.order_date, '%Y-%m') "
+                "ORDER BY month, region"
+            ),
+            "tables": ["orders", "customers", "regions"],
+            "explanation": "地区月度订单趋势",
+        }
+        generator = SQLGenerator(client=client)
+        intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="order_count", confidence=0.95)],
+            dimensions=[
+                IntentSlot(concept="region", confidence=0.95),
+                IntentSlot(concept="month", confidence=0.95),
+            ],
+            overall_confidence=0.95,
+        )
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = await generator.generate(
+            "统计各地区每月的订单数量趋势",
+            mock_schema,
+            analysis_intent=payload,
+        )
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        assert parsed.args["order"].sql(dialect="duckdb") == "ORDER BY month, region_name"
+        permission_result = DataPermissionGuard().authorize(
+            result.sql,
+            {"user_id": "test-admin", "auth_method": "jwt", "roles": ["admin"]},
+        )
+        assert permission_result.is_allowed is True
 
     @pytest.mark.asyncio
     async def test_generate_llm_error(self, generator, mock_schema):

@@ -1,0 +1,46 @@
+- [课程首页](README.md)
+- [当前代码地图](CURRENT-CODE-MAP.md)
+- [学习检查清单](STUDY-CHECKLIST.md)
+- [面试问题](INTERVIEW-QUESTIONS.md)
+- [故障排查](TROUBLESHOOTING.md)
+- [课程更新日志](CHANGELOG.md)
+
+- 第一部分：阅读、运行和调试
+  - [第1章 项目架构](part01-foundations/chapter01-project-architecture.md)
+  - [第2章 Python、异步与类型模型](part01-foundations/chapter02-python-async-and-models.md)
+  - [第3章 SQL、DuckDB 与业务模型](part01-foundations/chapter03-sql-duckdb-domain.md)
+  - [第4章 环境、配置与调试](part01-foundations/chapter04-environment-config-debugging.md)
+- 第二部分：最小 NL2SQL
+  - [第5章 数据库与 Schema Loader](part02-minimum-nl2sql/chapter05-database-schema-loader.md)
+  - [第6章 FastAPI 边界](part02-minimum-nl2sql/chapter06-fastapi-boundaries.md)
+  - [第7章 OpenAI-compatible LLM](part02-minimum-nl2sql/chapter07-openai-compatible-llm.md)
+  - [第8章 最小 NL2SQL 流水线](part02-minimum-nl2sql/chapter08-minimum-nl2sql-pipeline.md)
+- 第三部分：完整 Agent
+  - [第9章 结构化分析意图](part03-agent/chapter09-analysis-intent.md)
+  - [第10章 语义层与元数据](part03-agent/chapter10-semantic-and-metadata.md)
+  - [第11章 Grounding 与主动澄清](part03-agent/chapter11-grounding-and-clarification.md)
+  - [第12章 LangGraph 状态与路由](part03-agent/chapter12-langgraph-state-and-routing.md)
+  - [第13章 Repair、优化与多轮](part03-agent/chapter13-repair-optimizer-multiturn.md)
+- 第四部分：安全、权限与可靠性
+  - [第14章 Intent Guard 与 SQL Guard](part04-safety/chapter14-intent-and-sql-guards.md)
+  - [第15章 沙箱、LIMIT 与超时](part04-safety/chapter15-sandbox-limit-timeout.md)
+  - [第16章 认证、权限与行过滤](part04-safety/chapter16-auth-permission-row-filter.md)
+  - [第17章 重试与失败隔离](part04-safety/chapter17-retry-failure-isolation.md)
+  - [第18章 审计与可观测性](part04-safety/chapter18-audit-and-observability.md)
+- 第五部分：产品化
+  - [第19章 Query API、SSE 与缓存](part05-product/chapter19-query-sse-cache.md)
+  - [第20章 Vue、Pinia 与工作台](part05-product/chapter20-vue-pinia-workbench.md)
+  - [第21章 图表、导出与审计界面](part05-product/chapter21-chart-export-audit-ui.md)
+  - [第22章 Docker、Nginx 与 Readiness](part05-product/chapter22-docker-nginx-readiness.md)
+- 第六部分：测试、评测与证据
+  - [第23章 测试金字塔](part06-quality/chapter23-test-pyramid.md)
+  - [第24章 NL2SQL、Intent 与权限评测](part06-quality/chapter24-nl2sql-intent-permission-evaluation.md)
+  - [第25章 Repair 与结果正确性](part06-quality/chapter25-repair-and-result-correctness.md)
+  - [第26章 分片、Checkpoint 与严格汇总](part06-quality/chapter26-sharding-checkpoint-aggregation.md)
+  - [第27章 GitHub Actions 与质量门禁](part06-quality/chapter27-github-actions-quality-gate.md)
+  - [第28章 MiMo 超时事故复盘](part06-quality/chapter28-mimo-timeout-incident.md)
+- 第七部分：独立开发与面试
+  - [第29章 独立增加业务指标](part07-mastery/chapter29-add-business-metric.md)
+  - [第30章 综合故障定位实验](part07-mastery/chapter30-debugging-lab.md)
+  - [第31章 重写精简版 Agent](part07-mastery/chapter31-rebuild-mini-agent.md)
+  - [第32章 架构答辩与模拟面试](part07-mastery/chapter32-interview-defense.md)

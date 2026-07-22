@@ -8,6 +8,7 @@ import asyncio
 import json
 import httpx
 import logging
+import re
 import time
 from typing import Optional
 
@@ -84,14 +85,8 @@ class QwenAPIClient:
         headers = self._build_headers()
         started_at = time.perf_counter()
 
-        # 指数退避重试循环
-        max_rate_limit_retries = 8
-        rate_limit_retries = 0
-        attempt = 0
-        while attempt < self.max_retries or rate_limit_retries < max_rate_limit_retries:
-            if attempt >= self.max_retries and rate_limit_retries >= max_rate_limit_retries:
-                break
-            attempt += 1
+        # 所有可重试结果共享同一总预算，避免某个分支绕过终止条件。
+        for attempt in range(1, self.max_retries + 1):
             attempt_count = attempt
             try:
                 async with httpx.AsyncClient() as client:
@@ -104,16 +99,42 @@ class QwenAPIClient:
 
                     # 检查 HTTP 状态码
                     if response.status_code == 429:
-                        rate_limit_retries += 1
-                        wait = min(4 * rate_limit_retries, 60)
-                        logger.warning(f"API 限流 429，等待 {wait}s 后重试 (第 {rate_limit_retries}/{max_rate_limit_retries} 次)")
+                        provider_code, provider_type = self._provider_error_details(
+                            response
+                        )
+                        error_metadata = self._format_provider_error_metadata(
+                            provider_code, provider_type
+                        )
+                        if attempt >= self.max_retries:
+                            raise LLMResponseError(
+                                "API 限流 429，已达最大重试次数"
+                                f"{error_metadata}",
+                                status_code=429,
+                                provider_code=provider_code,
+                                provider_type=provider_type,
+                            )
+                        wait = min(4 * attempt, 60)
+                        logger.warning(
+                            "API 限流 429，等待 %ss 后重试 (第 %s/%s 次)",
+                            wait,
+                            attempt,
+                            self.max_retries,
+                        )
                         await asyncio.sleep(wait)
-                        attempt -= 1
                         continue
                     if response.status_code != 200:
+                        provider_code, provider_type = self._provider_error_details(
+                            response
+                        )
+                        error_metadata = self._format_provider_error_metadata(
+                            provider_code, provider_type
+                        )
                         raise LLMResponseError(
-                            f"API 返回非 200 状态码: {response.status_code}, "
-                            f"响应: {response.text}"
+                            "API 返回非 200 状态码: "
+                            f"{response.status_code}{error_metadata}",
+                            status_code=response.status_code,
+                            provider_code=provider_code,
+                            provider_type=provider_type,
                         )
 
                     result = response.json()
@@ -126,7 +147,11 @@ class QwenAPIClient:
                         reasoning = result["choices"][0]["message"].get("reasoning_content", "")
                         if reasoning:
                             logger.warning(f"推理模型返回空 content，reasoning 长度: {len(reasoning)}")
-                            # 重试，让模型有更多 tokens 生成内容
+                            if attempt >= self.max_retries:
+                                raise LLMResponseError(
+                                    "推理模型连续返回空 content，已达最大重试次数"
+                                )
+                            # 在共享预算内重试，让模型有机会生成最终内容。
                             continue
                         raise LLMResponseError("API 返回空内容")
 
@@ -171,10 +196,10 @@ class QwenAPIClient:
                     success=False,
                     error_type=type(exc).__name__,
                 )
-                raise LLMResponseError(f"API 响应结构异常: {exc}")
+                raise LLMResponseError("API 响应结构异常") from exc
 
             except Exception as e:
-                logger.error(f"API 调用异常: {e} (第 {attempt} 次)")
+                logger.error("API 调用异常: %s (第 %s 次)", type(e).__name__, attempt)
                 if attempt >= self.max_retries:
                     self._record_observability(
                         stage=stage,
@@ -183,13 +208,51 @@ class QwenAPIClient:
                         success=False,
                         error_type=type(e).__name__,
                     )
-                    raise LLMError(f"API 调用失败: {e}")
+                    raise LLMError("API 调用失败") from e
 
-            # 指数退避：第 1 次等 1 秒，第 2 次等 2 秒，第 3 次等 4 秒
-            import asyncio
+            # 指数退避：第 1 次等 2 秒，第 2 次等 4 秒，以此类推。
             await asyncio.sleep(2 ** attempt)
 
         raise LLMError("API 调用失败，已达最大重试次数")
+
+    @classmethod
+    def _provider_error_details(
+        cls, response: httpx.Response
+    ) -> tuple[str | None, str | None]:
+        """仅提取安全的错误码/类型，绝不传播可能回显输入数据的 message。"""
+        try:
+            payload = response.json()
+        except (ValueError, TypeError):
+            return None, None
+
+        if not isinstance(payload, dict):
+            return None, None
+        error = payload.get("error")
+        error_payload = error if isinstance(error, dict) else payload
+        return (
+            cls._sanitize_provider_error_token(error_payload.get("code")),
+            cls._sanitize_provider_error_token(error_payload.get("type")),
+        )
+
+    @staticmethod
+    def _format_provider_error_metadata(
+        provider_code: str | None, provider_type: str | None
+    ) -> str:
+        """把已清洗的 provider 标识格式化到安全异常消息中。"""
+        parts = []
+        if provider_code:
+            parts.append(f"code={provider_code}")
+        if provider_type:
+            parts.append(f"type={provider_type}")
+        return f" ({', '.join(parts)})" if parts else ""
+
+    @staticmethod
+    def _sanitize_provider_error_token(value: object) -> str | None:
+        """错误元数据只允许短标识符字符，防止供应商响应内容进入日志。"""
+        if not isinstance(value, str):
+            return None
+        token = re.sub(r"[^A-Za-z0-9_.:-]", "", value)[:80]
+        return token or None
 
     def _record_observability(
         self,
@@ -274,7 +337,8 @@ class QwenAPIClient:
 5. 业务指标必须使用语义层方括号中的稳定英文 key 作为输出别名；维度使用物理字段名作为输出别名，禁止使用中文别名或自创缩写
 6. 如果语义层为当前维度声明了粒度覆盖表达式，必须使用覆盖表达式，避免 JOIN 后重复汇总
 7. 如果用户是多轮追问并省略了指标、维度、时间范围或过滤条件，优先继承多轮对话上下文中最近一轮的分析意图
-8. 返回严格的 JSON 格式，不要包含任何其他文本
+8. 表别名不得使用 DuckDB 保留字，尤其不得把 AND、OR 用作裸别名
+9. 返回严格的 JSON 格式，不要包含任何其他文本
 
 输出格式：
 {
@@ -524,10 +588,8 @@ class QwenAPIClient:
                 end = content.rindex('}') + 1
                 json_str = content[start:end]
                 return json.loads(json_str)
-            except (ValueError, json.JSONDecodeError) as e:
-                raise LLMResponseError(
-                    f"{context}响应不是有效的 JSON: {content[:200]}..."
-                )
+            except (ValueError, json.JSONDecodeError):
+                raise LLMResponseError(f"{context}响应不是有效的 JSON")
 
     def _format_query_result(self, query_result: dict) -> str:
         """将查询结果格式化为易读的文本

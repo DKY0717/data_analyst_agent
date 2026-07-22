@@ -20,6 +20,8 @@ services:
       - DATABASE_URL=duckdb:////app/data/database.duckdb
       - PROJECT_ROOT=/app
       - LOG_LEVEL=INFO
+      - SANDBOX_MODE=true
+      - DEPLOYMENT_PROFILE=demo
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/readiness')"]

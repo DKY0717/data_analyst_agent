@@ -2286,3 +2286,355 @@
 
 - 检查 LLM endpoint 网络连通性和本地代理/防火墙设置。
 - LLM 连通后按核心路径黄金问题继续实跑：月度销售额、品类退款率、多轮订单数追问、权限阻断和 admin 对照。
+
+---
+
+## 2026-07-10 — v1.7 系统性求职项目加固
+
+### 完成的工作
+
+**全项目应聘级审查与 v1.7 设计** ✅
+- 完成后端、前端、Agent、权限、安全、评测、CI、Docker 和面试证据链审查。
+- 本地验证后端 `596 passed`、前端 `51 passed`、生产构建通过；发现本地 E2E 端口漂移和真实 API 契约未覆盖问题。
+- 确认前端旧字段、澄清参数、Grounding 伪表名/JOIN 缺失、LIMIT 未钳制、权限行过滤歧义、LLM 调用漏计、真实模型证据过期、迁移和工程门禁不完整等问题。
+- 用户确认全部系统性修复，并批准按前端闭环、Agent 正确性、安全执行、证据/部署、工程治理五阶段推进。
+- 新增设计规格：`docs/superpowers/specs/2026-07-10-v1.7-systematic-interview-readiness-hardening-design.md`。
+
+**阶段一：前端真实闭环与 E2E 隔离** ✅
+- 前端统一消费 `QueryResponse.sql / analysis_intent / optimization_suggestions`，修复 SQL、意图、优化建议和执行指标面板空白。
+- 修复主动澄清候选事件，候选对象能够稳定提交 `clarification_id` 和 `candidate_id`。
+- 新增前后端共享响应 fixture；Pydantic 严格拒绝已移除的旧字段。
+- 权限 E2E 删除新旧字段兼容数据，并断言 SQL、意图和优化建议真实可见。
+- E2E 使用独占端口 `13000/18001` 和 strict port，不再误连本地 3000/8000 服务；加载态改用可控慢 SSE。
+- 验证：前端 `55 passed`、后端契约/API `17 passed`、Playwright `17 passed`、生产构建通过。
+- 阶段提交：`484a702`。
+
+**阶段二 A：Schema Grounding 精确路由** ✅
+- 语义层新增显式物理 `source_tables/source_columns` 和全局 JOIN 图，避免从聚合表达式字符串误提取 `SUM(orders` 等伪表。
+- Grounding 只用当前上下文得分最高的候选构建路由，并基于 JOIN 图最短路径补齐中间表和字段级连接边。
+- 品类销售额能够稳定选择明细金额覆盖；复购率派生 CTE 不再被暴露为物理表。
+- 评测由“只看表召回”升级为精确表集合、路由表 precision/recall 和 JOIN 边准确率。
+- 验证：Grounding/意图集成/语义层/评测共 `31 collected` 且全部通过；质量与文档门禁通过。
+- 阶段提交：`53060a1`。
+
+**阶段二 B：LLM 可观测性与追踪隐私** ✅
+- `parse_analysis_intent` 的成功/失败调用都会继承到请求级 `llm_calls`，不再被后续 SQL 生成节点重置。
+- 审计报告现在覆盖意图解析、SQL 生成和答案生成三阶段 Token、耗时与调用结果。
+- OpenTelemetry 不再记录 `sql.generated/sql.validated` 原文；仅记录去字面量后的结构指纹、语句类型和物理表名。
+- 增加敏感客户值不落 span、相同查询结构跨不同字面量产生同一指纹的隐私回归测试。
+- 验证：Agent、Tracing、LLM 服务、审计报告和 API 契约联合回归 `82 passed`。
+- 阶段提交：`45fffb2`。
+
+**阶段三：SQL 安全、权限与执行超时** ✅
+- SQL Guard 对已有超大 LIMIT 执行 AST 钳制并写审计事件；参数、负数、`ALL` 和表达式 LIMIT 全部 fail-closed。
+- 行级权限谓词始终绑定物理表或别名，自连接中每个受限表实例都会注入过滤，子查询内部作用域保持不变。
+- 新增权限改写→Guard 二次校验→真实 DuckDB 执行集成回归，证明多表 SQL 无歧义且只返回授权地区。
+- PostgreSQL 直连和沙箱 worker 均设置事务级 `statement_timeout`；沙箱父进程以 `SQL_TIMEOUT` 作为硬截止时间。
+- 沙箱成为配置和容器安全默认；readiness 暴露执行模式、隔离状态和超时，便于区分本地直连调试与受保护运行。
+- 公开错误和审计事件不再复制数据库原文，详细诊断仅在 QueryRunner→Repair 内部链路启用。
+- 验证：安全执行相关联合回归 `143 passed`；Compose YAML 解析通过并确认 `SANDBOX_MODE=true`。本机无 Docker CLI，容器 config/build 留给后续 CI 门禁验证。
+- 阶段提交：`9e83a9b`。
+
+**阶段四 A：可执行核心路径回归** ✅
+- 核心路径由 14 条静态关联清单升级为 15 条可执行场景，新增缺失指标主动澄清覆盖。
+- Runner 只在外部模型边界注入确定性 Fake LLM，真实运行 LangGraph、Intent/SQL Guard、Grounding、Permission、Optimizer 和隔离 DuckDB。
+- 业务 SQL fixture 复用既有 golden result / permission 资产；多轮场景真实写入并读取隔离 SQLite 会话上下文。
+- 报告输出 case pack 版本、执行模式、逐 case 状态、阻断规则、surface 完整性和失败阶段，不保存完整结果行。
+- Runner 暴露并修复 `ORDER BY` 投影别名被权限 Guard 误判为裸物理字段的问题。
+- 验证：15/15 核心路径通过、surface 完整率 100%、源数据库哈希不变；联合回归 `112 passed`，CLI 报告写入验证通过。
+- 阶段提交：`fae9fb9`。
+
+**阶段四 B：真实模型证据、SSE 运行边界与安全部署** ✅
+- SSE 增加 15 秒心跳、客户端断开检测和可等待的 pipeline 取消；Nginx 为流式端点关闭缓冲并统一 400 秒超时。
+- 手动评测 workflow 显式选择 MiMo/Qwen Provider、端点和模型，生成绑定 HEAD SHA、case version 与 UTC 时间的脱敏运行元数据。
+- 增加 4 条真实模型核心 smoke，报告只保留状态、规则、执行状态和行数，不落 SQL、结果行或模型原文。
+- 新增 `demo` / `secure` 部署边界；secure profile 缺少强认证、沙箱或关闭 Demo Auth 时 readiness fail-closed。
+- 增加安全 Compose overlay，关键认证、CORS 和模型变量在启动前强制校验。
+- 验证：SSE/运行边界 `40 passed`；真实模型证据与安全部署联合回归 `79 passed`。
+- 阶段提交：`d9aafb1`、`440ab07`、`49aea83`。
+
+**阶段五：数据库迁移、工程质量门禁与材料收口** ✅
+- 合并重复 Alembic 脚手架，新增 PostgreSQL 8 表初始 revision；CI 执行 upgrade → downgrade → upgrade，DuckDB 明确使用 init.sql 重建。
+- 新增 Ruff、ESLint 和 75% 覆盖率门禁；650 项后端测试分组全部通过，合并覆盖率 `80.61%`，前端 `58 passed`、Playwright `17 passed`。
+- Python 依赖升级后 `pip-audit` 从 32 条漏洞降为 0；移除存在风险的 xlsx，升级 Vite/ECharts 后 `npm audit` 为 0。
+- Excel 导出改为无第三方依赖的 SpreadsheetML，所有单元格强制文本并转义 XML，阻断公式注入。
+- 沙箱补齐 Date/Datetime/Decimal JSON 边界；pytest 每进程使用独立 DuckDB，消除共享文件争用。
+- README、面试稿、简历包和 v1.7 开发说明同步为 15 条可执行核心路径、6 条权限评测、650/58/17 测试矩阵及真实模型报告新鲜度边界。
+- 本机无 Docker CLI；Compose config/build/readiness 和 PostgreSQL 在线迁移由 CI 门禁执行，本地已完成 YAML 契约、Alembic 离线 DDL 和 secure profile 回归。
+
+### 当前进度
+
+- ✅ 系统性问题清单与设计边界已确认
+- ✅ v1.7 设计规格已完成并自审
+- ✅ v1.7 详细实施计划已完成并自审
+- ✅ 阶段一前端真实闭环已完成
+- ✅ 阶段二 A Grounding 精确路由已完成
+- ✅ 阶段二 B LLM 可观测性与 SQL 追踪隐私已完成
+- ✅ 阶段三 SQL 安全、权限与超时硬化已完成
+- ✅ 阶段四 A 可执行核心路径回归已完成
+- ✅ 阶段四 B 真实模型证据、SSE 运行边界与安全部署已完成
+- ✅ 阶段五数据库迁移、CI 质量门禁与最终材料收口已完成
+- ✅ 最终规格符合性、代码质量复核与分组提交已完成
+
+### 下一步
+
+- 推送后观察 GitHub Actions 的 PostgreSQL、Docker 和依赖审计门禁结果。
+- 面试前按 `docs/interview_guide.md` 运行 preflight，并更新真实模型 artifact 的 HEAD SHA。
+
+### 用户偏好
+
+- 用户要求把审查问题全部系统性修完，项目时间紧，希望按阶段持续推进，不因短期额度停止。
+
+---
+
+## 2026-07-10 — 零基础学习教程设计会话
+
+### 完成的工作
+
+**Data Analyst Agent 零基础学习教程设计** ✅
+- 确认第一版教程基于当前项目完成，后续项目优化时再按代码变化增量修订。
+- 参考 Hello-Agents 的教材形式，确定采用“五部分、十九章、章内分节”的中文课程结构。
+- 明确不复制十九份完整源码；当前仓库是实现事实来源，每章提供代码地图、可运行检查点、常见错误、小结和练习。
+- 新增设计规格：`docs/superpowers/specs/2026-07-10-data-analyst-agent-learning-course-design.md`。
+- 规格符合性和内容质量两轮自检通过。
+- Commit hash：`47adb90`。
+
+**教程实施计划与课程骨架** ✅
+- 用户明确授权无需等待逐步回复，继续完成全部教程任务。
+- 新增详细实施计划：`docs/superpowers/plans/2026-07-10-data-analyst-agent-learning-course-implementation.md`。
+- 创建课程首页、侧边栏、Docsify 阅读入口、更新日志和十九章代码映射表。
+- 新增课程文档契约测试，覆盖进度、侧边栏链接、章节结构、占位内容、代码围栏、源码路径和阅读站能力。
+- 验证：`pytest backend/tests/test_learning_course_docs.py -q`，`7 passed`。
+- Commit hash：`9b24dc6`、`22a9e87`。
+
+### 遗留问题
+
+- 工作树存在与教程无关的后端 Agent 和数据库模块改动，未修改、未暂存、未提交。
+
+### 当前进度
+
+- ✅ 项目和现有学习资料已核对
+- ✅ 教程组织方案与可复现策略已确定
+- ✅ 课程设计规格已创建并提交
+- ✅ 详细实施计划与课程站点骨架已完成
+- ⏳ 正在编写十九章正文
+
+### 下一步
+
+- 编写并验证第一部分第 1～3 章。
+- 按实施计划继续完成其余十六章，最后执行全课程审计。
+
+### 用户偏好
+
+- 教程全部使用中文，参考 Hello-Agents 的在线教材结构。
+- 内容按章和小节拆分，不能把全部知识堆进一章。
+- 先基于现有项目完成第一版教程，后续项目优化再同步修改。
+- 项目时间紧，希望持续完成全部教程任务。
+
+---
+
+## 2026-07-12 — v1.7 最终稳定性与证据闭环
+
+### 完成的工作
+
+- 找到 Windows 全量 pytest 卡顿根因：AgentGraph 测试遗漏意图 LLM mock，实际等待外部 API 重试；新增 fail-fast 网络边界后单命令全量稳定结束。
+- Alembic 程序化迁移可关闭日志重配置，避免迁移测试破坏后续 caplog 隐私断言。
+- 抽取同步/异步进度通知模块，回调失败只记录阶段和异常类型，不影响 Agent 主流程。
+- 测试 JWT fixture 统一使用至少 32 字符密钥，消除 PyJWT 弱密钥告警。
+- 明确 v1.8 的图编排/节点实现、HTTP transport/结构化解析、策略编译/SQL 改写候选边界。
+- 阶段提交：`0b7ac51`、`5b69503`。
+
+### 验证证据
+
+- 后端全量：`657 passed`；覆盖率 `80.87%`，高于 CI 的 75% 门槛。
+- 进度/Graph/SSE/API focused：`51 passed`；核心路径 `15/15`。
+- 前端 ESLint 通过、Vitest `58 passed`；`dist-final` 隔离生产构建通过。
+- 迁移/工作流/文档契约 `33 passed`；Secret Scan 扫描 397 个已跟踪文件通过。
+
+### 遗留问题
+
+- 本机标准 `dist` 中旧 chunk 被其他进程锁定；隔离目录构建成功，标准目录由远端干净 CI 最终验证。
+- 当前分支仍需推送并完成基础 CI 与同 SHA 真实模型 workflow。
+
+### 当前进度
+
+- ✅ 本地稳定性、进度通知和维护性收口
+- ⏳ 当前 HEAD 的远端完整 CI
+- ⏸️ 同 SHA 真实模型 artifact
+
+---
+
+## 2026-07-15 — PR #1 CI 根因修复
+
+### 完成的工作
+
+- 修复 pytest-cov 在沙箱子进程切换 cwd 后混用 statement/branch coverage 的问题，基础 CI 显式指定 `pyproject.toml` 和 branch 模式。
+- DuckDB 演示数据改为事务批量插入，首次空库自举专项用时由约 26 秒降至约 6.45 秒；readiness smoke 保留两分钟诊断窗口。
+- 增加批量插入失败回滚测试，并将 README、开发文档、面试指南和简历材料同步为 658 个后端测试。
+- 阶段提交：`bd66c1a`、`c71ef6e`、`f3a6bde`。
+
+### 验证证据
+
+- CI 等价后端全量：`658 passed`，branch coverage `80.87%`，高于 75% 门槛。
+- seed/demo bootstrap/workflow 专项：`10 passed`；文档一致性：`23 passed`。
+- Ruff、Secret Scan（397 个已跟踪文件）、`git diff --check` 全部通过。
+- 核心路径 Runner：`15/15`，`surface_completeness_rate=1.0`。
+
+### 当前进度
+
+- ✅ PR #1 两个基础 CI 根因已本地修复并验证
+- ⏳ 推送当前 HEAD 并等待 GitHub Actions 完整复验
+- ⏸️ 基础 CI 通过后触发同 SHA 真实模型评测
+
+---
+
+## 2026-07-15 — 真实模型质量门禁修复
+
+### 完成的工作
+
+- 数据权限 Guard 改为按 SQLGlot 查询作用域解析物理表、CTE 和派生子查询；合法中间结果不再误阻断，底层敏感字段穿透仍 fail-closed。
+- 地区、省份、城市拆为三个最小语义维度；“地区”只向模型暴露 `regions.region_name`。
+- NL2SQL 评测新增 `permission_guard` 阶段、权限规则和脱敏错误原因，且不改变 safe/unsafe 指标定义。
+- 设计、计划和实现阶段提交：`cefaef7`、`e5e1806`、`2d857ed`、`6c26d4f`、`a54d6a8`。
+
+### 验证证据
+
+- CI 等价后端全量：`672 passed`，branch coverage `81.01%`，高于 75% 门槛。
+- 权限核心/集成：`54 passed`；语义、Grounding、意图与 Prompt：`55 passed`；评测与安全审计：`51 passed`。
+- Ruff、Secret Scan（399 个已跟踪文件）和 `git diff --check` 通过。
+- 核心路径 Runner：`15/15`，`surface_completeness_rate=1.0`。
+
+### 当前进度
+
+- ✅ 真实模型评测暴露的三类根因已修复并完成本地冻结验证
+- ⏳ 推送新 HEAD 并等待基础 GitHub CI
+- ⏸️ 基础 CI 通过后运行同 SHA Qwen 强制质量门禁与严格安全审计
+
+---
+
+## 2026-07-17 — 真实模型评测韧性修复
+
+### 完成的工作
+
+- 复核 Qwen workflow `29549048861`：确定性后端、4 条真实 smoke 和意图评测通过；真实 NL2SQL 在答案生成阶段收到 HTTP 400 后整批中断。
+- SQL 已执行成功时，答案生成异常改为安全降级，保留结构化查询结果并写入 `degraded` 审计事件。
+- 降级答案不写入共享查询缓存，避免临时供应商故障长期污染结果。
+- NL2SQL evaluator 将单 case 异常转换为脱敏结构化失败并继续后续 case，确保报告仍可落盘。
+- OpenAI-compatible API 非 200 错误仅暴露清洗后的 provider `code/type`，不传播可能包含输入数据的 message。
+
+### 验证证据
+
+- CI 等价后端全量：`676 passed`，branch coverage `81.09%`，高于 75% 门槛。
+- 新增答案降级、异常隔离、错误元数据和缓存保护 4 条回归测试；相关文档/回归组合 `27 passed`。
+- Ruff 和 `git diff --check` 通过；保留 1 个既有 Starlette/httpx 弃用警告。
+
+### 当前进度
+
+- ✅ 展示层故障隔离、评测证据落盘和隐私诊断已完成本地验证
+- ⏳ 提交推送并等待基础 GitHub CI
+- ⏸️ 新 HEAD 的 Qwen 强制质量门禁与严格安全审计
+
+---
+
+## 2026-07-17 — 真实模型失败证据链补强
+
+### 完成的工作
+
+- 基础 CI `29550605961` 在提交 `172d734` 上 7/7 job 全绿。
+- 真实 Qwen workflow `29550680984` 的 4 条 smoke 全部快速返回 `LLMResponseError`，确认是统一供应商 4xx 形态而非单条 SQL 随机回退。
+- `LLMResponseError` 增加清洗后的 HTTP 状态、provider code/type 结构字段，smoke artifact 可直接区分欠费、参数拒绝和内容审查，不保存原始 provider message。
+- 严格安全审计在上游真实报告缺失时改为省略空参数并生成缺失输入报告；目录路径也会转换为稳定输入错误。
+
+### 验证证据
+
+- CI 等价后端全量：`678 passed`，branch coverage `81.10%`，高于 75% 门槛。
+- 新增 smoke provider 元数据和审计目录输入 2 条回归测试；Ruff 通过。
+
+### 当前进度
+
+- ✅ 真实模型失败可诊断、缺失证据可归档
+- ⏳ 提交推送并等待新基础 CI
+- ⏸️ 最终 SHA 的真实 Qwen 重跑需要再次授权
+
+---
+
+## 2026-07-17 — 最终 SHA 真实 Qwen 复验
+
+### 完成的工作
+
+- 提交 `ee31f462add8345906fd24fc0d64c869dd0621a0` 的基础 CI `29551414488` 7/7 job 全绿。
+- 经用户确认后触发真实 Qwen workflow `29551872202`，运行元数据确认 provider=`qwen`、model=`qwen-plus`、head SHA 与当前提交完全一致。
+- 确定性后端测试通过；4 条真实 smoke 均返回 `HTTP 400 / Arrearage`，确认阻塞原因是 DashScope 账户欠费或余额不可用，不是项目 SQL、Prompt、权限或工作流代码失败。
+- smoke artifact 成功写入清洗后的 provider status/code/type；严格安全审计成功落盘真实报告缺失证据，未再出现空路径目录异常。
+
+### 当前进度
+
+- ✅ 当前 SHA 的本地测试、基础 CI 和真实模型失败证据链闭环
+- ✅ 确定性 Intent Guard、Grounding 和 Data Permission 评测通过
+- ⏸️ 真实 NL2SQL、Repair、Correctness 和强制质量门禁被 DashScope `Arrearage` 外部账户状态阻断
+
+### 下一步
+
+- DashScope 账户恢复余额后，在不修改代码的前提下重新运行同一 SHA 的真实 Qwen workflow。
+
+---
+
+## 2026-07-17 — MiMo 密钥复验与门禁时限审计
+
+### 完成的工作
+
+- 本地 `.env` 的 MiMo Key 通过最小 HTTP 200 连通性检查；经用户确认后安全同步为 GitHub Secret `MIMO_API_KEY`，未输出密钥值。
+- 首次 MiMo workflow `29562830403` 证明旧 GitHub Secret 返回 `HTTP 401 / invalid_key`。
+- 更新 Secret 后重跑 workflow `29565150001`，精确绑定提交 `ee31f462add8345906fd24fc0d64c869dd0621a0`。
+- 确定性后端测试、4/4 真实 MiMo smoke 和 37/37 意图安全评测通过；未授权客户姓名场景正确命中 `block_unauthorized_column`。
+- workflow 在真实 NL2SQL 评测阶段达到 45 分钟 job 上限，Repair、Correctness 和最终质量门禁未执行；artifact 正确记录缺失报告。
+
+### 当前进度
+
+- ✅ MiMo Key 与完整 Agent 核心链路真实可用
+- ✅ 当前 SHA 的 smoke、安全意图和基础 CI 证据通过
+- ⏸️ 65 条 NL2SQL、6 条 Repair、10 条 Correctness 的完整 MiMo 门禁受单 job 时限阻断
+
+### 下一步
+
+- 将长评测改为分片或有限并发运行，并增量保存分片报告，最终独立汇总质量门禁；避免仅扩大单 job 超时。
+
+---
+
+## 2026-07-18 — 真实模型分片评测设计
+
+### 完成的工作
+
+- 复核 MiMo 超时证据和当前单 job 串行评测实现，确认需要同时解决执行隔离、增量证据和严格汇总。
+- 与用户确认 GitHub Actions 矩阵分片方案，真实模型最大并发固定为 2。
+- 完成分片规则、checkpoint 契约、严格合并、失败恢复、安全边界和测试验收设计。
+- 设计提交：`c2b8208`。
+- 完成共享 round-robin 分片、逐 case checkpoint 和原子 JSON 替换组件；专项 `11 passed`。
+- 实施计划提交：`ba7f1f6`；Task 1 提交：`7bc1d08`。
+- NL2SQL、SQL Repair、Result Correctness 三类 evaluator 接入统一分片参数与稳定 checkpoint；相关测试 `48 passed`，报告/smoke 回归 `11 passed`。
+- Task 2 提交：`0bf33b9`。
+- 新增严格汇总器：校验分片编号、完整状态、SHA/provider/model、case 文件哈希和结果全集；失败生成稳定诊断，成功重算正式 summary。
+- 汇总/报告/质量门禁/安全审计组合 `112 passed`；Task 3 提交：`78d3464`。
+- 真实模型 workflow 拆为预检、13 个 NL2SQL 分片、3 个 Repair 分片、5 个 Correctness 分片和最终严格汇总；三类矩阵 `max-parallel=2`。
+- workflow/门禁/审计/文档契约 `66 passed`；Task 4 提交：`67b2b6f`。
+- README、开发说明、面试指南和简历材料同步分片证据链、717 个后端测试和 81.34% 全量 branch coverage。
+
+### 验证证据
+
+- 后端纯全量：`717 passed`，退出码 0；CI 等价覆盖率：81.34%，高于 75% 门槛。
+- 分片/汇总/workflow/文档专项：`63 passed`；核心路径：`15/15`，surface 完整率 100%。
+- Ruff、Secret Scan（405 个跟踪文件）和 `git diff --check` 通过；保留 1 个既有 Starlette/httpx 弃用警告。
+
+### 当前进度
+
+- ✅ 分片评测设计已确认并独立提交
+- ✅ 共享分片与原子 checkpoint 基础组件
+- ✅ 三类真实评测接入统一分片 CLI
+- ✅ 严格分片汇总与诊断证据
+- ✅ GitHub Actions 矩阵编排与证据链
+- ✅ 本地冻结验证与文档证据
+- ⏳ 推送新 HEAD 并等待基础 CI
+
+### 下一步
+
+- 推送当前 HEAD，等待基础 CI 全绿；随后单独取得授权，再触发新 SHA 的真实 MiMo 评测。
