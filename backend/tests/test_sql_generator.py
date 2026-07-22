@@ -1,8 +1,10 @@
 # SQL Generator Agent 测试
 # 测试 SQL 生成 Agent 的核心功能：Schema 格式化、列名提取、异常处理
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
+import sqlglot
 
 from app.agents.grounding import SchemaGrounder
 from app.agents.sql_generator import SQLGenerator, llm_client
@@ -202,6 +204,59 @@ class TestGenerate:
 
             # 验证 LLM 被正确调用
             mock_llm.generate_sql.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_enforces_grounded_dimension_output_alias(
+        self, mock_schema
+    ):
+        """模型自由改写维度别名时，必须恢复 Grounding 的稳定结果列契约。"""
+        client = AsyncMock()
+        client.generate_sql.return_value = {
+            "sql": (
+                "SELECT categories.category_name AS category, "
+                "COUNT(DISTINCT refunds.refund_id) * 1.0 "
+                "/ COUNT(DISTINCT orders.order_id) AS refund_rate "
+                "FROM orders "
+                "JOIN order_items ON orders.order_id = order_items.order_id "
+                "JOIN products ON order_items.product_id = products.product_id "
+                "JOIN categories ON products.category_id = categories.category_id "
+                "LEFT JOIN refunds ON orders.order_id = refunds.order_id "
+                "GROUP BY categories.category_name"
+            ),
+            "tables": [
+                "orders",
+                "order_items",
+                "products",
+                "categories",
+                "refunds",
+            ],
+            "explanation": "按商品类别统计退款率",
+        }
+        generator = SQLGenerator(client=client)
+        intent = AnalysisIntent(
+            metrics=[IntentSlot(concept="refund_rate", confidence=0.95)],
+            dimensions=[IntentSlot(concept="category", confidence=0.95)],
+            overall_confidence=0.95,
+        )
+        payload = intent.model_dump()
+        payload["grounding"] = SchemaGrounder().ground(intent)
+
+        result = await generator.generate(
+            "统计各商品类别的退款率",
+            mock_schema,
+            analysis_intent=payload,
+        )
+
+        parsed = sqlglot.parse_one(result.sql, dialect="duckdb")
+        first_projection = parsed.expressions[0]
+        assert first_projection.alias == "category_name"
+        assert first_projection.this.sql(dialect="duckdb") == "categories.category_name"
+
+        unrelated_sql = "SELECT archive.category_name AS category FROM archive"
+        assert (
+            generator._enforce_grounded_dimension_aliases(unrelated_sql, payload)
+            == unrelated_sql
+        )
 
     @pytest.mark.asyncio
     async def test_generate_llm_error(self, generator, mock_schema):

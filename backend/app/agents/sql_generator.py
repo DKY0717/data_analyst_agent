@@ -63,12 +63,18 @@ class SQLGenerator:
                 intent_str,
             )
 
+            # LLM 负责提出 SQL，Grounding 负责约束稳定的结果列契约。
+            normalized_sql = self._enforce_grounded_dimension_aliases(
+                result["sql"],
+                analysis_intent,
+            )
+
             # 从生成的 SQL 中提取使用的列名（LLM 返回的 tables 不含 columns）
-            columns = self._extract_columns(result.get("sql", ""))
+            columns = self._extract_columns(normalized_sql)
 
             # 构造标准化输出
             output = SQLGeneratorOutput(
-                sql=result["sql"],
+                sql=normalized_sql,
                 tables=result.get("tables", []),
                 columns=columns,
                 explanation=result.get("explanation", "")
@@ -131,6 +137,90 @@ class SQLGenerator:
         except Exception:
             # SQL 解析失败不影响主流程，返回空列表
             return []
+
+    def _enforce_grounded_dimension_aliases(
+        self,
+        sql: str,
+        analysis_intent: Dict[str, Any] | None,
+    ) -> str:
+        """把直接物理维度列的自由别名恢复为 Grounding 稳定候选 ID。"""
+        grounding = (analysis_intent or {}).get("grounding") or {}
+        dimension_groundings = grounding.get("dimension_groundings") or []
+        if not dimension_groundings:
+            return sql
+
+        try:
+            parsed = sqlglot.parse_one(sql, dialect="duckdb")
+        except Exception:
+            # 解析失败交给后续 SQL Guard 统一处理，不在生成节点隐藏原始错误。
+            return sql
+        if not isinstance(parsed, sqlglot.exp.Select):
+            return sql
+
+        alias_contracts: dict[tuple[str, str], str] = {}
+        for item in dimension_groundings:
+            candidates = item.get("candidates") or []
+            if not candidates:
+                continue
+            candidate = max(
+                candidates,
+                key=lambda value: float(value.get("score") or 0.0),
+            )
+            expected_alias = str(candidate.get("candidate_id") or "").strip()
+            source_column = self._direct_dimension_column(candidate.get("expression"))
+            if expected_alias and source_column:
+                alias_contracts[source_column] = expected_alias
+
+        table_aliases = {
+            table.alias_or_name.casefold(): table.name.casefold()
+            for table in parsed.find_all(sqlglot.exp.Table)
+            if table.alias_or_name
+            and table.name
+            and table.find_ancestor(sqlglot.exp.Select) is parsed
+        }
+
+        normalized_count = 0
+        for projection in parsed.expressions:
+            if not isinstance(projection, sqlglot.exp.Alias):
+                continue
+            expression = projection.this
+            if not isinstance(expression, sqlglot.exp.Column):
+                continue
+            table_name = table_aliases.get(
+                expression.table.casefold(),
+                expression.table.casefold(),
+            )
+            expected_alias = alias_contracts.get(
+                (table_name, expression.name.casefold())
+            )
+            if not expected_alias or projection.alias.casefold() == expected_alias.casefold():
+                continue
+            projection.set("alias", sqlglot.exp.to_identifier(expected_alias))
+            normalized_count += 1
+
+        if not normalized_count:
+            return sql
+        logger.info("已按 Grounding 规范化 %s 个维度输出别名", normalized_count)
+        return parsed.sql(dialect="duckdb")
+
+    @staticmethod
+    def _direct_dimension_column(expression: object) -> tuple[str, str] | None:
+        """仅接受单个直接物理列；派生维度表达式保持模型原样并交给 Guard。"""
+        if not isinstance(expression, str) or not expression.strip():
+            return None
+        try:
+            parsed = sqlglot.parse_one(
+                f"SELECT {expression}",
+                dialect="duckdb",
+            )
+        except Exception:
+            return None
+        if not isinstance(parsed, sqlglot.exp.Select) or len(parsed.expressions) != 1:
+            return None
+        projection = parsed.expressions[0]
+        if not isinstance(projection, sqlglot.exp.Column) or not projection.table:
+            return None
+        return projection.table.casefold(), projection.name.casefold()
 
     @staticmethod
     def _format_intent(analysis_intent: Dict[str, Any]) -> str:
